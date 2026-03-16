@@ -1,0 +1,60 @@
+; -*- coding: utf-8 -*-
+(target :45gs02)  ; cible pour le script cl-asm
+
+;; mega65-minimal.lasm
+;; Programme minimaliste Mega65 : affiche "HELLO WORLD" a l'ecran.
+;;
+;; Assemblage :
+;;   ./cl-asm examples/mega65-minimal.lasm
+;;
+;; Chargement Mega65 :
+;;   LOAD "MEGA65-MINIMAL.PRG"
+;;   RUN
+
+;; Layout memoire :
+;;   $2001 : stub BASIC (12 octets)
+;;   $200D : point d'entree du code machine
+
+(org #x2001)
+
+;; Stub BASIC : 10 SYS 8205
+;; $2001-$200A : la ligne BASIC "10 SYS 8205"
+;; $200B-$200C : $00 $00 = fin du programme BASIC
+;; $200D      : premier octet du code machine
+;;
+;; Structure d'une ligne BASIC :
+;;   [ptr_next 2 octets][num_ligne 2 octets][tokens...][NUL]
+;; ptr_next pointe sur l'octet suivant le NUL de fin de ligne
+(db #x0B #x20              ;; pointeur ligne suivante -> $200B
+    #x0A #x00              ;; numero de ligne 10
+    #x9E                   ;; token SYS
+    #x38 #x32 #x30 #x35   ;; "8205" en ASCII (= $200D decimal)
+    #x00                   ;; fin de la ligne BASIC
+    #x00 #x00)             ;; fin du programme BASIC ($200B-$200C)
+
+;; $200D : point d'entree
+(label 'start)
+
+;; Bordure et fond noirs
+(lda :imm 6)   ;; bleu
+(sta #xD020)
+(lda :imm 0)   ;; noir
+(sta #xD021)
+
+;; Ecrire "HELLO WORLD" en haut a gauche de l'ecran ($0800)
+;; Codes PETSCII ecran : H=8, E=5, L=12, L=12, O=15
+;;                       espace=32, W=23, O=15, R=18, L=12, D=4
+(let ((msg    '(8 5 12 12 15 32 23 15 18 12 4))
+      (screen #x0800))
+  (dotimes (i (length msg))
+    (lda :imm (nth i msg))
+    (sta (+ screen i))))
+
+;; Colorier les 11 caracteres en blanc (couleur 1) dans la RAM couleur
+(lda :imm 1)
+(dotimes (i 11)
+  (sta (+ #xD800 i)))
+
+;; Boucle infinie
+(label 'done)
+(jmp 'done)
