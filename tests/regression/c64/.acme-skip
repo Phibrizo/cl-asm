@@ -1,0 +1,10 @@
+# Fichiers à ignorer lors de la génération des références ACME.
+# Syntaxes trop divergentes pour une conversion automatique.
+
+# Les macros utilisent +MACRONAME en ACME vs NOM en cl-asm
+# et la syntaxe d'invocation ne peut pas être convertie automatiquement.
+05-macros
+
+# Les invocations de macros necessitent +NOM en ACME
+# impossible a convertir automatiquement sans parser le source.
+05-macros-nolabel

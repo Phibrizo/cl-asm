@@ -1,0 +1,7 @@
+# Fichiers à ignorer lors de la génération des références ca65.
+
+# Labels locaux __ dans les macros : ca65 ne les rend pas uniques
+# entre les invocations de la même macro.
+# Comportement testé par les 27 tests unitaires de macros.
+# Variante sans labels locaux : 05-macros-nolabel.asm
+05-macros

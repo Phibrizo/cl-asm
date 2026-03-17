@@ -1,0 +1,17 @@
+# SBCL fichiers compilés
+*.fasl
+*.fas
+*.lib
+
+# Fichiers temporaires
+*.prg
+*.bin
+*.lst
+/tmp/
+
+# Tests de régression : binaires de référence générés
+tests/regression/**/*.ref.prg
+
+# Éditeurs
+*~
+.DS_Store
