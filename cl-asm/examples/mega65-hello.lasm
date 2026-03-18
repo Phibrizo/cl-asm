@@ -1,0 +1,137 @@
+; -*- coding: utf-8 -*-
+(target :45gs02)  ; cible pour le script cl-asm
+
+;; mega65-hello.lasm
+;; Affiche "HELLO, MEGA65!" centre a l'ecran avec des couleurs.
+;;
+;; Assemblage : ./cl-asm examples/mega65-hello.lasm
+;; Chargement : LOAD "MEGA65-HELLO.PRG" : RUN
+
+;; --------------------------------------------------------------------------
+;;  Definitions Lisp pures (n'emettent AUCUN octet)
+;; --------------------------------------------------------------------------
+
+;; Couleurs
+(defparameter *black*       0)
+(defparameter *white*       1)
+(defparameter *red*         2)
+(defparameter *cyan*        3)
+(defparameter *purple*      4)
+(defparameter *green*       5)
+(defparameter *blue*        6)
+(defparameter *yellow*      7)
+(defparameter *orange*      8)
+(defparameter *light-green* 13)
+(defparameter *light-blue*  14)
+
+;; Conversion caractere -> code PETSCII ecran
+;; En mode texte Mega65 : A=1, B=2, ..., Z=26, chiffres=48-57
+(defun petscii (ch)
+  (let ((code (char-code ch)))
+    (cond
+      ((cl:and (>= code (char-code #\A)) (<= code (char-code #\Z)))
+       (- code (- (char-code #\A) 1)))
+      ((cl:and (>= code (char-code #\0)) (<= code (char-code #\9)))
+       (+ 48 (- code (char-code #\0))))
+      ((char= ch #\,)  44)
+      ((char= ch #\!)  33)
+      ((char= ch #\Space) 32)
+      (t 32))))
+
+;; --------------------------------------------------------------------------
+;;  Code assembleur — tout le code binaire commence ici
+;; --------------------------------------------------------------------------
+
+(org #x2001)
+
+;; Stub BASIC : 10 SYS 8205
+;; Taille du stub : 12 octets -> point d'entree a $2001+12 = $200D = 8205
+(db #x0B #x20        ;; ptr ligne suivante -> $200B
+    #x0A #x00        ;; ligne 10
+    #x9E             ;; SYS
+    #x38 #x32 #x30 #x35  ;; "8205"
+    #x00             ;; fin ligne
+    #x00 #x00)       ;; fin programme BASIC
+
+;; $200D : point d'entree
+(label 'start)
+
+;; Bordure bleue, fond noir
+(lda :imm *blue*)
+(sta #xD020)
+(lda :imm *black*)
+(sta #xD021)
+
+;; Effacer l'ecran : 4 boucles de 256 octets + 1 boucle de 232 octets
+;; = 1000 caracteres (40x25)
+(lda :imm 32)               ;; espace
+
+(ldx :imm 0)
+(label 'cls0) (sta :x #x0800) (inx) (bne 'cls0)
+(ldx :imm 0)
+(label 'cls1) (sta :x #x0900) (inx) (bne 'cls1)
+(ldx :imm 0)
+(label 'cls2) (sta :x #x0A00) (inx) (bne 'cls2)
+(ldx :imm 0)
+(label 'cls3) (sta :x #x0B00) (inx) (cpx :imm 232) (bne 'cls3)
+
+;; Effacer la RAM couleur de la meme facon (blanc par defaut)
+(lda :imm *white*)
+(ldx :imm 0)
+(label 'col0) (sta :x #xD800) (inx) (bne 'col0)
+(ldx :imm 0)
+(label 'col1) (sta :x #xD900) (inx) (bne 'col1)
+(ldx :imm 0)
+(label 'col2) (sta :x #xDA00) (inx) (bne 'col2)
+(ldx :imm 0)
+(label 'col3) (sta :x #xDB00) (inx) (cpx :imm 232) (bne 'col3)
+
+;; Afficher "HELLO, MEGA65!" centre sur la ligne 12
+;; Offset = 12*40 + 13 = 493 = $01ED
+(let* ((msg "HELLO, MEGA65!")
+       (len (length msg))
+       (offset 493))
+  (dotimes (i len)
+    (lda :imm (petscii (char msg i)))
+    (sta (+ #x0800 offset i))))
+
+;; Colorier le message : arc-en-ciel
+(let* ((palette (list *yellow* *orange* *red* *purple*
+                      *blue* *cyan* *green* *light-green*
+                      *white* *yellow* *orange* *red*
+                      *purple* *white*))
+       (offset  493))
+  (dotimes (i (length palette))
+    (lda :imm (nth i palette))
+    (sta (+ #xD800 offset i))))
+
+;; Barre de decoration sous le message (ligne 13, offset 533)
+(lda :imm #x60)             ;; tiret horizontal PETSCII
+(lda :imm *cyan*)
+(let ((offset 533))
+  (dotimes (i (length "HELLO, MEGA65!"))
+    (lda :imm #x60)
+    (sta (+ #x0800 offset i))
+    (lda :imm *cyan*)
+    (sta (+ #xD800 offset i))))
+
+;; Animation de la bordure
+(label 'blink)
+(let ((palette (list *blue* *light-blue* *cyan* *white*
+                     *cyan* *light-blue* *blue* *black*)))
+  (dotimes (i (length palette))
+    (lda :imm (nth i palette))
+    (sta #xD020)
+    ;; Delai : boucle X*Y
+    (ldx :imm #xFF)
+    (let ((lo (intern (format nil "DLO~D" i) 'cl-asm/lasm))
+          (hi (intern (format nil "DHI~D" i) 'cl-asm/lasm)))
+      (label hi)
+      (ldy :imm #xFF)
+      (label lo)
+      (dey)
+      (bne lo)
+      (dex)
+      (bne hi))))
+
+(jmp 'blink)
