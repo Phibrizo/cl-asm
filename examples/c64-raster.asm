@@ -1,4 +1,8 @@
 ; -*- coding: utf-8 -*-
+; Converti depuis c64-raster.asm par acme2clasm
+; Verifier les lignes marquees TODO avant assemblage
+
+; -*- coding: utf-8 -*-
 ; target: 6502
 ; examples/c64-raster.asm
 ;
@@ -20,36 +24,36 @@
 ;  Constantes materielles C64
 ; --------------------------------------------------------------------------
 
-BORDER_COLOR  = $D020       ; couleur de bordure
-BG_COLOR      = $D021       ; couleur de fond
-RASTER_LINE   = $D012       ; ligne raster courante (bits 0-7)
-CONTROL_REG   = $D011       ; controle VIC-II (bit 7 = bit 8 du raster)
-IRQ_STATUS    = $D019       ; status IRQ VIC-II
-IRQ_ENABLE    = $D01A       ; activation IRQ VIC-II
-CIA1_ICR      = $DC0D       ; CIA1 interrupt control register
-IRQ_VECTOR    = $0314       ; vecteur IRQ noyau C64
+BORDER_COLOR = $D020
+BG_COLOR = $D021
+RASTER_LINE = $D012
+CONTROL_REG = $D011
+IRQ_STATUS = $D019
+IRQ_ENABLE = $D01A
+CIA1_ICR = $DC0D
+IRQ_VECTOR = $0314
 
 ; Palette C64
-BLACK         = 0
-WHITE         = 1
-RED           = 2
-CYAN          = 3
-PURPLE        = 4
-GREEN         = 5
-BLUE          = 6
-YELLOW        = 7
-ORANGE        = 8
-LIGHT_RED     = 10
-LIGHT_BLUE    = 14
+BLACK = 0
+WHITE = 1
+RED = 2
+CYAN = 3
+PURPLE = 4
+GREEN = 5
+BLUE = 6
+YELLOW = 7
+ORANGE = 8
+LIGHT_RED = 10
+LIGHT_BLUE = 14
 
 ; Parametres du raster bar
-RASTER_START  = 50          ; premiere ligne du bar
+RASTER_START = 50
 
 ; --------------------------------------------------------------------------
 ;  Options de compilation
 ; --------------------------------------------------------------------------
 
-DEBUG         = 0           ; 1 = affiche compteur IRQ en haut a gauche
+DEBUG = 0
 
 ; --------------------------------------------------------------------------
 ;  Stub BASIC : 10 SYS 2064
@@ -73,6 +77,7 @@ DEBUG         = 0           ; 1 = affiche compteur IRQ en haut a gauche
 ; WAIT_RASTER line : boucle jusqu'a ce que le raster atteigne LINE
 .macro WAIT_RASTER line
 __wait:
+    :
         lda RASTER_LINE
         cmp #line
         bne __wait
@@ -89,6 +94,7 @@ __wait:
 ; --------------------------------------------------------------------------
 
 main:
+    :
         sei                         ; couper les interruptions
 
         ; Desactiver les IRQ CIA (timers) pour eviter les conflits
@@ -126,6 +132,7 @@ main:
 
 ; Boucle principale
 loop:
+    :
         jmp loop
 
 
@@ -134,6 +141,7 @@ loop:
 ; --------------------------------------------------------------------------
 
 raster_irq:
+    :
         pha                         ; sauvegarder A, X, Y
         txa
         pha
