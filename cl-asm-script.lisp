@@ -41,12 +41,22 @@
 
 (require :asdf)
 
+(defun find-cl-asm-asd (script-dir)
+  "Cherche cl-asm.asd depuis script-dir, puis dans le répertoire courant."
+  (let ((candidates (list
+                     (merge-pathnames "cl-asm.asd" script-dir)
+                     (merge-pathnames "cl-asm.asd" *default-pathname-defaults*))))
+    (find-if #'probe-file candidates)))
+
 (defun load-cl-asm (script-dir)
-  "Charge cl-asm depuis le répertoire du script."
-  (let ((asd (merge-pathnames "cl-asm.asd" script-dir)))
-    (when (probe-file asd)
-      (pushnew script-dir asdf:*central-registry* :test #'equal)
-      (asdf:load-system "cl-asm" :verbose nil))))
+  "Charge cl-asm en cherchant cl-asm.asd depuis le répertoire du script."
+  (let ((asd (find-cl-asm-asd script-dir)))
+    (if asd
+        (let ((dir (make-pathname :name nil :type nil :defaults asd)))
+          (pushnew dir asdf:*central-registry* :test #'equal)
+          (asdf:load-system "cl-asm" :verbose nil))
+        (error "cl-asm.asd introuvable (cherché dans ~A et ~A)"
+               script-dir *default-pathname-defaults*))))
 
 ;;; --------------------------------------------------------------------------
 ;;; Utilitaires
@@ -144,21 +154,11 @@
   (format t "  -h, --help       Cette aide~%"))
 
 (defun get-script-dir ()
-  "Retourne le répertoire contenant le script en cours d'exécution."
-  #+sbcl
-  (let* ((argv sb-ext:*posix-argv*)
-         (pos  (position "--script" argv :test #'string=))
-         (path (when pos (nth (1+ pos) argv))))
-    (if path
-        (make-pathname :name nil :type nil :defaults (truename path))
-        *default-pathname-defaults*))
-  #+clisp
-  (make-pathname :name nil :type nil :defaults (truename *load-pathname*))
-  #+ecl
-  (make-pathname :name nil :type nil
-                 :defaults (truename (first (si:command-args))))
-  #-(or sbcl clisp ecl)
-  *default-pathname-defaults*)
+  "Retourne le répertoire du script cl-asm via la variable d'environnement CL_ASM_DIR."
+  (let ((env (uiop:getenv "CL_ASM_DIR")))
+    (if (and env (> (length env) 0))
+        (pathname (concatenate 'string env "/"))
+        *default-pathname-defaults*)))
 
 (defun main ()
   (let ((args (get-script-args))
