@@ -1,0 +1,30 @@
+#!/bin/sh
+# cl-asm -- Assembleur multi-architecture en Common Lisp
+# Détecte automatiquement SBCL, CLISP ou ECL.
+#
+# Usage :
+#   ./cl-asm source.asm
+#   ./cl-asm source.asm -o sortie.prg
+#   ./cl-asm source.asm -o sortie.bin --format bin
+#   ./cl-asm source.asm --origin 0xC000
+#   ./cl-asm source.asm --target 45gs02
+#   ./cl-asm source.asm -v
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LISP_SCRIPT="$SCRIPT_DIR/cl-asm-script.lisp"
+
+if [ ! -f "$LISP_SCRIPT" ]; then
+    echo "Erreur : cl-asm-script.lisp introuvable dans $SCRIPT_DIR" >&2
+    exit 1
+fi
+
+if command -v sbcl >/dev/null 2>&1; then
+    exec sbcl --noinform --script "$LISP_SCRIPT" -- "$@"
+elif command -v clisp >/dev/null 2>&1; then
+    exec clisp -q "$LISP_SCRIPT" -- "$@"
+elif command -v ecl >/dev/null 2>&1; then
+    exec ecl --load "$LISP_SCRIPT" -- "$@"
+else
+    echo "Erreur : SBCL, CLISP ou ECL requis." >&2
+    exit 1
+fi

@@ -77,7 +77,6 @@ DEBUG = 0
 ; WAIT_RASTER line : boucle jusqu'a ce que le raster atteigne LINE
 .macro WAIT_RASTER line
 __wait:
-    :
         lda RASTER_LINE
         cmp #line
         bne __wait
@@ -94,7 +93,6 @@ __wait:
 ; --------------------------------------------------------------------------
 
 main:
-    :
         sei                         ; couper les interruptions
 
         ; Desactiver les IRQ CIA (timers) pour eviter les conflits
@@ -132,7 +130,6 @@ main:
 
 ; Boucle principale
 loop:
-    :
         jmp loop
 
 
@@ -141,7 +138,6 @@ loop:
 ; --------------------------------------------------------------------------
 
 raster_irq:
-    :
         pha                         ; sauvegarder A, X, Y
         txa
         pha
