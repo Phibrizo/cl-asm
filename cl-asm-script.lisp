@@ -2,16 +2,6 @@
 ;;;
 ;;; cl-asm-script.lisp -- Script ligne de commande pour cl-asm
 ;;;
-;;; Usage (via le wrapper shell cl-asm) :
-;;;   ./cl-asm source.asm
-;;;   ./cl-asm source.asm -o sortie.prg
-;;;   ./cl-asm source.asm -o sortie.bin --format bin
-;;;   ./cl-asm source.asm --origin 0xC000
-;;;   ./cl-asm source.asm --target 45gs02
-;;;   ./cl-asm source.asm --target x16
-;;;   ./cl-asm source.asm --target r65c02
-;;;   ./cl-asm source.asm -v
-;;;
 ;;; Compatible SBCL, CLISP et ECL.
 ;;;
 
@@ -27,13 +17,35 @@
   #+clisp ext:*args*
   #+ecl   (rest (si:command-args))
   #-(or sbcl clisp ecl)
-  (error "Implémentation Lisp non supportée (utiliser SBCL, CLISP ou ECL)"))
+  (error "Unsupported Lisp implementation (use SBCL, CLISP or ECL)"))
 
 (defun exit-lisp (code)
   #+sbcl  (sb-ext:exit :code code)
   #+clisp (ext:exit code)
   #+ecl   (si:exit code)
-  #-(or sbcl clisp ecl) (error "exit non disponible"))
+  #-(or sbcl clisp ecl) (error "exit not available"))
+
+;;; --------------------------------------------------------------------------
+;;; Internationalisation (i18n)
+;;; --------------------------------------------------------------------------
+
+(defun getenv (name)
+  "Lit une variable d'environnement de façon portable."
+  #+sbcl  (sb-ext:posix-getenv name)
+  #+clisp (ext:getenv name)
+  #+ecl   (si:getenv name)
+  #-(or sbcl clisp ecl) nil)
+
+(defparameter *lang*
+  (let ((lang (or (getenv "LANG") (getenv "LANGUAGE") "")))
+    (if (and (>= (length lang) 2)
+             (string= (subseq lang 0 2) "fr"))
+        :fr
+        :en)))
+
+(defun msg (fr en)
+  "Retourne FR ou EN selon la langue détectée."
+  (if (eq *lang* :fr) fr en))
 
 ;;; --------------------------------------------------------------------------
 ;;; Chargement de ASDF et cl-asm
@@ -42,20 +54,19 @@
 (require :asdf)
 
 (defun find-cl-asm-asd (script-dir)
-  "Cherche cl-asm.asd depuis script-dir, puis dans le répertoire courant."
   (let ((candidates (list
                      (merge-pathnames "cl-asm.asd" script-dir)
                      (merge-pathnames "cl-asm.asd" *default-pathname-defaults*))))
     (find-if #'probe-file candidates)))
 
 (defun load-cl-asm (script-dir)
-  "Charge cl-asm en cherchant cl-asm.asd depuis le répertoire du script."
   (let ((asd (find-cl-asm-asd script-dir)))
     (if asd
         (let ((dir (make-pathname :name nil :type nil :defaults asd)))
           (pushnew dir asdf:*central-registry* :test #'equal)
           (asdf:load-system "cl-asm" :verbose nil))
-        (error "cl-asm.asd introuvable (cherché dans ~A et ~A)"
+        (error (msg "cl-asm.asd introuvable (cherche dans ~A et ~A)"
+                    "cl-asm.asd not found (looked in ~A and ~A)")
                script-dir *default-pathname-defaults*))))
 
 ;;; --------------------------------------------------------------------------
@@ -67,7 +78,6 @@
        (string= str prefix :end1 (length prefix))))
 
 (defun parse-integer-auto (s)
-  "Parse un entier en décimal, hex (0x/$) ou binaire (%/0b)."
   (cond
     ((or (starts-with s "0x") (starts-with s "0X"))
      (parse-integer s :start 2 :radix 16))
@@ -81,14 +91,12 @@
      (parse-integer s))))
 
 (defun default-output (input fmt)
-  "Retourne le nom de sortie par défaut selon le format."
   (let* ((s (namestring input))
          (dot (position #\. s :from-end t))
          (base (if dot (subseq s 0 dot) s)))
     (concatenate 'string base "." (string-downcase (symbol-name fmt)))))
 
 (defun detect-target (source-path)
-  "Détecte la cible depuis les premières lignes du fichier source."
   (with-open-file (in source-path :if-does-not-exist nil)
     (when in
       (loop repeat 10
@@ -110,20 +118,18 @@
 ;;; --------------------------------------------------------------------------
 
 (defun call (package-name function-name &rest args)
-  "Appelle PACKAGE-NAME:FUNCTION-NAME avec ARGS de façon dynamique."
   (apply (find-symbol (string function-name) (string package-name)) args))
 
 (defun assemble-source (source-path target origin verbose)
-  "Assemble le fichier et retourne un vecteur d'octets."
   (when verbose
-    (format t "Cible : ~A  Origine : $~4,'0X~%" target origin))
+    (format t (msg "Cible : ~A  Origine : $~4,'0X~%"
+                   "Target: ~A  Origin: $~4,'0X~%")
+            target origin))
   (let ((ext (pathname-type source-path)))
     (cond
-      ;; Fichiers .lasm — frontend Lisp natif
       ((string-equal ext "lasm")
        (call "CL-ASM/LASM" "ASSEMBLE-LASM"
              source-path :origin origin :target target))
-      ;; Fichiers .asm — syntaxe classique
       (t
        (ecase target
          (:6502
@@ -140,22 +146,32 @@
                 source-path :origin origin)))))))
 
 ;;; --------------------------------------------------------------------------
-;;; Point d'entrée
+;;; Point d'entree
 ;;; --------------------------------------------------------------------------
 
 (defun print-usage ()
-  (format t "Usage: cl-asm SOURCE [options]~%~%")
-  (format t "Options:~%")
-  (format t "  -o FILE          Fichier de sortie~%")
-  (format t "  -f, --format FMT Format : prg (defaut) ou bin~%")
-  (format t "  --origin ADDR    Adresse d'origine (ex: 0x0801, $0801)~%")
-  (format t "  -t, --target T   Cible : 6502 (defaut), 45gs02, x16, r65c02~%")
-  (format t "  -v, --verbose    Mode verbose~%")
-  (format t "  -h, --help       Cette aide~%"))
+  (if (eq *lang* :fr)
+      (progn
+        (format t "Usage: cl-asm SOURCE [options]~%~%")
+        (format t "Options:~%")
+        (format t "  -o FILE          Fichier de sortie~%")
+        (format t "  -f, --format FMT Format : prg (defaut) ou bin~%")
+        (format t "  --origin ADDR    Adresse d'origine (ex: 0x0801, $0801)~%")
+        (format t "  -t, --target T   Cible : 6502 (defaut), 45gs02, x16, r65c02~%")
+        (format t "  -v, --verbose    Mode verbose~%")
+        (format t "  -h, --help       Cette aide~%"))
+      (progn
+        (format t "Usage: cl-asm SOURCE [options]~%~%")
+        (format t "Options:~%")
+        (format t "  -o FILE          Output file~%")
+        (format t "  -f, --format FMT Format: prg (default) or bin~%")
+        (format t "  --origin ADDR    Origin address (e.g. 0x0801, $0801)~%")
+        (format t "  -t, --target T   Target: 6502 (default), 45gs02, x16, r65c02~%")
+        (format t "  -v, --verbose    Verbose mode~%")
+        (format t "  -h, --help       Show this help~%"))))
 
 (defun get-script-dir ()
-  "Retourne le répertoire du script cl-asm via la variable d'environnement CL_ASM_DIR."
-  (let ((env (uiop:getenv "CL_ASM_DIR")))
+  (let ((env (getenv "CL_ASM_DIR")))
     (if (and env (> (length env) 0))
         (pathname (concatenate 'string env "/"))
         *default-pathname-defaults*)))
@@ -164,20 +180,18 @@
   (let ((args (get-script-args))
         (script-dir (get-script-dir)))
 
-    ;; Aide
     (when (or (null args)
               (member "--help" args :test #'string=)
               (member "-h" args :test #'string=))
       (print-usage)
       (exit-lisp 0))
 
-    ;; Parser les arguments
-    (let ((input    nil)
-          (output   nil)
-          (format   :prg)
-          (origin   #x0801)
-          (target   nil)
-          (verbose  nil))
+    (let ((input   nil)
+          (output  nil)
+          (format  :prg)
+          (origin  #x0801)
+          (target  nil)
+          (verbose nil))
 
       (let ((i 0))
         (loop while (< i (length args))
@@ -209,42 +223,49 @@
                     (incf i))
                    (t (incf i)))))
 
-      ;; Vérifications
       (unless input
-        (format *error-output* "Erreur : fichier source manquant.~%")
+        (format *error-output*
+                (msg "Erreur : fichier source manquant.~%"
+                     "Error: missing source file.~%"))
         (print-usage)
         (exit-lisp 1))
 
       (unless (probe-file input)
-        (format *error-output* "Erreur : fichier introuvable : ~A~%" input)
+        (format *error-output*
+                (msg "Erreur : fichier introuvable : ~A~%"
+                     "Error: file not found: ~A~%")
+                input)
         (exit-lisp 1))
 
-      ;; Détection automatique de la cible si non spécifiée
       (unless target
         (setf target (or (detect-target input) :6502)))
 
-      ;; Fichier de sortie par défaut
       (unless output
         (setf output (default-output input format)))
 
-      ;; Charger cl-asm
       (handler-case
           (load-cl-asm script-dir)
         (error (e)
-          (format *error-output* "Erreur chargement cl-asm : ~A~%" e)
+          (format *error-output*
+                  (msg "Erreur chargement cl-asm : ~A~%"
+                       "Error loading cl-asm: ~A~%")
+                  e)
           (exit-lisp 1)))
 
-      ;; Assembler
       (when verbose
-        (format t "Assemblage de ~A...~%" input))
+        (format t (msg "Assemblage de ~A...~%"
+                       "Assembling ~A...~%")
+                input))
 
       (let ((bytes (handler-case
                        (assemble-source input target origin verbose)
                      (error (e)
-                       (format *error-output* "Erreur assemblage : ~A~%" e)
+                       (format *error-output*
+                               (msg "Erreur assemblage : ~A~%"
+                                    "Assembly error: ~A~%")
+                               e)
                        (exit-lisp 1)))))
 
-        ;; Écrire le fichier de sortie
         (handler-case
             (ecase format
               (:prg (call "CL-ASM/EMIT" "WRITE-PRG"
@@ -252,9 +273,14 @@
               (:bin (call "CL-ASM/EMIT" "WRITE-BIN"
                           bytes output)))
           (error (e)
-            (format *error-output* "Erreur écriture : ~A~%" e)
+            (format *error-output*
+                    (msg "Erreur ecriture : ~A~%"
+                         "Write error: ~A~%")
+                    e)
             (exit-lisp 1)))
 
-        (format t "~A -> ~A (~D octets)~%" input output (length bytes))))))
+        (format t "~A -> ~A (~D ~A)~%"
+                input output (length bytes)
+                (msg "octets" "bytes"))))))
 
 (main)
