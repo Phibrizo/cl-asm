@@ -7,9 +7,9 @@ backends (Z80, 68000…) sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.1.1**
+**Version courante : 0.1.2**
 
-```lisp
+```
 cl-asm/version:+version+         ; → "0.1.2"
 cl-asm/version:+version-major+   ; → 0
 cl-asm/version:+version-minor+   ; → 1
@@ -22,7 +22,7 @@ cl-asm/version:+version-patch+   ; → 2
 ## État du projet
 
 | Module | État | Tests |
-|---|---|---|
+| --- | --- | --- |
 | IR (Représentation intermédiaire) | ✓ | — |
 | Évaluateur d'expressions | ✓ | 129 |
 | Table des symboles | ✓ | 59 |
@@ -31,7 +31,6 @@ cl-asm/version:+version-patch+   ; → 2
 | Backend 6502 | ✓ | 82 |
 | Backend 45GS02 | ✓ | 80 |
 | Backend 65C02 (X16) | ✓ | 41 |
-| Backend R65C02 (Rockwell) | ✓ | 117 |
 | Backend R65C02 (Rockwell) | ✓ | 117 |
 | Émetteurs BIN / PRG / listing | ✓ | — |
 | Macros textuelles | ✓ | 27 |
@@ -44,17 +43,26 @@ cl-asm/version:+version-patch+   ; → 2
 
 ## Prérequis
 
-- **SBCL** 2.x (recommandé) ou **CLISP** 2.49.95+
-- **ASDF** 3.x (inclus dans SBCL)
-- **Quicklisp** (optionnel, recommandé)
+* **SBCL** 2.x (recommandé), **CLISP** 2.49.95+, ou **ECL** 21.x+
+* **ASDF** 3.x (inclus dans SBCL)
+* **Quicklisp** (optionnel, recommandé)
 
 Installation de SBCL :
 
-```bash
+```
 sudo pacman -S sbcl      # Arch / Manjaro
 sudo apt install sbcl    # Debian / Ubuntu
 sudo dnf install sbcl    # Fedora
 brew install sbcl        # macOS
+```
+
+Installation de ECL :
+
+```
+sudo pacman -S ecl       # Arch / Manjaro
+sudo apt install ecl     # Debian / Ubuntu
+sudo dnf install ecl     # Fedora
+brew install ecl         # macOS
 ```
 
 ---
@@ -68,7 +76,8 @@ cl-asm/
 ├── run-tests.sh            script de tests SBCL
 ├── run-tests-clisp.sh      script de tests CLISP
 ├── cl-asm                  script ligne de commande
-├── acme2clasm              convertisseur ACME → cl-asm
+├── acme2clasm              convertisseur ACME → cl-asm (wrapper shell)
+├── acme2clasm.lisp         convertisseur ACME → cl-asm (moteur Common Lisp)
 ├── src/
 │   ├── core/
 │   │   ├── version.lisp        numéro de version
@@ -117,7 +126,7 @@ Trois méthodes coexistent — elles produisent toutes la même sortie.
 
 ### Méthode 1 — scripts shell (sans ASDF)
 
-```bash
+```
 cd cl-asm/
 ./run-tests.sh          # SBCL
 ./run-tests-clisp.sh    # CLISP
@@ -125,21 +134,21 @@ cd cl-asm/
 
 ### Méthode 2 — ASDF depuis un REPL
 
-```lisp
+```
 ;; Lance les tests en une commande
 (asdf:test-system "cl-asm")
 ```
 
 Pour forcer la recompilation complète :
 
-```lisp
+```
 (asdf:load-system "cl-asm" :force t)
 (asdf:test-system "cl-asm")
 ```
 
 ### Méthode 3 — chargement et test séparés (recommandé en développement)
 
-```lisp
+```
 (ql:quickload "cl-asm/tests")
 (cl-asm/test:run-all-tests)
 ```
@@ -171,7 +180,7 @@ Résultat attendu :
 
 ### Installer Quicklisp (une seule fois)
 
-```bash
+```
 curl -O https://beta.quicklisp.org/quicklisp.lisp
 sbcl --load quicklisp.lisp \
      --eval "(quicklisp-quickstart:install)" \
@@ -181,19 +190,19 @@ sbcl --load quicklisp.lisp \
 
 ### Enregistrer cl-asm dans Quicklisp
 
-```bash
+```
 ln -s /chemin/vers/cl-asm ~/quicklisp/local-projects/cl-asm
 ```
 
 Puis dans le REPL :
 
-```lisp
+```
 (ql:register-local-projects)
 ```
 
 ### Charger et tester depuis n'importe quel REPL
 
-```lisp
+```
 (ql:quickload "cl-asm")           ; charger
 (ql:quickload "cl-asm/tests")     ; charger avec les tests
 (cl-asm/test:run-all-tests)       ; lancer les tests
@@ -202,7 +211,7 @@ Puis dans le REPL :
 
 ### Workflow de développement typique
 
-```lisp
+```
 (ql:quickload "cl-asm/tests")
 (cl-asm/test:run-all-tests)
 
@@ -217,7 +226,7 @@ Puis dans le REPL :
 
 ### Assembler du code 6502
 
-```lisp
+```
 (ql:quickload "cl-asm")
 
 ;; Assembler → vecteur d'octets
@@ -245,7 +254,7 @@ Puis dans le REPL :
 
 ### Assembler du code 45GS02 (Mega65)
 
-```lisp
+```
 (cl-asm/backend.45gs02:assemble-string-45gs02
   ".org $2001
    LDZ #$00
@@ -254,21 +263,9 @@ Puis dans le REPL :
    RTS")
 ```
 
-### Assembler du code R65C02 (Rockwell — manipulation de bits)
-
-```lisp
-(cl-asm/backend.r65c02:assemble-string-r65c02
-  ".org $1000
-   SMB3 $10        ; mettre le bit 3 de l'adresse $10 à 1
-   BBR3 $10, skip  ; branche si le bit 3 est à 0 (non pris ici)
-   RMB3 $10        ; remettre le bit 3 à 0
-   skip:
-   RTS")
-```
-
 ### Assembler du code 65C02 (Commander X16)
 
-```lisp
+```
 (cl-asm/backend.65c02:assemble-string-65c02
   ".org $0801
    BRA start
@@ -279,9 +276,21 @@ Puis dans le REPL :
    RTS")
 ```
 
+### Assembler du code R65C02 (Rockwell — manipulation de bits)
+
+```
+(cl-asm/backend.r65c02:assemble-string-r65c02
+  ".org $1000
+   SMB3 $10        ; mettre le bit 3 de l'adresse $10 à 1
+   BBR3 $10, skip  ; branche si le bit 3 est à 0 (non pris ici)
+   RMB3 $10        ; remettre le bit 3 à 0
+   skip:
+   RTS")
+```
+
 ### Pipeline complet : parse puis assemble
 
-```lisp
+```
 (let* ((program (cl-asm/parser:parse-string
                   "start:
                    LDA #$00
@@ -295,16 +304,16 @@ Puis dans le REPL :
 ## Formats de sortie
 
 | Format | Fonction | Description |
-|---|---|---|
+| --- | --- | --- |
 | BIN | `write-bin` | Binaire brut, sans header |
 | PRG | `write-prg` | Format C64 : 2 octets header LE + binaire |
-| LST | `write-listing` | Listing annoté : adresse | hex | source |
+| LST | `write-listing` | Listing annoté : adresse |
 
 ---
 
 ## Syntaxe assembleur supportée
 
-```asm
+```
 ; Commentaires avec ;  ou  // (style C)
 
 SCREEN  = $0400            ; constante
@@ -339,6 +348,12 @@ main::                     ; label global (ca65-style)
         inc A              ; incrément accumulateur
         lda ($10)          ; indirect ZP sans index
 
+; Instructions R65C02 supplémentaires (Rockwell, manipulation de bits)
+        rmb3 $10           ; reset bit 3 de $10
+        smb3 $10           ; set bit 3 de $10
+        bbr3 $10, label    ; branche si bit 3 de $10 est à 0
+        bbs3 $10, label    ; branche si bit 3 de $10 est à 1
+
 ; Modes 45GS02 supplémentaires
         lda ($00),Z        ; (indirect),Z
         lda $1234,Z        ; absolu,Z
@@ -369,19 +384,26 @@ PLATFORM = 64
 .else
     LDA #<M65_SCREEN
 .endif
+
+; Expressions
+        lda #<VEC          ; octet bas
+        lda #>VEC          ; octet haut
+        lda BASE+1
+        lda #(COLS * 2 + 1)
 ```
 
 ---
 
 ## Ligne de commande
 
-```bash
+```
 ./cl-asm programme.asm               # → programme.prg (6502, $0801)
 ./cl-asm programme.asm -o demo.prg   # fichier de sortie explicite
 ./cl-asm programme.asm -o demo.bin --format bin
 ./cl-asm programme.asm --origin 0xC000
 ./cl-asm mega65.lasm --target 45gs02
 ./cl-asm prog.asm --target x16
+./cl-asm prog.asm --target r65c02
 ./cl-asm programme.asm -v            # mode verbose
 ./cl-asm --help
 ```
@@ -389,22 +411,23 @@ PLATFORM = 64
 ### Options
 
 | Option | Description | Défaut |
-|---|---|---|
+| --- | --- | --- |
 | `-o FILE` | Fichier de sortie | même nom, ext .prg |
 | `-f FORMAT` | `prg` ou `bin` | `prg` |
 | `--origin ADDR` | Adresse d'origine (ex: `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502`, `45gs02` ou `x16` | `6502` |
+| `-t TARGET` | `6502`, `45gs02`, `x16` ou `r65c02` | `6502` |
 | `-v` | Mode verbose | — |
 
 La cible est détectée automatiquement depuis les premières lignes du source :
-- `.asm` : `; target: 45gs02` ou `; target: x16`
-- `.lasm` : `(target :45gs02)`
+
+* `.asm` : `; target: 45gs02` ou `; target: x16`
+* `.lasm` : `(target :45gs02)`
 
 ---
 
 ## Frontend .lasm — syntaxe Lisp native
 
-```lisp
+```
 (ql:quickload "cl-asm")
 
 (cl-asm/lasm:assemble-lasm-string
@@ -421,14 +444,16 @@ La cible est détectée automatiquement depuis les premières lignes du source :
 ### Convention des modes d'adressage
 
 Sans keyword — mode déduit de la valeur :
-```lisp
+
+```
 (lda #x10)        ; LDA $10   (zero-page, valeur ≤ 255)
 (lda #x1234)      ; LDA $1234 (absolu, valeur > 255)
 (lda 'screen)     ; LDA SCREEN (symbole)
 ```
 
 Avec keyword — mode explicite :
-```lisp
+
+```
 (lda :imm #xFF)   ; LDA #$FF  (immédiat)
 (lda :x   #x10)   ; LDA $10,X (indexé X)
 (lda :ind #xFFFC) ; JMP ($FFFC) (indirect)
@@ -441,7 +466,7 @@ Avec keyword — mode explicite :
 
 ### Exemples avec Lisp natif
 
-```lisp
+```
 (dotimes (i 8)
   (lda :imm i)
   (sta (+ #xD800 i)))
@@ -455,7 +480,11 @@ Avec keyword — mode explicite :
 
 ## Convertisseur ACME
 
-```bash
+Le convertisseur `acme2clasm` est écrit en Common Lisp pur — aucune
+dépendance à Python. Il fonctionne avec SBCL, CLISP ou ECL, selon ce
+qui est disponible sur votre système.
+
+```
 ./acme2clasm source.s              # → source.asm
 ./acme2clasm source.s -o out.asm
 ./acme2clasm source.s --report     # affiche les avertissements
@@ -463,8 +492,14 @@ Avec keyword — mode explicite :
 
 Conversions : `!addr` → constante, `!byte`/`!8` → `.byte`,
 `!word`/`!16` → `.word`, `!pet` → `.byte` avec codes explicites,
+`!fill` → `.fill`, `!macro`/`!if` → `.macro`/`.if`,
 `!cpu m65` → `; target: 45gs02`, `!cpu 65c02` → `; target: x16`.
 Les caractères non-ASCII des commentaires sont normalisés en ASCII.
+
+Le convertisseur se compose de deux fichiers :
+
+* `acme2clasm` — wrapper shell, détecte automatiquement SBCL / CLISP / ECL
+* `acme2clasm.lisp` — moteur de conversion (Common Lisp ANSI standard)
 
 ---
 
@@ -473,7 +508,7 @@ Les caractères non-ASCII des commentaires sont normalisés en ASCII.
 SBCL compile les sources en `.fasl` lors du premier chargement ASDF.
 En cas d'erreur après modification des déclarations de packages :
 
-```bash
+```
 find cl-asm/ -name "*.fasl" -delete
 ```
 
@@ -482,10 +517,11 @@ find cl-asm/ -name "*.fasl" -delete
 ## Note sur l'encodage
 
 Tous les fichiers source utilisent UTF-8. La ligne `; -*- coding: utf-8 -*-`
-en tête de chaque fichier est nécessaire pour SBCL et les éditeurs.
+en tête de chaque fichier est nécessaire pour SBCL et les éditeurs
+(Emacs/SLIME, VS Code/SLY).
 
 ---
 
 ## Licence
 
-MIT — voir [LICENSE](LICENSE).
+MIT — voir [LICENSE](https://github.com/Phibrizo/cl-asm/blob/main/LICENSE).

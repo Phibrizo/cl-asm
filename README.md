@@ -9,7 +9,7 @@ backends (Z80, 68000…) without modifying the core.
 
 **Current version: 0.1.2**
 
-```lisp
+```
 cl-asm/version:+version+         ; → "0.1.2"
 cl-asm/version:+version-major+   ; → 0
 cl-asm/version:+version-minor+   ; → 1
@@ -22,7 +22,7 @@ cl-asm/version:+version-patch+   ; → 2
 ## Project Status
 
 | Module | Status | Tests |
-|---|---|---|
+| --- | --- | --- |
 | IR (Intermediate Representation) | ✓ | — |
 | Expression evaluator | ✓ | 129 |
 | Symbol table | ✓ | 59 |
@@ -43,17 +43,26 @@ cl-asm/version:+version-patch+   ; → 2
 
 ## Prerequisites
 
-- **SBCL** 2.x (recommended) or **CLISP** 2.49.95+
-- **ASDF** 3.x (included with SBCL)
-- **Quicklisp** (optional, recommended)
+* **SBCL** 2.x (recommended), **CLISP** 2.49.95+, or **ECL** 21.x+
+* **ASDF** 3.x (included with SBCL)
+* **Quicklisp** (optional, recommended)
 
 Installing SBCL:
 
-```bash
+```
 sudo pacman -S sbcl      # Arch / Manjaro
 sudo apt install sbcl    # Debian / Ubuntu
 sudo dnf install sbcl    # Fedora
 brew install sbcl        # macOS
+```
+
+Installing ECL:
+
+```
+sudo pacman -S ecl       # Arch / Manjaro
+sudo apt install ecl     # Debian / Ubuntu
+sudo dnf install ecl     # Fedora
+brew install ecl         # macOS
 ```
 
 ---
@@ -67,7 +76,8 @@ cl-asm/
 ├── run-tests.sh            SBCL test script
 ├── run-tests-clisp.sh      CLISP test script
 ├── cl-asm                  command-line script
-├── acme2clasm              ACME to cl-asm converter
+├── acme2clasm              ACME to cl-asm converter (shell wrapper)
+├── acme2clasm.lisp         ACME to cl-asm converter (Common Lisp engine)
 ├── src/
 │   ├── core/
 │   │   ├── version.lisp        version number
@@ -116,7 +126,7 @@ Three methods coexist — they all produce identical output.
 
 ### Method 1 — shell scripts (without ASDF)
 
-```bash
+```
 cd cl-asm/
 ./run-tests.sh          # SBCL
 ./run-tests-clisp.sh    # CLISP
@@ -124,7 +134,7 @@ cd cl-asm/
 
 ### Method 2 — ASDF from a REPL
 
-```lisp
+```
 ;; Run tests in one command (loads cl-asm/tests if needed)
 (asdf:test-system "cl-asm")
 ```
@@ -135,14 +145,14 @@ execute.
 
 To force full recompilation:
 
-```lisp
+```
 (asdf:load-system "cl-asm" :force t)
 (asdf:test-system "cl-asm")
 ```
 
 ### Method 3 — load and test separately (recommended for development)
 
-```lisp
+```
 ;; Load tests (recompiles only modified files)
 (ql:quickload "cl-asm/tests")   ; or (asdf:load-system "cl-asm/tests")
 
@@ -177,7 +187,7 @@ Expected output (all methods):
 
 ### Install Quicklisp (once)
 
-```bash
+```
 curl -O https://beta.quicklisp.org/quicklisp.lisp
 sbcl --load quicklisp.lisp \
      --eval "(quicklisp-quickstart:install)" \
@@ -190,7 +200,7 @@ every SBCL startup.
 
 ### Register cl-asm with Quicklisp
 
-```bash
+```
 # Symbolic link (recommended — project stays in place)
 ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
@@ -200,7 +210,7 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
 ### Load and test from any REPL
 
-```lisp
+```
 ;; Load the project
 (ql:quickload "cl-asm")
 
@@ -216,7 +226,7 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
 ### Typical development workflow
 
-```lisp
+```
 ;; First time: load everything
 (ql:quickload "cl-asm/tests")
 (cl-asm/test:run-all-tests)
@@ -233,7 +243,7 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
 ### Assemble 6502 code
 
-```lisp
+```
 (ql:quickload "cl-asm")
 
 ;; Assemble → byte vector
@@ -261,7 +271,7 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
 ### Assemble 45GS02 code (Mega65)
 
-```lisp
+```
 ;; Default origin: $2001 (Mega65 BASIC area)
 (cl-asm/backend.45gs02:assemble-string-45gs02
   ".org $2001
@@ -273,7 +283,7 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
 ### Assemble 65C02 code (Commander X16)
 
-```lisp
+```
 (cl-asm/backend.65c02:assemble-string-65c02
   ".org $0801
    BRA start
@@ -286,7 +296,7 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
 ### Assemble R65C02 code (Rockwell — bit manipulation)
 
-```lisp
+```
 ;; RMBn/SMBn: reset/set bit n of a zero-page address
 ;; BBRn/BBSn: branch if bit n of zero-page is reset/set
 (cl-asm/backend.r65c02:assemble-string-r65c02
@@ -300,7 +310,7 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
 ### Full pipeline: parse then assemble
 
-```lisp
+```
 (let* ((program (cl-asm/parser:parse-string
                   "start:
                    LDA #$00
@@ -314,16 +324,16 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 ## Output Formats
 
 | Format | Function | Description |
-|---|---|---|
+| --- | --- | --- |
 | BIN | `write-bin` | Raw binary, no header |
 | PRG | `write-prg` | C64 format: 2-byte LE header + binary |
-| LST | `write-listing` | Annotated listing: address | hex | source |
+| LST | `write-listing` | Annotated listing: address |
 
 ---
 
 ## Supported Assembly Syntax
 
-```asm
+```
 ; Comments with ;  or  // (C style)
 
 SCREEN  = $0400            ; constant
@@ -409,7 +419,7 @@ PLATFORM = 64
 
 The `cl-asm` script assembles a file directly from the terminal.
 
-```bash
+```
 # Assemble .asm → .prg (6502, default origin $0801)
 ./cl-asm programme.asm
 
@@ -438,7 +448,7 @@ The `cl-asm` script assembles a file directly from the terminal.
 ### Options
 
 | Option | Description | Default |
-|---|---|---|
+| --- | --- | --- |
 | `-o FILE` | Output file | same name, .prg extension |
 | `-f FORMAT` | `prg` or `bin` | `prg` |
 | `--origin ADDR` | Origin address (e.g. `0x0801`) | `0x0801` |
@@ -446,8 +456,9 @@ The `cl-asm` script assembles a file directly from the terminal.
 | `-v` | Verbose mode | — |
 
 Target is auto-detected from the first lines of the source file:
-- `.asm`: `; target: 45gs02` or `; target: x16`
-- `.lasm`: `(target :45gs02)`
+
+* `.asm`: `; target: 45gs02` or `; target: x16`
+* `.lasm`: `(target :45gs02)`
 
 ---
 
@@ -459,7 +470,7 @@ mnemonic is a function. The full power of CL is available: `let`,
 
 ### Usage
 
-```lisp
+```
 (ql:quickload "cl-asm")
 
 ;; Assemble from a string
@@ -480,14 +491,16 @@ mnemonic is a function. The full power of CL is available: `let`,
 ### Addressing mode convention
 
 Without keyword — mode inferred from value:
-```lisp
+
+```
 (lda #x10)        ; LDA $10   (zero-page, value ≤ 255)
 (lda #x1234)      ; LDA $1234 (absolute, value > 255)
 (lda 'screen)     ; LDA SCREEN (symbol, resolved at assembly)
 ```
 
 With keyword — explicit mode:
-```lisp
+
+```
 (lda :imm #xFF)   ; LDA #$FF  (immediate)
 (lda :x   #x10)   ; LDA $10,X (indexed X)
 (lda :y   #x1234) ; LDA $1234,Y (indexed Y)
@@ -501,7 +514,7 @@ With keyword — explicit mode:
 
 ### Native Lisp examples
 
-```lisp
+```
 ; Local constant
 (let ((black 0))
   (lda :imm black)
@@ -525,7 +538,11 @@ With keyword — explicit mode:
 
 ## ACME Converter
 
-```bash
+The `acme2clasm` converter is written in pure Common Lisp (no Python
+required). It runs with SBCL, CLISP, or ECL — whichever is available
+on your system.
+
+```
 ./acme2clasm source.s              # → source.asm
 ./acme2clasm source.s -o out.asm   # explicit output
 ./acme2clasm source.s --report     # show conversion warnings
@@ -537,6 +554,11 @@ Conversions performed: `!addr` → constant, `!byte`/`!8` → `.byte`,
 `!cpu m65` → `; target: 45gs02`, `!cpu 65c02` → `; target: x16`.
 Non-ASCII characters in comments are normalized to ASCII.
 
+The converter consists of two files:
+
+* `acme2clasm` — shell wrapper, auto-detects SBCL / CLISP / ECL
+* `acme2clasm.lisp` — conversion engine (standard ANSI Common Lisp)
+
 ---
 
 ## Note on `.fasl` files
@@ -546,7 +568,7 @@ Subsequent compilations are instant if sources have not changed.
 
 To force full recompilation after modifying package declarations:
 
-```bash
+```
 find cl-asm/ -name "*.fasl" -delete
 ```
 
@@ -562,4 +584,4 @@ VS Code/SLY).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/Phibrizo/cl-asm/blob/main/LICENSE).

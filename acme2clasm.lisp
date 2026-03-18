@@ -24,13 +24,16 @@
       (if sep (rest sep) nil)))
   #+clisp
   ext:*args*
-  #-(or sbcl clisp)
-  (error "Implémentation Lisp non supportée (utiliser SBCL ou CLISP)"))
+  #+ecl
+  (rest (si:command-args))
+  #-(or sbcl clisp ecl)
+  (error "Implémentation Lisp non supportée (utiliser SBCL, CLISP ou ECL)"))
 
 (defun exit-lisp (code)
   #+sbcl  (sb-ext:exit :code code)
   #+clisp (ext:exit code)
-  #-(or sbcl clisp) (error "exit non disponible"))
+  #+ecl   (si:exit code)
+  #-(or sbcl clisp ecl) (error "exit non disponible"))
 
 ;;; --------------------------------------------------------------------------
 ;;; Utilitaires chaînes
@@ -500,7 +503,8 @@
                           :external-format
                           #+sbcl  :utf-8
                           #+clisp charset:utf-8
-                          #-(or sbcl clisp) :default
+                          #+ecl   :utf-8
+                          #-(or sbcl clisp ecl) :default
                           :if-does-not-exist nil)
     (unless in
       (error "Fichier introuvable : ~A" path))
@@ -604,7 +608,8 @@
                                         :external-format
                                         #+sbcl  :utf-8
                                         #+clisp charset:utf-8
-                                        #-(or sbcl clisp) :default)
+                                        #+ecl   :utf-8
+                                        #-(or sbcl clisp ecl) :default)
             (dolist (line lines)
               (write-line line out)))
           (format t "~A -> ~A~%" input out-path)

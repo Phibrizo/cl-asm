@@ -19,7 +19,9 @@ if command -v sbcl >/dev/null 2>&1; then
     exec sbcl --noinform --script "$LISP_SCRIPT" -- "$@"
 elif command -v clisp >/dev/null 2>&1; then
     exec clisp -q "$LISP_SCRIPT" -- "$@"
+elif command -v ecl >/dev/null 2>&1; then
+    exec ecl --load "$LISP_SCRIPT" -- "$@"
 else
-    echo "Erreur : SBCL ou CLISP requis pour utiliser acme2clasm." >&2
+    echo "Erreur : SBCL, CLISP ou ECL requis pour utiliser acme2clasm." >&2
     exit 1
 fi
