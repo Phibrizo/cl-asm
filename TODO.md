@@ -7,7 +7,3 @@
 - [ ] i18n `tests/run-tests.lisp` : traduire les messages de sortie des tests.
 - [ ] Tests de régression mega65 et x16 : générer les fichiers `.ref.prg`
       de référence (nécessite un compilateur de référence pour ces cibles).
-
-## Idées
-
-- [ ] Script `run-tests-ecl.sh` pour lancer les tests avec ECL.
