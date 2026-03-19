@@ -469,7 +469,7 @@
               (format nil "~A.org ~A" indent (convert-expression addr)))))))
 
     ;; ------------------------------------------------------------------
-    ;; Labels sans ':' et instructions normales
+    ;; Labels sans ':', avec ':' ou avec '::' et instructions normales
     ;; ------------------------------------------------------------------
     (when (and (> (length line) 0)
                (not (member (char line 0) '(#\Space #\Tab))))
@@ -477,14 +477,16 @@
       (let ((id (read-identifier stripped 0)))
         (when id
           (let* ((name (car id))
-                 (rest (trim (subseq stripped (cdr id)))))
+                 (after-name (subseq stripped (cdr id)))
+                 ;; Consommer les ':' éventuels (label: ou label::)
+                 (rest (trim (string-left-trim '(#\:) after-name))))
             (when (not (mnemonic-p name))
               ;; Assignation : NOM = EXPR
               (when (and (> (length rest) 0) (char= (char rest 0) #\=))
                 (let ((val (strip-comment (trim (subseq rest 1)))))
                   (return-from convert-line
                     (format nil "~A~A = ~A" indent name (convert-expression val)))))
-              ;; Label sans ':'
+              ;; Label (avec ou sans ':' dans le source)
               (return-from convert-line
                 (if (> (length rest) 0)
                     (format nil "~A~A:~%        ~A" indent name (convert-expression rest))

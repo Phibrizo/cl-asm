@@ -1,11 +1,5 @@
 # TODO — cl-asm
 
-## Bugs
-
-- [ ] `acme2clasm.lisp` : les labels `::` (globaux ACME) sont mal convertis —
-      le `::` est découpé en `label:` + `:` orphelin sur la ligne suivante.
-      Exemple : `main::` → `main:` + `:` au lieu de `main:`.
-
 ## Améliorations
 
 - [ ] i18n `acme2clasm.lisp` : ajouter la détection de `LANG` et les messages
