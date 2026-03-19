@@ -10,6 +10,27 @@
 
 (in-package #:cl-asm/test)
 
+;;; --------------------------------------------------------------------------
+;;; i18n minimal — détection de LANG sans dépendance externe
+;;; --------------------------------------------------------------------------
+
+(defun %getenv (name)
+  #+sbcl  (sb-ext:posix-getenv name)
+  #+clisp (ext:getenv name)
+  #+ecl   (si:getenv name)
+  #-(or sbcl clisp ecl) nil)
+
+(defparameter *test-lang*
+  (let ((lang (or (%getenv "LANG") (%getenv "LANGUAGE") "")))
+    (if (and (>= (length lang) 2)
+             (string= (subseq lang 0 2) "fr"))
+        :fr :en)))
+
+(defun %msg (fr en)
+  (if (eq *test-lang* :fr) fr en))
+
+;;; --------------------------------------------------------------------------
+
 (defmacro run-suite (pkg)
   "Lance une suite de tests et accumule les compteurs."
   (let ((run  (intern "RUN-ALL-TESTS" pkg))
@@ -46,14 +67,14 @@
 
     ;; --- Bilan global ---
     (format t "~%")
-    (format t "--- Core ---~%")
+    (format t "--- ~A ---~%" (%msg "Core" "Core"))
     (format t "=== symbol-table : ~3D OK, ~D KO~%"
             cl-asm/test.symbol-table:*pass*
             cl-asm/test.symbol-table:*fail*)
     (format t "=== expression   : ~3D OK, ~D KO~%"
             cl-asm/test.expression:*pass*
             cl-asm/test.expression:*fail*)
-    (format t "--- Frontend ---~%")
+    (format t "--- ~A ---~%" (%msg "Frontend" "Frontend"))
     (format t "=== lexer        : ~3D OK, ~D KO~%"
             cl-asm/test.lexer:*pass*
             cl-asm/test.lexer:*fail*)
@@ -63,13 +84,14 @@
     (format t "=== macros       : ~3D OK, ~D KO~%"
             cl-asm/test.macros:*pass*
             cl-asm/test.macros:*fail*)
-    (format t "=== conditionnel : ~3D OK, ~D KO~%"
+    (format t "=== ~A : ~3D OK, ~D KO~%"
+            (%msg "conditionnel" "conditional ")
             cl-asm/test.conditional:*pass*
             cl-asm/test.conditional:*fail*)
     (format t "=== lasm         : ~3D OK, ~D KO~%"
             cl-asm/test.lasm:*pass*
             cl-asm/test.lasm:*fail*)
-    (format t "--- Backends ---~%")
+    (format t "--- ~A ---~%" (%msg "Backends" "Backends"))
     (format t "=== 6502         : ~3D OK, ~D KO~%"
             cl-asm/test.6502:*pass*
             cl-asm/test.6502:*fail*)
@@ -83,10 +105,11 @@
             cl-asm/test.45gs02:*pass*
             cl-asm/test.45gs02:*fail*)
     (format t "-------------------------------~%")
-    (format t "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
+    (format t (%msg "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
+                    "=== TOTAL        : ~3D OK, ~D KO out of ~D tests~%")
             total-pass total-fail (+ total-pass total-fail))
     (when total-failures
-      (format t "~%Echecs :~%")
+      (format t "~%~A :~%" (%msg "Echecs" "Failures"))
       (dolist (f (reverse total-failures))
         (format t "  - ~A~%" f)))
     (finish-output)

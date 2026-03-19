@@ -36,7 +36,27 @@
   #-(or sbcl clisp ecl) (error "exit non disponible"))
 
 ;;; --------------------------------------------------------------------------
-;;; Utilitaires chaînes
+;;; Internationalisation (i18n)
+;;; --------------------------------------------------------------------------
+
+(defun getenv (name)
+  #+sbcl  (sb-ext:posix-getenv name)
+  #+clisp (ext:getenv name)
+  #+ecl   (si:getenv name)
+  #-(or sbcl clisp ecl) nil)
+
+(defparameter *lang*
+  (let ((lang (or (getenv "LANG") (getenv "LANGUAGE") "")))
+    (if (and (>= (length lang) 2)
+             (string= (subseq lang 0 2) "fr"))
+        :fr
+        :en)))
+
+(defun msg (fr en)
+  (if (eq *lang* :fr) fr en))
+
+;;; --------------------------------------------------------------------------
+;;; Utilitaires chaines
 ;;; --------------------------------------------------------------------------
 
 (defun string-prefix-p (prefix str)
@@ -241,7 +261,9 @@
            (return-from convert-line
              (format nil "~A; [acme2clasm] !cpu ~A -> cible 6502 (defaut)" indent cpu)))
           (t
-           (conv-warn conv lineno (format nil "!cpu ~A : cible inconnue" cpu))
+           (conv-warn conv lineno
+                      (format nil (msg "!cpu ~A : cible inconnue"
+                                       "!cpu ~A: unknown target") cpu))
            (return-from convert-line
              (format nil "~A; TODO [acme2clasm] !cpu ~A : cible inconnue" indent cpu))))))
 
@@ -335,7 +357,9 @@
                             (format nil "~{$~2,'0X~^, ~}" codes)
                             content))
                   (progn
-                    (conv-warn conv lineno (format nil "!pet : conversion impossible de \"~A\"" content))
+                    (conv-warn conv lineno
+                               (format nil (msg "!pet : conversion impossible de \"~A\""
+                                                "!pet: cannot convert \"~A\"") content))
                     (return-from convert-line
                       (format nil "~A; TODO !pet \"~A\"" indent content)))))
             (return-from convert-line
@@ -365,7 +389,9 @@
              (q1 (position #\" rest))
              (q2 (and q1 (position #\" rest :start (1+ q1))))
              (fname (if (and q1 q2) (subseq rest (1+ q1) q2) rest)))
-        (conv-warn conv lineno (format nil "!source \"~A\" : inclusion manuelle requise" fname))
+        (conv-warn conv lineno
+                   (format nil (msg "!source \"~A\" : inclusion manuelle requise"
+                                    "!source \"~A\": manual inclusion required") fname))
         (return-from convert-line
           (format nil "~A; TODO [acme2clasm] inclure manuellement : ~A" indent fname))))
 
@@ -377,7 +403,9 @@
              (q1 (position #\" rest))
              (q2 (and q1 (position #\" rest :start (1+ q1))))
              (fname (if (and q1 q2) (subseq rest (1+ q1) q2) rest)))
-        (conv-warn conv lineno (format nil "!binary \"~A\" : inclusion manuelle requise" fname))
+        (conv-warn conv lineno
+                   (format nil (msg "!binary \"~A\" : inclusion manuelle requise"
+                                    "!binary \"~A\": manual inclusion required") fname))
         (return-from convert-line
           (format nil "~A; TODO [acme2clasm] inclure manuellement (binaire) : ~A" indent fname))))
 
@@ -428,7 +456,9 @@
     ;; !zone
     ;; ------------------------------------------------------------------
     (when (match-directive (string-upcase stripped) "!ZONE")
-      (conv-warn conv lineno "!zone : pas d'equivalent direct, ignore")
+      (conv-warn conv lineno
+                 (msg "!zone : pas d'equivalent direct, ignore"
+                      "!zone: no direct equivalent, ignored"))
       (return-from convert-line
         (format nil "~A; [acme2clasm] !zone ignore" indent)))
 
@@ -436,7 +466,9 @@
     ;; !pseudopc
     ;; ------------------------------------------------------------------
     (when (match-directive (string-upcase stripped) "!PSEUDOPC")
-      (conv-warn conv lineno "!pseudopc : pas d'equivalent direct")
+      (conv-warn conv lineno
+                 (msg "!pseudopc : pas d'equivalent direct"
+                      "!pseudopc: no direct equivalent"))
       (return-from convert-line
         (format nil "~A; TODO [acme2clasm] !pseudopc : conversion manuelle" indent)))
 
@@ -446,7 +478,9 @@
     (when (starts-with-char stripped #\!)
       (let* ((id (read-identifier stripped 1))
              (directive (if id (format nil "!~A" (car id)) "!")))
-        (conv-warn conv lineno (format nil "~A : directive inconnue, ignoree" directive))
+        (conv-warn conv lineno
+                   (format nil (msg "~A : directive inconnue, ignoree"
+                                    "~A: unknown directive, ignored") directive))
         (return-from convert-line
           (format nil "~A; TODO [acme2clasm] ~A" indent stripped))))
 
@@ -509,7 +543,7 @@
                           #-(or sbcl clisp ecl) :default
                           :if-does-not-exist nil)
     (unless in
-      (error "Fichier introuvable : ~A" path))
+      (error (msg "Fichier introuvable : ~A" "File not found: ~A") path))
     (loop for line = (read-line in nil nil)
           while line
           collect line)))
@@ -523,13 +557,16 @@
   (let* ((conv (make-converter :source-path source-path))
          (lines (handler-case (read-source-lines source-path)
                   (error (e)
-                    (format *error-output* "Erreur lecture : ~A~%" e)
+                    (format *error-output*
+                            (msg "Erreur lecture : ~A~%" "Read error: ~A~%") e)
                     (exit-lisp 1))))
          (result '()))
     (push "; -*- coding: utf-8 -*-" result)
-    (push (format nil "; Converti depuis ~A par acme2clasm"
+    (push (format nil (msg "; Converti depuis ~A par acme2clasm"
+                           "; Converted from ~A by acme2clasm")
                   (file-namestring source-path)) result)
-    (push "; Verifier les lignes marquees TODO avant assemblage" result)
+    (push (msg "; Verifier les lignes marquees TODO avant assemblage"
+               "; Check lines marked TODO before assembling") result)
     (push "" result)
     (loop for line in lines
           for lineno from 1
@@ -539,11 +576,13 @@
 
 (defun format-report (warnings)
   (if (null warnings)
-      "Conversion terminee sans avertissement."
-      (format nil "~A avertissement(s) :~%~{  Ligne ~4D : ~A~%~}"
+      (msg "Conversion terminee sans avertissement."
+           "Conversion completed without warnings.")
+      (format nil (msg "~A avertissement(s) :~%~{  Ligne ~4D : ~A~%~}"
+                       "~A warning(s):~%~{  Line ~4D: ~A~%~}")
               (length warnings)
-              (loop for (lineno . msg) in warnings
-                    append (list lineno msg)))))
+              (loop for (lineno . msg-text) in warnings
+                    append (list lineno msg-text)))))
 
 ;;; --------------------------------------------------------------------------
 ;;; Nom de fichier de sortie par défaut
@@ -568,7 +607,8 @@
     (when (or (null args)
               (member "--help" args :test #'string=)
               (member "-h" args :test #'string=))
-      (format t "Usage: acme2clasm SOURCE.s [-o SORTIE.asm] [--report]~%")
+      (format t (msg "Usage: acme2clasm SOURCE.s [-o SORTIE.asm] [--report]~%"
+                     "Usage: acme2clasm SOURCE.s [-o OUTPUT.asm] [--report]~%"))
       (exit-lisp 0))
 
     ;; Parser les arguments
@@ -588,11 +628,16 @@
                   (setf input arg))))
 
       (unless input
-        (format *error-output* "Erreur : fichier source manquant.~%")
+        (format *error-output*
+                (msg "Erreur : fichier source manquant.~%"
+                     "Error: missing source file.~%"))
         (exit-lisp 1))
 
       (unless (probe-file input)
-        (format *error-output* "Erreur : fichier introuvable : ~A~%" input)
+        (format *error-output*
+                (msg "Erreur : fichier introuvable : ~A~%"
+                     "Error: file not found: ~A~%")
+                input)
         (exit-lisp 1))
 
       (let ((out-path (or output (default-output input))))
@@ -600,8 +645,11 @@
         (when (string= (namestring (truename input))
                        (namestring (merge-pathnames out-path)))
           (format *error-output*
-                  "Erreur : le fichier de sortie (~A) est identique au fichier source.~%~
-                   Utilisez -o pour spécifier un nom de sortie différent.~%" out-path)
+                  (msg "Erreur : le fichier de sortie (~A) est identique au fichier source.~%~
+                        Utilisez -o pour specifier un nom de sortie different.~%"
+                       "Error: output file (~A) is the same as the source file.~%~
+                        Use -o to specify a different output name.~%")
+                  out-path)
           (exit-lisp 1))
         (multiple-value-bind (lines warnings)
             (convert-file input)
