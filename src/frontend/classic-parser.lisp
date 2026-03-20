@@ -425,7 +425,9 @@
 (defparameter *directive-names*
   '(".org" ".byte" ".word" ".dword" ".text" ".fill" ".align"
     ".equ" ".define" ".section" ".global" ".extern" ".include"
-    ".if" ".else" ".endif" ".macro" ".endmacro")
+    ".if" ".else" ".endif" ".macro" ".endmacro"
+    ;; Directives de mode 65816
+    ".al" ".as" ".xl" ".xs")
   "Directives reconnues.")
 
 (defun directive-p (name)
@@ -872,27 +874,43 @@
            (t
             (let* ((mnem-up (string-upcase name))
                    (operands
-                    (if (and (= (length mnem-up) 4)
-                         (member (subseq mnem-up 0 3) '("BBR" "BBS") :test #'string=)
-                         (char<= #\0 (char mnem-up 3) #\7))
-                        ;; BBRn/BBSn : zp-expr , rel-expr
-                        ;; On parse les deux expressions directement
-                        ;; sans passer par parse-operand (qui consommerait
-                        ;; la virgule comme indicateur d'indexe)
-                        (let* ((loc1   (pc-loc ctx))
-                               (zp-val (parse-expr ctx))
-                               (zp-op  (cl-asm/ir:make-ir-operand
-                                        :kind :direct :value zp-val :loc loc1))
-                               (dummy  (when (eq (pc-kind ctx) :comma)
+                    (cond
+                      ;; BBRn/BBSn : zp-expr , rel-expr
+                      ;; On parse les deux expressions directement
+                      ;; sans passer par parse-operand (qui consommerait
+                      ;; la virgule comme indicateur d'indexe)
+                      ((and (= (length mnem-up) 4)
+                            (member (subseq mnem-up 0 3) '("BBR" "BBS") :test #'string=)
+                            (char<= #\0 (char mnem-up 3) #\7))
+                       (let* ((loc1   (pc-loc ctx))
+                              (zp-val (parse-expr ctx))
+                              (zp-op  (cl-asm/ir:make-ir-operand
+                                       :kind :direct :value zp-val :loc loc1))
+                              (dummy  (when (eq (pc-kind ctx) :comma)
+                                        (pc-advance ctx)))
+                              (loc2   (pc-loc ctx))
+                              (val    (parse-expr ctx))
+                              (rel-op (cl-asm/ir:make-ir-operand
+                                       :kind :direct :value val :loc loc2)))
+                         (declare (ignore dummy))
+                         (list zp-op rel-op)))
+                      ;; MVN/MVP (65816 block move) : dst-bank , src-bank
+                      ((member mnem-up '("MVN" "MVP") :test #'string=)
+                       (let* ((loc1    (pc-loc ctx))
+                              (dst-val (parse-expr ctx))
+                              (dst-op  (cl-asm/ir:make-ir-operand
+                                        :kind :direct :value dst-val :loc loc1))
+                              (dummy   (when (eq (pc-kind ctx) :comma)
                                          (pc-advance ctx)))
-                               (loc2   (pc-loc ctx))
-                               (val    (parse-expr ctx))
-                               (rel-op (cl-asm/ir:make-ir-operand
-                                        :kind :direct :value val :loc loc2)))
-                          (declare (ignore dummy))
-                          (list zp-op rel-op))
-                        (let ((operand (parse-operand ctx)))
-                          (if operand (list operand) nil)))))
+                              (loc2    (pc-loc ctx))
+                              (src-val (parse-expr ctx))
+                              (src-op  (cl-asm/ir:make-ir-operand
+                                        :kind :direct :value src-val :loc loc2)))
+                         (declare (ignore dummy))
+                         (list dst-op src-op)))
+                      (t
+                       (let ((operand (parse-operand ctx)))
+                         (if operand (list operand) nil))))))
               (emit-node ctx
                          (cl-asm/ir:make-ir-instruction
                           :mnemonic mnem-up

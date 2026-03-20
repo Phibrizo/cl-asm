@@ -5,6 +5,70 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.2.0] — 2026-03-20
+
+### Ajouté
+
+**Backend WDC 65816** — nouveau fichier `src/backend/65816.lisp`
+(package `cl-asm/backend.65816`) supportant le processeur WDC 65816 (SNES, Apple IIgs) :
+
+- Origine par défaut `$8000` (SNES LoROM bank 0)
+- Alias CLI : `65816`, `wdc65816`, `snes`, `apple2gs`
+- 20+ modes d'adressage, dont :
+  - `:absolute-long` / `:absolute-long-x` — adresses 24 bits (`$xxxxxx`)
+  - `:dp-indirect-long` / `:dp-indirect-long-y` — `[$nn]`, `[$nn],Y`
+  - `:stack-relative` / `:sr-indirect-y` — `$nn,S`, `($nn,S),Y`
+  - `:relative-long` — branches 16 bits signées (BRL, PER)
+  - `:block-move` — deux opérandes banque (MVN, MVP)
+- **Accumulateur et index 16 bits** — immédiat variable selon les flags M/X :
+  - `.al`/`.as` — bascule l'accumulateur entre 16 bits et 8 bits
+  - `.xl`/`.xs` — bascule les index X/Y entre 16 bits et 8 bits
+  - `REP`/`SEP` — instructions pour modifier les flags en dynamique
+- `JSL`/`JML` — saut long 24 bits (4 et 3 octets)
+- `BRL`/`PER` — branche longue / push effective relative address
+- `MVN`/`MVP` — block move (deux opérandes banque séparés par une virgule)
+- `PEA` — push effective address (toujours 16 bits)
+- Toutes les instructions 6502 de base héritées
+
+**Parser étendu** — `src/frontend/classic-parser.lisp` :
+- Directives `.al`, `.as`, `.xl`, `.xs` ajoutées à `*directive-names*`
+- Parsing multi-opérandes étendu (MVN/MVP) en parallèle des BBR/BBS R65C02
+
+**Tests 65816** — `tests/test-65816.lisp` : 104 tests répartis en 12 groupes :
+compatibilité 6502, instructions implied, absolute long, JSL/JML,
+dp-indirect-long, JMP indirect long, stack-relative, BRL, REP/SEP,
+directives de mode + immédiat 16 bits, block move, PEA, forward references,
+erreurs, programme SNES minimal.
+
+### Modifié
+
+**`src/core/version.lisp`** — version incrémentée : `0.1.3` → `0.2.0`
+
+**Scripts de test** — `run-tests.sh`, `run-tests-clisp.lisp`, `run-tests-ecl.lisp`
+chargent désormais `src/backend/65816.lisp` et `tests/test-65816.lisp`.
+
+### Tests
+
+| Suite | 0.1.3 | 0.2.0 |
+|---|---|---|
+| symbol-table | 65 | 65 |
+| expression | 129 | 129 |
+| lexer | 119 | 119 |
+| parser | 84 | 84 |
+| macros | 27 | 27 |
+| conditionnel | 27 | 27 |
+| lasm | 58 | 58 |
+| 6502 | 82 | 82 |
+| 65c02 | 41 | 41 |
+| r65c02 | 117 | 117 |
+| 45gs02 | 80 | 80 |
+| **65816** | — | **104** |
+| **TOTAL** | **829** | **933** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+.
+
+---
+
 ## [0.1.3] — 2026-03-20
 
 ### Ajouté

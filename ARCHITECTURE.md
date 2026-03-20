@@ -19,7 +19,7 @@ cl-asm is structured in three independent layers:
                ▼
 ┌─────────────────────────────────────────────┐
 │  Backends (target architectures)            │
-│  6502 · 65C02 · 45GS02 · Z80 (future)      │
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816    │
 └──────────────┬──────────────────────────────┘
                │ produces a byte vector
                ▼
@@ -46,6 +46,7 @@ cl-asm is structured in three independent layers:
 | `cl-asm/backend.45gs02` | `src/backend/45gs02.lisp` | 45GS02 backend |
 | `cl-asm/backend.65c02` | `src/backend/65c02.lisp` | 65C02 backend (X16) |
 | `cl-asm/backend.r65c02` | `src/backend/r65c02.lisp` | R65C02 backend (Rockwell) |
+| `cl-asm/backend.65816` | `src/backend/65816.lisp` | WDC 65816 backend (SNES/Apple IIgs) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Native Lisp frontend |
 | `cl-asm/emit` | `src/emit/output.lisp` | File emitters |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Test suites |
@@ -337,6 +338,96 @@ Opcodes: `$B2` (LDA), `$92` (STA), `$72` (ADC), `$F2` (SBC)…
 - `BIT`: `:immediate`, `:zero-page-x`, `:absolute-x`
 - `JMP`: `:indirect-absolute-x` (`$7C`)
 - `ADC/SBC/AND/ORA/EOR/CMP/LDA/STA`: `:zero-page-indirect`
+
+---
+
+## Module `cl-asm/backend.r65c02`
+
+65C02 superset for the Rockwell R65C02 (used in some Commander X16 revisions).
+Default origin: `$0801`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.r65c02:assemble-r65c02        PROGRAM &key origin)
+(cl-asm/backend.r65c02:assemble-string-r65c02 SOURCE  &key origin)
+(cl-asm/backend.r65c02:assemble-file-r65c02   PATH    &key origin)
+```
+
+### New instructions (32 Rockwell bit-manipulation)
+
+| Group | Instructions | Opcode | Bytes |
+|---|---|---|---|
+| Reset bit | `RMB0`…`RMB7` | `$n7` | 2 (ZP) |
+| Set bit | `SMB0`…`SMB7` | `$n7+$80` | 2 (ZP) |
+| Branch if reset | `BBR0`…`BBR7` | `$nF` | 3 (ZP + rel) |
+| Branch if set | `BBS0`…`BBS7` | `$nF+$80` | 3 (ZP + rel) |
+
+`BBRn`/`BBSn` take **two operands** separated by a comma: zero-page address
+and branch target. The parser recognises these via `rockwell-two-operands-p`.
+
+---
+
+## Module `cl-asm/backend.65816`
+
+Full WDC 65816 backend (SNES, Apple IIgs). Default origin: `$8000` (SNES LoROM bank 0).
+
+### Interface
+
+```lisp
+(cl-asm/backend.65816:assemble-65816        PROGRAM &key origin)
+(cl-asm/backend.65816:assemble-string-65816 SOURCE  &key origin)
+(cl-asm/backend.65816:assemble-file-65816   PATH    &key origin)
+```
+
+### Addressing modes (in addition to base 6502)
+
+| Mode | Syntax | Bytes |
+|---|---|---|
+| `:absolute-long` | `LDA $123456` | 4 |
+| `:absolute-long-x` | `LDA $123456,X` | 4 |
+| `:dp-indirect-long` | `LDA [$10]` | 2 |
+| `:dp-indirect-long-y` | `LDA [$10],Y` | 2 |
+| `:stack-relative` | `LDA $10,S` | 2 |
+| `:sr-indirect-y` | `LDA ($10,S),Y` | 2 |
+| `:relative-long` | `BRL label` | 3 |
+| `:block-move` | `MVN $7E,$7F` | 3 (two bank bytes) |
+
+### Variable-width immediate
+
+The accumulator and index registers can operate in 8-bit or 16-bit mode,
+controlled by the M and X flags in the processor status register.
+
+| Flag | Instructions affected | 8-bit | 16-bit |
+|---|---|---|---|
+| M (bit 5) | `LDA/STA/ADC/SBC/AND/ORA/EOR/CMP/BIT` | immediate = 2 bytes | immediate = 3 bytes |
+| X (bit 4) | `LDX/LDY/CPX/CPY` | immediate = 2 bytes | immediate = 3 bytes |
+
+### Mode directives
+
+| Directive | Effect |
+|---|---|
+| `.al` | Clear M flag — accumulator 16-bit |
+| `.as` | Set M flag — accumulator 8-bit |
+| `.xl` | Clear X flag — index registers 16-bit |
+| `.xs` | Set X flag — index registers 8-bit |
+
+State is tracked across both passes via a mutable `(list m-long x-long)` cons.
+
+### Notable instructions
+
+| Instruction | Description | Bytes |
+|---|---|---|
+| `JSL addr24` | Jump to subroutine long | 4 |
+| `JML addr24` | Jump long | 4 |
+| `RTL` | Return from subroutine long | 1 |
+| `BRL label` | Branch long (±32KB, 16-bit signed offset) | 3 |
+| `PER label` | Push effective relative address | 3 |
+| `PEA #nn` | Push effective absolute address (always 16-bit) | 3 |
+| `MVN dst,src` | Block move negative (bank bytes) | 3 |
+| `MVP dst,src` | Block move positive (bank bytes) | 3 |
+| `REP #nn` | Reset processor status bits | 2 |
+| `SEP #nn` | Set processor status bits | 2 |
 
 ---
 

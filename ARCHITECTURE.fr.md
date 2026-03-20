@@ -7,7 +7,7 @@ cl-asm est structuré en trois couches indépendantes :
 ```
 ┌─────────────────────────────────────────────┐
 │  Frontends (syntaxes pluggables)            │
-│  classic (ca65-like) · .lasm (futur)        │
+│  classic (ca65-like) · .lasm (Lisp natif)  │
 └──────────────┬──────────────────────────────┘
                │ produit un IR-PROGRAM
                ▼
@@ -19,7 +19,7 @@ cl-asm est structuré en trois couches indépendantes :
                ▼
 ┌─────────────────────────────────────────────┐
 │  Backends (architectures cibles)            │
-│  6502 · 45GS02 · x86 (futur)               │
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816    │
 └──────────────┬──────────────────────────────┘
                │ produit un vecteur d'octets
                ▼
@@ -46,7 +46,9 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/backend.45gs02` | `src/backend/45gs02.lisp` | Backend 45GS02 |
 | `cl-asm/backend.65c02` | `src/backend/65c02.lisp` | Backend 65C02 (X16) |
 | `cl-asm/backend.r65c02` | `src/backend/r65c02.lisp` | Backend R65C02 (Rockwell) |
+| `cl-asm/backend.65816` | `src/backend/65816.lisp` | Backend WDC 65816 (SNES/Apple IIgs) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Frontend Lisp natif (.lasm) |
+| `cl-asm/emit` | `src/emit/output.lisp` | Émetteurs de fichiers |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Suites de tests |
 
 ---
@@ -335,6 +337,97 @@ LDQ ($20),Z  →  $42 $42 $B2 $20   (4 octets)
 LBNE label   →  $42 $D0 lo hi     (4 octets)
 LDA [$20]    →  $EA $B1 $20       (3 octets)
 ```
+
+---
+
+## Module `cl-asm/backend.r65c02`
+
+Superset du backend 65C02 pour le Rockwell R65C02.
+Origine par défaut : `$0801`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.r65c02:assemble-r65c02        PROGRAM &key origin)
+(cl-asm/backend.r65c02:assemble-string-r65c02 SOURCE  &key origin)
+(cl-asm/backend.r65c02:assemble-file-r65c02   PATH    &key origin)
+```
+
+### Nouvelles instructions (32 instructions Rockwell)
+
+| Groupe | Instructions | Opcode | Octets |
+|---|---|---|---|
+| Reset bit | `RMB0`…`RMB7` | `$n7` | 2 (ZP) |
+| Set bit | `SMB0`…`SMB7` | `$n7+$80` | 2 (ZP) |
+| Branche si bit à 0 | `BBR0`…`BBR7` | `$nF` | 3 (ZP + rel) |
+| Branche si bit à 1 | `BBS0`…`BBS7` | `$nF+$80` | 3 (ZP + rel) |
+
+`BBRn`/`BBSn` prennent **deux opérandes** séparés par une virgule : adresse
+zero-page et cible de branche. Le parser les reconnaît via `rockwell-two-operands-p`.
+
+---
+
+## Module `cl-asm/backend.65816`
+
+Backend WDC 65816 complet (SNES, Apple IIgs). Origine par défaut : `$8000`
+(SNES LoROM bank 0).
+
+### Interface
+
+```lisp
+(cl-asm/backend.65816:assemble-65816        PROGRAM &key origin)
+(cl-asm/backend.65816:assemble-string-65816 SOURCE  &key origin)
+(cl-asm/backend.65816:assemble-file-65816   PATH    &key origin)
+```
+
+### Modes d'adressage (en plus du 6502 de base)
+
+| Mode | Syntaxe | Octets |
+|---|---|---|
+| `:absolute-long` | `LDA $123456` | 4 |
+| `:absolute-long-x` | `LDA $123456,X` | 4 |
+| `:dp-indirect-long` | `LDA [$10]` | 2 |
+| `:dp-indirect-long-y` | `LDA [$10],Y` | 2 |
+| `:stack-relative` | `LDA $10,S` | 2 |
+| `:sr-indirect-y` | `LDA ($10,S),Y` | 2 |
+| `:relative-long` | `BRL label` | 3 |
+| `:block-move` | `MVN $7E,$7F` | 3 (deux octets banque) |
+
+### Immédiat variable
+
+L'accumulateur et les registres d'index peuvent opérer en mode 8 ou 16 bits,
+contrôlé par les flags M et X du registre status.
+
+| Flag | Instructions concernées | 8 bits | 16 bits |
+|---|---|---|---|
+| M (bit 5) | `LDA/STA/ADC/SBC/AND/ORA/EOR/CMP/BIT` | immédiat = 2 octets | immédiat = 3 octets |
+| X (bit 4) | `LDX/LDY/CPX/CPY` | immédiat = 2 octets | immédiat = 3 octets |
+
+### Directives de mode
+
+| Directive | Effet |
+|---|---|
+| `.al` | Efface M — accumulateur 16 bits |
+| `.as` | Met M — accumulateur 8 bits |
+| `.xl` | Efface X — registres d'index 16 bits |
+| `.xs` | Met X — registres d'index 8 bits |
+
+L'état est suivi sur les deux passes via un cons mutable `(list m-long x-long)`.
+
+### Instructions notables
+
+| Instruction | Description | Octets |
+|---|---|---|
+| `JSL addr24` | Saut sous-routine long | 4 |
+| `JML addr24` | Saut long | 4 |
+| `RTL` | Retour de sous-routine long | 1 |
+| `BRL label` | Branche longue (±32 Ko, offset 16 bits signé) | 3 |
+| `PER label` | Push effective relative address | 3 |
+| `PEA #nn` | Push effective absolute address (toujours 16 bits) | 3 |
+| `MVN dst,src` | Block move negative (octets banque) | 3 |
+| `MVP dst,src` | Block move positive (octets banque) | 3 |
+| `REP #nn` | Reset bits du registre status | 2 |
+| `SEP #nn` | Set bits du registre status | 2 |
 
 ---
 

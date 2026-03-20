@@ -14,6 +14,7 @@ sbcl --load src/core/version.lisp \
      --load src/emit/output.lisp \
      --load src/backend/65c02.lisp \
      --load src/backend/r65c02.lisp \
+     --load src/backend/65816.lisp \
      --load src/frontend/lasm.lisp \
      --load tests/test-65c02.lisp \
      --load tests/test-r65c02.lisp \
@@ -26,6 +27,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-lexer.lisp \
      --load tests/test-expression.lisp \
      --load tests/test-symbol-table.lisp \
+     --load tests/test-65816.lisp \
      --load tests/run-tests.lisp \
      --eval "(cl-asm/test:run-all-tests)" \
      --quit

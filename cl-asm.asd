@@ -35,6 +35,9 @@
    (:file "src/backend/r65c02"
     :depends-on ("src/backend/65c02"
                  "src/frontend/classic-parser"))
+   (:file "src/backend/65816"
+    :depends-on ("src/backend/6502"
+                 "src/frontend/classic-parser"))
    (:file "src/frontend/lasm"
     :depends-on ("src/core/ir"
                  "src/core/expression"
@@ -71,6 +74,8 @@
     :depends-on ("tests/test-6502"))
    (:file "tests/test-r65c02"
     :depends-on ("tests/test-65c02"))
+   (:file "tests/test-65816"
+    :depends-on ("tests/test-6502"))
    (:file "tests/run-tests"
     :depends-on ("tests/test-expression"
                  "tests/test-symbol-table"
@@ -82,7 +87,8 @@
                  "tests/test-conditional"
                  "tests/test-macros"
                  "tests/test-45gs02"
-                 "tests/test-r65c02")))
+                 "tests/test-r65c02"
+                 "tests/test-65816")))
   :perform (test-op (o c)
              (let ((output (make-string-output-stream)))
                (let ((*standard-output* output))

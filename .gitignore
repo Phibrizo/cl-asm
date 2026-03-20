@@ -15,3 +15,6 @@ tests/regression/**/*.ref.prg
 # Éditeurs
 *~
 .DS_Store
+
+# Fichier local Claude Code
+CLAUDE.md

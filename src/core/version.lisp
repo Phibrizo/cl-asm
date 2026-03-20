@@ -15,8 +15,8 @@
 ;;;   PATCH : correction de bug
 
 (defparameter +version-major+ 0)
-(defparameter +version-minor+ 1)
-(defparameter +version-patch+ 3)
+(defparameter +version-minor+ 2)
+(defparameter +version-patch+ 0)
 
 (defparameter +version+
   (format nil "~D.~D.~D"

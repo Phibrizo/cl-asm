@@ -1,19 +1,20 @@
 # cl-asm — Assembleur multi-architecture en Common Lisp
 
 Assembleur modulaire écrit en Common Lisp. Cibles actuelles : **6502**
-(Commodore 64, Apple II…), **45GS02** (Mega65) et **65C02**
-(Commander X16). L'architecture est pensée pour accueillir d'autres
+(Commodore 64, Apple II…), **45GS02** (Mega65), **65C02**
+(Commander X16), **R65C02** (Rockwell) et **WDC 65816**
+(SNES, Apple IIgs). L'architecture est pensée pour accueillir d'autres
 backends (Z80, 68000…) sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.1.3**
+**Version courante : 0.2.0**
 
 ```
-cl-asm/version:+version+         ; → "0.1.3"
+cl-asm/version:+version+         ; → "0.2.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 1
-cl-asm/version:+version-patch+   ; → 2
+cl-asm/version:+version-minor+   ; → 2
+cl-asm/version:+version-patch+   ; → 0
 (cl-asm/version:version-string)  ; → "0.1.3"
 ```
 
@@ -32,12 +33,13 @@ cl-asm/version:+version-patch+   ; → 2
 | Backend 45GS02 | ✓ | 80 |
 | Backend 65C02 (X16) | ✓ | 41 |
 | Backend R65C02 (Rockwell) | ✓ | 117 |
+| Backend WDC 65816 (SNES/Apple IIgs) | ✓ | 104 |
 | Émetteurs BIN / PRG / listing | ✓ | — |
 | Macros textuelles | ✓ | 27 |
 | Assemblage conditionnel | ✓ | 27 |
 | Frontend .lasm (Lisp natif) | ✓ | 58 |
 
-**Total : 829 tests, 0 KO, 0 warnings — SBCL 2.6.2 et CLISP 2.49.95+**
+**Total : 933 tests, 0 KO, 0 warnings — SBCL 2.6.2 et CLISP 2.49.95+**
 
 ---
 
@@ -93,7 +95,8 @@ cl-asm/
 │   │   ├── 6502.lisp           encodeur 6502 (56 mnémoniques)
 │   │   ├── 45gs02.lisp         encodeur 45GS02 (superset 6502)
 │   │   ├── 65c02.lisp          encodeur 65C02 (superset 6502, X16)
-│   │   └── r65c02.lisp         encodeur R65C02 (Rockwell, superset 65C02)
+│   │   ├── r65c02.lisp         encodeur R65C02 (Rockwell, superset 65C02)
+│   │   └── 65816.lisp          encodeur WDC 65816 (SNES/Apple IIgs, 24-bit)
 │   └── emit/
 │       └── output.lisp         émetteurs BIN, PRG, listing
 ├── tests/
@@ -108,7 +111,8 @@ cl-asm/
 │   ├── test-45gs02.lisp
 │   ├── test-macros.lisp
 │   ├── test-conditional.lisp
-│   └── test-lasm.lisp
+│   ├── test-lasm.lisp
+│   └── test-65816.lisp
 └── examples/
     ├── c64-raster.asm          raster bar C64 (syntaxe classique)
     ├── mega65-hello.lasm       hello world Mega65 (syntaxe .lasm)
@@ -171,8 +175,9 @@ Résultat attendu :
 === 65c02        :  41 OK, 0 KO
 === r65c02       : 117 OK, 0 KO
 === 45gs02       :  80 OK, 0 KO
+=== 65816        : 104 OK, 0 KO
 -------------------------------
-=== TOTAL        : 829 OK, 0 KO sur 829 tests
+=== TOTAL        : 933 OK, 0 KO sur 933 tests
 ```
 
 ---
@@ -289,6 +294,33 @@ Puis dans le REPL :
    RTS")
 ```
 
+### Assembler du code WDC 65816 (SNES / Apple IIgs)
+
+```
+;; Origine par défaut : $8000 (SNES LoROM bank 0)
+(cl-asm/backend.65816:assemble-string-65816
+  ".org $8000
+   .al             ; accumulateur en mode 16 bits
+   LDA #$1234      ; immédiat 16 bits (3 octets)
+   STA $7E0000     ; stockage à une adresse longue 24 bits
+   JSL $008000     ; saut sous-routine long (24 bits)
+   RTL")
+
+;; Mode 8 bits (par défaut au reset)
+(cl-asm/backend.65816:assemble-string-65816
+  ".org $8000
+   SEP #$30        ; flags M et X à 1 (mode 8 bits)
+   LDA #$42        ; immédiat 8 bits
+   STA $00,X       ; zero-page,X
+   RTS")
+
+;; Block move
+(cl-asm/backend.65816:assemble-string-65816
+  ".org $8000
+   MVN $7E,$7F     ; copie de la banque $7F vers la banque $7E
+   RTS")
+```
+
 ### Pipeline complet : parse puis assemble
 
 ```
@@ -355,6 +387,28 @@ main::                     ; label global (ca65-style)
         bbr3 $10, label    ; branche si bit 3 de $10 est à 0
         bbs3 $10, label    ; branche si bit 3 de $10 est à 1
 
+; Modes et instructions WDC 65816 supplémentaires
+        lda $123456        ; absolu long (adresse 24 bits)
+        lda $123456,X      ; absolu long,X
+        lda [$10]          ; indirect long DP
+        lda [$10],Y        ; indirect long DP,Y
+        lda $10,S          ; stack-relative
+        lda ($10,S),Y      ; (stack-relative indirect),Y
+        jsl $008000        ; saut sous-routine long (24 bits)
+        jml $008000        ; saut long (24 bits)
+        brl label          ; branche longue (offset 16 bits)
+        mvn $7e,$7f        ; block move negative (dst,src)
+        mvp $7e,$7f        ; block move positive (dst,src)
+        pea #$1234         ; push effective address (16 bits)
+        rep #$30           ; reset bits du registre status
+        sep #$30           ; set bits du registre status
+
+; Directives de mode 65816
+        .al                ; accumulateur 16 bits (efface M)
+        .as                ; accumulateur 8 bits (met M)
+        .xl                ; index 16 bits (efface X)
+        .xs                ; index 8 bits (met X)
+
 ; Modes 45GS02 supplémentaires
         lda ($00),Z        ; (indirect),Z
         lda $1234,Z        ; absolu,Z
@@ -405,6 +459,7 @@ PLATFORM = 64
 ./cl-asm mega65.lasm --target 45gs02
 ./cl-asm prog.asm --target x16
 ./cl-asm prog.asm --target r65c02
+./cl-asm snes.asm --target 65816     # WDC 65816 / SNES
 ./cl-asm programme.asm -v            # mode verbose
 ./cl-asm --help
 ```
@@ -416,7 +471,7 @@ PLATFORM = 64
 | `-o FILE` | Fichier de sortie | même nom, ext .prg |
 | `-f FORMAT` | `prg` ou `bin` | `prg` |
 | `--origin ADDR` | Adresse d'origine (ex: `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502` (aussi `mos6502`, `c64`), `45gs02` (aussi `mega65`), `x16` (aussi `65c02`, `commander-x16`), `r65c02` (aussi `rockwell`) | `6502` |
+| `-t TARGET` | `6502` (aussi `mos6502`, `c64`), `45gs02` (aussi `mega65`), `x16` (aussi `65c02`, `commander-x16`), `r65c02` (aussi `rockwell`), `65816` (aussi `wdc65816`, `snes`, `apple2gs`) | `6502` |
 | `-v` | Mode verbose | — |
 
 La cible est détectée automatiquement depuis les premières lignes du source :
