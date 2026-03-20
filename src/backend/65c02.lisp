@@ -276,3 +276,10 @@
   "Raccourci : lit, parse et assemble le fichier a PATH pour le 65C02."
   (let ((program (cl-asm/parser:parse-file path)))
     (assemble-65c02 program :origin origin)))
+
+(cl-asm/backends:register-backend
+ :x16
+ '("x16" "65c02" "commander-x16")
+ "CL-ASM/BACKEND.65C02" "ASSEMBLE-FILE-65C02"
+ "Commander X16 / WDC 65C02"
+ "Commander X16 / WDC 65C02")

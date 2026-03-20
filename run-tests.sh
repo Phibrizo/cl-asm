@@ -2,7 +2,9 @@
 # run-tests.sh — Lance la suite de tests complète de cl-asm.
 # Doit être exécuté depuis la racine du projet (le répertoire cl-asm/).
 
-sbcl --load src/core/ir.lisp \
+sbcl --load src/core/version.lisp \
+     --load src/core/backends.lisp \
+     --load src/core/ir.lisp \
      --load src/core/expression.lisp \
      --load src/core/symbol-table.lisp \
      --load src/frontend/classic-lexer.lisp \

@@ -7,9 +7,9 @@
 
 ## Nouvelles architectures
 
-- [ ] Refactoriser `cl-asm-script.lisp` : remplacer le `ecase` codé en dur
+- [x] Refactoriser `cl-asm-script.lisp` : remplacer le `ecase` codé en dur
       par un registre de backends extensible, pour faciliter l'ajout de
-      nouvelles architectures sans modifier le script.
+      nouvelles architectures sans modifier le script. *(v0.1.3)*
 - [ ] Backend WDC 65816 : support SNES / Apple IIgs. Points clés : modes
       8/16 bits switchables, ~20 modes d'adressage, adresses 24 bits,
       directives `.mx`/`.al`/`.as`/`.xl`/`.xs`.

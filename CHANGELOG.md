@@ -5,6 +5,46 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.1.3] — 2026-03-20
+
+### Added
+
+**Registre extensible de backends** — nouveau module `src/core/backends.lisp`
+(package `cl-asm/backends`) centralisant la déclaration des backends d'assemblage.
+Chaque backend s'enregistre via `register-backend` en fin de son fichier source.
+Le script CLI n'a plus besoin d'être modifié pour ajouter une nouvelle architecture.
+
+- `register-backend keyword aliases package function desc-fr desc-en` — enregistre un backend
+- `find-backend-by-alias alias` — résolution CLI string → keyword
+- `all-backends` — liste ordonnée des backends enregistrés
+
+### Changed
+
+**`cl-asm-script.lisp` refactorisé** — plus aucun `ecase` codé en dur :
+
+- `assemble-source` délègue via le registre (`all-backends` + lookup par keyword)
+- Parsing `--target` utilise `find-backend-by-alias` (insensible à la casse)
+- `print-usage` génère dynamiquement la liste des alias CLI
+- `detect-target` itère sur `all-backends` au lieu de chercher des chaînes fixes
+- Alias supplémentaires : `mos6502`, `c64`, `mega65`, `65c02`, `commander-x16`, `rockwell`
+
+**`src/backend/45gs02.lisp`** — ajout de `assemble-file-45gs02` (manquante) et
+de son export, pour uniformiser l'interface avec les autres backends.
+
+**Scripts de test** — `run-tests.sh`, `run-tests-clisp.lisp`, `run-tests-ecl.lisp`
+chargent désormais `src/core/backends.lisp` après `version.lisp`.
+
+### Tests
+
+| Suite | 0.1.2 | 0.1.3 |
+|---|---|---|
+| Toutes suites | 829 | 829 |
+| **TOTAL** | **829** | **829** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+.
+
+---
+
 ## [0.1.2] — 2026-03-17
 
 ### Added
@@ -99,12 +139,20 @@ fonctionnels sous l'émulateur X16, via `CHROUT` (`$FFD2`).
 
 ### Tests
 
-| Suite | 0.1.0 | 0.1.1 |
-|---|---|---|
-| symbol-table | 59 | 61 (+2) |
-| 65c02 | — | 41 |
-| Autres suites | 588 | 588 |
-| **TOTAL** | **647** | **706** |
+| Suite | 0.1.0 | 0.1.1 | 0.1.2 | 0.1.3 |
+|---|---|---|---|---|
+| symbol-table | 59 | 61 | 65 | 65 |
+| expression | — | — | 129 | 129 |
+| lexer | — | — | 119 | 119 |
+| parser | — | — | 84 | 84 |
+| macros | — | — | 27 | 27 |
+| conditionnel | — | — | 27 | 27 |
+| lasm | — | — | 58 | 58 |
+| 6502 | — | — | 82 | 82 |
+| 65c02 | — | 41 | 41 | 41 |
+| r65c02 | — | — | 117 | 117 |
+| 45gs02 | — | — | 80 | 80 |
+| **TOTAL** | **647** | **706** | **829** | **829** |
 
 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+.
 

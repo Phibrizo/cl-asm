@@ -7,14 +7,14 @@ backends (Z80, 68000…) sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.1.2**
+**Version courante : 0.1.3**
 
 ```
-cl-asm/version:+version+         ; → "0.1.2"
+cl-asm/version:+version+         ; → "0.1.3"
 cl-asm/version:+version-major+   ; → 0
 cl-asm/version:+version-minor+   ; → 1
 cl-asm/version:+version-patch+   ; → 2
-(cl-asm/version:version-string)  ; → "0.1.2"
+(cl-asm/version:version-string)  ; → "0.1.3"
 ```
 
 ---
@@ -81,6 +81,7 @@ cl-asm/
 ├── src/
 │   ├── core/
 │   │   ├── version.lisp        numéro de version
+│   │   ├── backends.lisp       registre extensible de backends
 │   │   ├── ir.lisp             représentation intermédiaire
 │   │   ├── expression.lisp     évaluateur d'expressions
 │   │   └── symbol-table.lisp   table des symboles, 2 passes
@@ -415,7 +416,7 @@ PLATFORM = 64
 | `-o FILE` | Fichier de sortie | même nom, ext .prg |
 | `-f FORMAT` | `prg` ou `bin` | `prg` |
 | `--origin ADDR` | Adresse d'origine (ex: `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502`, `45gs02`, `x16` ou `r65c02` | `6502` |
+| `-t TARGET` | `6502` (aussi `mos6502`, `c64`), `45gs02` (aussi `mega65`), `x16` (aussi `65c02`, `commander-x16`), `r65c02` (aussi `rockwell`) | `6502` |
 | `-v` | Mode verbose | — |
 
 La cible est détectée automatiquement depuis les premières lignes du source :

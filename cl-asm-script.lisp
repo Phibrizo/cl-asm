@@ -97,24 +97,24 @@
     (concatenate 'string base "." (string-downcase (symbol-name fmt)))))
 
 (defun detect-target (source-path)
+  "Détecte la cible en scannant les 10 premières lignes du fichier source.
+   Essaie de faire correspondre les alias de chaque backend enregistré,
+   ainsi que les formes 'target: ALIAS' et ':ALIAS'."
   (with-open-file (in source-path :if-does-not-exist nil)
     (when in
       (loop repeat 10
             for line = (read-line in nil nil)
             while line
-            do (cond
-                 ((or (search "target: 45gs02" line)
-                      (search ":45gs02" line))
-                  (return :45gs02))
-                 ((or (search "target: x16" line)
-                      (search ":x16" line))
-                  (return :x16))
-                 ((search "target: r65c02" line)
-                  (return :r65c02))))))
+            do (dolist (entry (cl-asm/backends:all-backends))
+                 (dolist (alias (cl-asm/backends:backend-aliases entry))
+                   (when (or (search (concatenate 'string "target: " alias) line)
+                             (search (concatenate 'string ":" alias) line))
+                     (return-from detect-target
+                       (cl-asm/backends:backend-keyword entry))))))))
   nil)
 
 ;;; --------------------------------------------------------------------------
-;;; Assemblage selon la cible
+;;; Assemblage selon la cible — délègue au registre
 ;;; --------------------------------------------------------------------------
 
 (defun call (package-name function-name &rest args)
@@ -126,28 +126,30 @@
                    "Target: ~A  Origin: $~4,'0X~%")
             target origin))
   (let ((ext (pathname-type source-path)))
-    (cond
-      ((string-equal ext "lasm")
-       (call "CL-ASM/LASM" "ASSEMBLE-LASM"
-             source-path :origin origin :target target))
-      (t
-       (ecase target
-         (:6502
-          (call "CL-ASM/BACKEND.6502" "ASSEMBLE-FILE"
-                source-path :origin origin))
-         (:45gs02
-          (call "CL-ASM/BACKEND.45GS02" "ASSEMBLE-FILE-45GS02"
-                source-path :origin origin))
-         (:x16
-          (call "CL-ASM/BACKEND.65C02" "ASSEMBLE-FILE-65C02"
-                source-path :origin origin))
-         (:r65c02
-          (call "CL-ASM/BACKEND.R65C02" "ASSEMBLE-FILE-R65C02"
-                source-path :origin origin)))))))
+    (if (string-equal ext "lasm")
+        (call "CL-ASM/LASM" "ASSEMBLE-LASM"
+              source-path :origin origin :target target)
+        (let ((entry (find-if (lambda (e)
+                                (eq (cl-asm/backends:backend-keyword e) target))
+                              (cl-asm/backends:all-backends))))
+          (unless entry
+            (error (msg "Cible inconnue : ~A" "Unknown target: ~A") target))
+          (call (cl-asm/backends:backend-package   entry)
+                (cl-asm/backends:backend-function  entry)
+                source-path :origin origin)))))
 
 ;;; --------------------------------------------------------------------------
-;;; Point d'entree
+;;; Point d'entrée
 ;;; --------------------------------------------------------------------------
+
+(defun backend-aliases-string ()
+  "Construit la chaîne des alias CLI de tous les backends enregistrés,
+   ex: '6502 (défaut), 45gs02, mega65, x16, 65c02, r65c02, rockwell'"
+  (let ((parts '()))
+    (dolist (entry (cl-asm/backends:all-backends))
+      (dolist (alias (cl-asm/backends:backend-aliases entry))
+        (push alias parts)))
+    (format nil "~{~A~^, ~}" (nreverse parts))))
 
 (defun print-usage ()
   (if (eq *lang* :fr)
@@ -157,7 +159,8 @@
         (format t "  -o FILE          Fichier de sortie~%")
         (format t "  -f, --format FMT Format : prg (defaut) ou bin~%")
         (format t "  --origin ADDR    Adresse d'origine (ex: 0x0801, $0801)~%")
-        (format t "  -t, --target T   Cible : 6502 (defaut), 45gs02, x16, r65c02~%")
+        (format t "  -t, --target T   Cible : ~A~%"
+                (backend-aliases-string))
         (format t "  -v, --verbose    Mode verbose~%")
         (format t "  -h, --help       Cette aide~%"))
       (progn
@@ -166,7 +169,8 @@
         (format t "  -o FILE          Output file~%")
         (format t "  -f, --format FMT Format: prg (default) or bin~%")
         (format t "  --origin ADDR    Origin address (e.g. 0x0801, $0801)~%")
-        (format t "  -t, --target T   Target: 6502 (default), 45gs02, x16, r65c02~%")
+        (format t "  -t, --target T   Target: ~A~%"
+                (backend-aliases-string))
         (format t "  -v, --verbose    Verbose mode~%")
         (format t "  -h, --help       Show this help~%"))))
 
@@ -208,12 +212,12 @@
                     (setf origin (parse-integer-auto (nth (1+ i) args)))
                     (incf i 2))
                    ((or (string= arg "-t") (string= arg "--target"))
-                    (let ((tgt (string-downcase (nth (1+ i) args))))
-                      (setf target (cond
-                                     ((string= tgt "45gs02") :45gs02)
-                                     ((string= tgt "x16")    :x16)
-                                     ((string= tgt "r65c02") :r65c02)
-                                     (t                      :6502))))
+                    (let* ((tgt (nth (1+ i) args))
+                           (entry (cl-asm/backends:find-backend-by-alias tgt)))
+                      (setf target
+                            (if entry
+                                (cl-asm/backends:backend-keyword entry)
+                                :6502)))
                     (incf i 2))
                    ((or (string= arg "-v") (string= arg "--verbose"))
                     (setf verbose t)
@@ -237,12 +241,6 @@
                 input)
         (exit-lisp 1))
 
-      (unless target
-        (setf target (or (detect-target input) :6502)))
-
-      (unless output
-        (setf output (default-output input format)))
-
       (handler-case
           (load-cl-asm script-dir)
         (error (e)
@@ -251,6 +249,12 @@
                        "Error loading cl-asm: ~A~%")
                   e)
           (exit-lisp 1)))
+
+      (unless target
+        (setf target (or (detect-target input) :6502)))
+
+      (unless output
+        (setf output (default-output input format)))
 
       (when verbose
         (format t (msg "Assemblage de ~A...~%"

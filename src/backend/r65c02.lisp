@@ -236,3 +236,10 @@
   "Raccourci : lit, parse et assemble le fichier à PATH pour le R65C02."
   (let ((program (cl-asm/parser:parse-file path)))
     (assemble-r65c02 program :origin origin)))
+
+(cl-asm/backends:register-backend
+ :r65c02
+ '("r65c02" "rockwell")
+ "CL-ASM/BACKEND.R65C02" "ASSEMBLE-FILE-R65C02"
+ "Rockwell R65C02"
+ "Rockwell R65C02")

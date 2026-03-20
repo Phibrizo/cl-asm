@@ -3,12 +3,14 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.1.2"
+  :version "0.1.3"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()
   :components
   ((:file "src/core/version")
+   (:file "src/core/backends"
+    :depends-on ("src/core/version"))
    (:file "src/core/ir"
     :depends-on ("src/core/version"))
    (:file "src/core/expression"
@@ -22,6 +24,7 @@
                  "src/frontend/classic-lexer"))
    (:file "src/backend/6502"
     :depends-on ("src/core/ir"
+                 "src/core/backends"
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/frontend/classic-parser"))

@@ -664,3 +664,10 @@
    Retourne le vecteur d'octets."
   (let ((program (cl-asm/parser:parse-file path)))
     (assemble program :origin origin)))
+
+(cl-asm/backends:register-backend
+ :6502
+ '("6502" "mos6502" "c64")
+ "CL-ASM/BACKEND.6502" "ASSEMBLE-FILE"
+ "MOS 6502 / Commodore 64"
+ "MOS 6502 / Commodore 64")

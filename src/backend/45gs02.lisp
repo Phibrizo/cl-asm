@@ -2,7 +2,7 @@
 (defpackage #:cl-asm/backend.45gs02
   (:use #:cl)
   (:export
-   #:assemble-45gs02 #:assemble-string-45gs02
+   #:assemble-45gs02 #:assemble-string-45gs02 #:assemble-file-45gs02
    #:lookup-45gs02 #:find-clause-45gs02
    #:encode-instruction-45gs02 #:resolve-mode-45gs02
    #:*instructions-45gs02*))
@@ -504,3 +504,15 @@
   "Raccourci : parse SOURCE puis assemble pour le 45GS02."
   (let ((program (cl-asm/parser:parse-string source)))
     (assemble-45gs02 program :origin origin)))
+
+(defun assemble-file-45gs02 (path &key (origin #x2001))
+  "Raccourci : lit, parse et assemble le fichier à PATH pour le 45GS02."
+  (let ((program (cl-asm/parser:parse-file path)))
+    (assemble-45gs02 program :origin origin)))
+
+(cl-asm/backends:register-backend
+ :45gs02
+ '("45gs02" "mega65")
+ "CL-ASM/BACKEND.45GS02" "ASSEMBLE-FILE-45GS02"
+ "Mega65 (45GS02)"
+ "Mega65 (45GS02)")

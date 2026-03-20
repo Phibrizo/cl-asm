@@ -36,6 +36,7 @@ cl-asm is structured in three independent layers:
 | Package | File | Role |
 |---|---|---|
 | `cl-asm/version` | `src/core/version.lisp` | Version number |
+| `cl-asm/backends` | `src/core/backends.lisp` | Extensible backend registry |
 | `cl-asm/ir` | `src/core/ir.lisp` | IR structures and conditions |
 | `cl-asm/expression` | `src/core/expression.lisp` | Expression evaluator |
 | `cl-asm/symbol-table` | `src/core/symbol-table.lisp` | Symbol table |
@@ -198,6 +199,48 @@ BASE+1    → (:+ "BASE" 1)
 (A|B)&$FF → (:& (:bitor "A" "B") 255)
 *-2       → (:- :current-pc 2)
 ```
+
+---
+
+## Module `cl-asm/backends`
+
+Extensible backend registry. Each backend registers itself once via
+`register-backend` at the end of its source file. The CLI script and
+any other tool query the registry instead of hard-coding the list of
+supported targets.
+
+### Exported API
+
+```lisp
+(cl-asm/backends:register-backend
+  :6502                          ; keyword — internal identifier
+  '("6502" "mos6502" "c64")      ; CLI aliases (case-insensitive)
+  "CL-ASM/BACKEND.6502"          ; package name string
+  "ASSEMBLE-FILE"                ; function name string
+  "MOS 6502 / Commodore 64"      ; French description
+  "MOS 6502 / Commodore 64")     ; English description
+
+(cl-asm/backends:find-backend-by-alias "c64")   ; → backend-entry for :6502
+(cl-asm/backends:all-backends)                  ; → list of all entries
+(cl-asm/backends:backend-keyword entry)         ; → :6502
+(cl-asm/backends:backend-aliases  entry)        ; → ("6502" "mos6502" "c64")
+(cl-asm/backends:backend-package  entry)        ; → "CL-ASM/BACKEND.6502"
+(cl-asm/backends:backend-function entry)        ; → "ASSEMBLE-FILE"
+```
+
+### Adding a new backend
+
+Create `src/backend/myarch.lisp`, implement `assemble-file-myarch`, then
+add at the end of the file:
+
+```lisp
+(cl-asm/backends:register-backend
+  :myarch '("myarch") "CL-ASM/BACKEND.MYARCH" "ASSEMBLE-FILE-MYARCH"
+  "My architecture" "My architecture")
+```
+
+Add the file to `cl-asm.asd` and the three test scripts. No other file
+needs to be modified.
 
 ---
 

@@ -7,14 +7,14 @@ backends (Z80, 68000…) without modifying the core.
 
 ## Version
 
-**Current version: 0.1.2**
+**Current version: 0.1.3**
 
 ```
-cl-asm/version:+version+         ; → "0.1.2"
+cl-asm/version:+version+         ; → "0.1.3"
 cl-asm/version:+version-major+   ; → 0
 cl-asm/version:+version-minor+   ; → 1
 cl-asm/version:+version-patch+   ; → 2
-(cl-asm/version:version-string)  ; → "0.1.2"
+(cl-asm/version:version-string)  ; → "0.1.3"
 ```
 
 ---
@@ -81,6 +81,7 @@ cl-asm/
 ├── src/
 │   ├── core/
 │   │   ├── version.lisp        version number
+│   │   ├── backends.lisp       extensible backend registry
 │   │   ├── ir.lisp             intermediate representation
 │   │   ├── expression.lisp     expression evaluator
 │   │   └── symbol-table.lisp   symbol table, 2 passes
@@ -452,7 +453,7 @@ The `cl-asm` script assembles a file directly from the terminal.
 | `-o FILE` | Output file | same name, .prg extension |
 | `-f FORMAT` | `prg` or `bin` | `prg` |
 | `--origin ADDR` | Origin address (e.g. `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502`, `45gs02`, `x16`, or `r65c02` | `6502` |
+| `-t TARGET` | `6502` (also `mos6502`, `c64`), `45gs02` (also `mega65`), `x16` (also `65c02`, `commander-x16`), `r65c02` (also `rockwell`) | `6502` |
 | `-v` | Verbose mode | — |
 
 Target is auto-detected from the first lines of the source file:

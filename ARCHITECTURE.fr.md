@@ -35,6 +35,8 @@ cl-asm est structuré en trois couches indépendantes :
 
 | Package | Fichier | Rôle |
 |---|---|---|
+| `cl-asm/version` | `src/core/version.lisp` | Numéro de version |
+| `cl-asm/backends` | `src/core/backends.lisp` | Registre extensible de backends |
 | `cl-asm/ir` | `src/core/ir.lisp` | Structures IR et conditions |
 | `cl-asm/expression` | `src/core/expression.lisp` | Évaluateur d'expressions |
 | `cl-asm/symbol-table` | `src/core/symbol-table.lisp` | Table des symboles |
@@ -217,6 +219,47 @@ BASE+1      → (:+ "BASE" 1)
 (A|B)&$FF   → (:& (:bitor "A" "B") 255)
 *-2         → (:- :* 2)
 ```
+
+---
+
+## Module `cl-asm/backends`
+
+Registre extensible de backends. Chaque backend s'enregistre via
+`register-backend` en fin de son fichier source. Le script CLI et tout
+autre outil interrogent le registre plutôt que de coder les cibles en dur.
+
+### API exportée
+
+```lisp
+(cl-asm/backends:register-backend
+  :6502                          ; keyword — identifiant interne
+  '("6502" "mos6502" "c64")      ; alias CLI (insensibles à la casse)
+  "CL-ASM/BACKEND.6502"          ; nom du package (chaîne)
+  "ASSEMBLE-FILE"                ; nom de la fonction (chaîne)
+  "MOS 6502 / Commodore 64"      ; description française
+  "MOS 6502 / Commodore 64")     ; description anglaise
+
+(cl-asm/backends:find-backend-by-alias "c64")   ; → entrée pour :6502
+(cl-asm/backends:all-backends)                  ; → liste de toutes les entrées
+(cl-asm/backends:backend-keyword entry)         ; → :6502
+(cl-asm/backends:backend-aliases  entry)        ; → ("6502" "mos6502" "c64")
+(cl-asm/backends:backend-package  entry)        ; → "CL-ASM/BACKEND.6502"
+(cl-asm/backends:backend-function entry)        ; → "ASSEMBLE-FILE"
+```
+
+### Ajouter un nouveau backend
+
+Créer `src/backend/monarch.lisp`, implémenter `assemble-file-monarch`, puis
+ajouter en fin de fichier :
+
+```lisp
+(cl-asm/backends:register-backend
+  :monarch '("monarch") "CL-ASM/BACKEND.MONARCH" "ASSEMBLE-FILE-MONARCH"
+  "Mon architecture" "My architecture")
+```
+
+Ajouter le fichier dans `cl-asm.asd` et les trois scripts de test. Aucun
+autre fichier n'a besoin d'être modifié.
 
 ---
 

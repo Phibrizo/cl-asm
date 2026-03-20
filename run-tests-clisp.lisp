@@ -51,6 +51,7 @@
 ;;; --------------------------------------------------------------------------
 
 (load-filtered "src/core/version.lisp")
+(load-filtered "src/core/backends.lisp")
 (load-filtered "src/core/ir.lisp")
 (load-filtered "src/core/expression.lisp")
 (load-filtered "src/core/symbol-table.lisp")
