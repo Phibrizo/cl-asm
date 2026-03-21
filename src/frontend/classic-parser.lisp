@@ -10,7 +10,10 @@
    #:rockwell-two-operands-p
    ;; Helpers pour le backend Z80
    #:z80-mnemonic-p
-   #:*z80-mode*))
+   #:*z80-mode*
+   ;; Helpers pour le backend M68K
+   #:m68k-mnemonic-p
+   #:*m68k-mode*))
 ;;; src/frontend/classic-parser.lisp
 ;;;
 ;;; Parser pour syntaxe assembleur classique (ca65-like).
@@ -54,6 +57,12 @@
 (declaim (ftype (function (t string &rest t) t) parser-error))
 ;; Z80 helpers (définis en fin de fichier)
 (declaim (ftype (function (t) t) z80-mnemonic-p parse-z80-operands))
+;; M68K helpers (définis en fin de fichier)
+(declaim (ftype (function (t) t) m68k-mnemonic-p parse-m68k-operands
+                                 m68k-base-mnemonic m68k-size-from-mnemonic))
+;; Déclaration anticipée de *m68k-mode* pour éviter les style-warnings SBCL
+;; (la variable est référencée dans parse-line avant d'être définie en fin de fichier)
+(defvar *m68k-mode* nil)
 (declaim (ftype (function (t t list) t) expand-macro))
 
 
@@ -877,12 +886,17 @@
            ;; Instruction : mnémonique [opérande]
            ;; Cas spécial : BBRn/BBSn = deux opérandes (zp , rel)
            (t
-            (let* ((mnem-up (string-upcase name))
+            (let* ((mnem-up   (string-upcase name))
+                   (mnem-base (if *m68k-mode* (m68k-base-mnemonic mnem-up) mnem-up))
+                   (mnem-size (if *m68k-mode* (m68k-size-from-mnemonic mnem-up) nil))
                    (operands
                     (cond
                       ;; Z80 : opérandes séparées par virgules
                       ((z80-mnemonic-p mnem-up)
                        (parse-z80-operands ctx))
+                      ;; M68K : opérandes séparées par virgules, modes d'adressage étendus
+                      ((m68k-mnemonic-p mnem-up)
+                       (parse-m68k-operands ctx))
                       ;; BBRn/BBSn : zp-expr , rel-expr
                       ;; On parse les deux expressions directement
                       ;; sans passer par parse-operand (qui consommerait
@@ -921,7 +935,8 @@
                          (if operand (list operand) nil))))))
               (emit-node ctx
                          (cl-asm/ir:make-ir-instruction
-                          :mnemonic mnem-up
+                          :mnemonic mnem-base
+                          :size mnem-size
                           :operands operands
                           :loc loc)))))))
 
@@ -1142,3 +1157,213 @@
             (list op1 (parse-z80-operand-raw ctx))))))
       ;; Pas de virgule — opérande unique
       (t (list op1)))))
+
+
+;;; ==========================================================================
+;;;  Mode M68K (Motorola 68000)
+;;;
+;;;  Activé via *m68k-mode* = T (lié par assemble-string-m68k / assemble-file-m68k).
+;;;  Quand NIL, aucun impact sur les autres architectures.
+;;;
+;;;  Nouveaux kinds d'IR-OPERAND introduits :
+;;;    :post-increment  — (An)+,  value = nom registre string ("A0"…"SP")
+;;;    :pre-decrement   — -(An),  value = nom registre string
+;;;    :indirect  avec value structurée :
+;;;      (:disp "An" expr)            — d(An) ou d(PC) (:pc comme symbole)
+;;;      (:indexed "An" "Xi" size d)  — d(An,Xi.s) ou d(PC,Xi.s)
+;;;    :direct avec value = string registre — Dn / An / SP / PC / SR / CCR
+;;; ==========================================================================
+
+(defvar *m68k-mode* nil
+  "T si on est en train d'assembler du code M68K (Motorola 68000).
+   Quand NIL, aucun mnémonique M68K n'est reconnu — pas d'impact sur
+   6502, Z80 ou les autres architectures.")
+
+(defparameter *m68k-base-mnemonics*
+  '("MOVE" "MOVEA" "MOVEM" "MOVEP" "MOVEQ"
+    "ADD" "ADDA" "ADDI" "ADDQ" "ADDX"
+    "SUB" "SUBA" "SUBI" "SUBQ" "SUBX"
+    "AND" "ANDI" "OR" "ORI" "EOR" "EORI"
+    "CMP" "CMPA" "CMPI" "CMPM"
+    "MULU" "MULS" "DIVU" "DIVS"
+    "NEG" "NEGX" "NOT" "CLR" "TST" "EXT" "EXTB" "SWAP"
+    "ASL" "ASR" "LSL" "LSR" "ROL" "ROR" "ROXL" "ROXR"
+    "BTST" "BCHG" "BCLR" "BSET"
+    "BRA" "BSR"
+    "BEQ" "BNE" "BLT" "BGT" "BLE" "BGE"
+    "BCC" "BCS" "BMI" "BPL" "BVC" "BVS" "BHI" "BLS" "BNOT"
+    "DBF" "DBRA" "DBEQ" "DBNE" "DBLT" "DBGT" "DBLE" "DBGE"
+    "DBCC" "DBCS" "DBMI" "DBPL" "DBVC" "DBVS" "DBHI" "DBLS"
+    "SF" "ST" "SEQ" "SNE" "SLT" "SGT" "SLE" "SGE"
+    "SCC" "SCS" "SMI" "SPL" "SVC" "SVS" "SHI" "SLS"
+    "JMP" "JSR" "RTS" "RTR" "RTE"
+    "NOP" "STOP" "RESET" "ILLEGAL"
+    "TRAP" "TRAPV" "CHK" "LINK" "UNLK"
+    "LEA" "PEA" "TAS"
+    "ABCD" "SBCD" "NBCD"
+    "EXG"
+    "DC" "DS" "ORG")
+  "Mnémoniques M68K de base (sans suffixe .B/.W/.L).")
+
+(defun m68k-base-mnemonic (name)
+  "Retourne le mnémonique sans suffixe de taille : 'MOVE.B' → 'MOVE'."
+  (let ((dot-pos (position #\. name)))
+    (if dot-pos (subseq name 0 dot-pos) name)))
+
+(defun m68k-size-from-mnemonic (name)
+  "Retourne le hint de taille depuis le suffixe du mnémonique.
+   'MOVE.B' → :byte, 'MOVE.W' → :word, 'MOVE.L' → :long, 'BRA.S' → :byte, NIL si absent."
+  (let ((dot-pos (position #\. name)))
+    (when dot-pos
+      (let ((suffix (subseq name (1+ dot-pos))))
+        (cond ((string= suffix "B") :byte)
+              ((string= suffix "W") :word)
+              ((string= suffix "L") :long)
+              ((string= suffix "S") :byte)
+              (t nil))))))
+
+(defun m68k-mnemonic-p (name)
+  "Retourne T si NAME est un mnémonique M68K ET que *m68k-mode* = T.
+   Gère les suffixes de taille : 'MOVE.B' est reconnu comme 'MOVE'."
+  (and *m68k-mode*
+       (member (m68k-base-mnemonic name) *m68k-base-mnemonics* :test #'string=)
+       t))
+
+(defparameter *m68k-data-registers*
+  '("D0" "D1" "D2" "D3" "D4" "D5" "D6" "D7")
+  "Registres de données M68K.")
+
+(defparameter *m68k-addr-registers*
+  '("A0" "A1" "A2" "A3" "A4" "A5" "A6" "A7" "SP")
+  "Registres d'adresse M68K. SP = A7.")
+
+(defparameter *m68k-special-registers*
+  '("PC" "SR" "CCR" "USP")
+  "Registres spéciaux M68K.")
+
+(defparameter *m68k-all-registers*
+  (append *m68k-data-registers* *m68k-addr-registers* *m68k-special-registers*)
+  "Tous les registres M68K.")
+
+(defun m68k-register-p (name)
+  "Vrai si NAME (string, déjà en majuscules) est un registre M68K."
+  (member name *m68k-all-registers* :test #'string=))
+
+(defun m68k-register-with-size (name)
+  "Décompose 'D1.W' en (values \"D1\" :word).
+   Sans suffixe, retourne (values NAME NIL)."
+  (let ((dot-pos (position #\. name)))
+    (if dot-pos
+        (let ((reg    (subseq name 0 dot-pos))
+              (suffix (subseq name (1+ dot-pos))))
+          (values reg
+                  (cond ((string= suffix "W") :word)
+                        ((string= suffix "L") :long)
+                        (t nil))))
+        (values name nil))))
+
+(defun parse-m68k-operand (ctx)
+  "Parse un opérande M68K. Retourne un IR-OPERAND.
+
+   Modes reconnus :
+     #expr           → :immediate
+     Dn / An / SR…   → :direct \"Dn\"
+     (An)            → :indirect \"An\"
+     (An)+           → :post-increment \"An\"
+     -(An)           → :pre-decrement \"An\"
+     d(An)           → :indirect (:disp \"An\" d)
+     d(PC)           → :indirect (:disp :pc d)
+     d(An,Xi.s)      → :indirect (:indexed \"An\" \"Xi\" size d)
+     d(PC,Xi.s)      → :indirect (:indexed :pc \"Xi\" size d)
+     (An,Xi.s)       → :indirect (:indexed \"An\" \"Xi\" size 0)
+     expr            → :direct expr  (adresse absolue)"
+  (let ((loc (pc-loc ctx)))
+    (cond
+      ;; #expr — immédiat
+      ((eq (pc-kind ctx) :hash)
+       (pc-advance ctx)
+       (cl-asm/ir:make-ir-operand :kind :immediate :value (parse-expr ctx) :loc loc))
+
+      ;; -(An) — pré-décrémentation
+      ((and (eq (pc-kind ctx) :minus)
+            (let ((nxt (pc-peek ctx 1)))
+              (and nxt (eq (cl-asm/lexer:token-kind nxt) :lparen))))
+       (pc-advance ctx)                     ; consomme -
+       (pc-advance ctx)                     ; consomme (
+       (let ((reg (string-upcase (pc-value ctx))))
+         (pc-advance ctx)                   ; consomme nom registre
+         (pc-expect ctx :rparen)
+         (cl-asm/ir:make-ir-operand :kind :pre-decrement :value reg :loc loc)))
+
+      ;; (expr) — indirect registre, post-incrémentation, ou indexé sans déplacement
+      ((eq (pc-kind ctx) :lparen)
+       (pc-advance ctx)                     ; consomme (
+       (let ((inner (parse-expr ctx)))
+         (cond
+           ;; (An,Xi.s) — indexé, déplacement implicite 0
+           ((eq (pc-kind ctx) :comma)
+            (pc-advance ctx)               ; consomme ,
+            (multiple-value-bind (xi-reg xi-size)
+                (m68k-register-with-size (string-upcase (pc-value ctx)))
+              (pc-advance ctx)             ; consomme Xi
+              (pc-expect ctx :rparen)
+              (cl-asm/ir:make-ir-operand
+               :kind :indirect
+               :value (list :indexed inner xi-reg xi-size 0)
+               :loc loc)))
+           ;; (An) ou (An)+
+           (t
+            (pc-expect ctx :rparen)
+            (cond
+              ;; (An)+ — post-incrémentation
+              ((eq (pc-kind ctx) :plus)
+               (pc-advance ctx)           ; consomme +
+               (cl-asm/ir:make-ir-operand :kind :post-increment :value inner :loc loc))
+              ;; (An) — indirect
+              (t
+               (cl-asm/ir:make-ir-operand :kind :indirect :value inner :loc loc)))))))
+
+      ;; expr éventuellement suivie de (An) ou (An,Xi) — déplacement
+      (t
+       (let ((val (parse-expr ctx)))
+         (cond
+           ;; d(An) ou d(An,Xi.s) ou d(PC) ou d(PC,Xi.s)
+           ((eq (pc-kind ctx) :lparen)
+            (pc-advance ctx)               ; consomme (
+            (let ((base (string-upcase (pc-value ctx))))
+              (pc-advance ctx)             ; consomme base (An ou PC)
+              (cond
+                ;; d(An,Xi.s) ou d(PC,Xi.s)
+                ((eq (pc-kind ctx) :comma)
+                 (pc-advance ctx)         ; consomme ,
+                 (multiple-value-bind (xi-reg xi-size)
+                     (m68k-register-with-size (string-upcase (pc-value ctx)))
+                   (pc-advance ctx)       ; consomme Xi
+                   (pc-expect ctx :rparen)
+                   (let ((base-kw (if (string= base "PC") :pc base)))
+                     (cl-asm/ir:make-ir-operand
+                      :kind :indirect
+                      :value (list :indexed base-kw xi-reg xi-size val)
+                      :loc loc))))
+                ;; d(An) ou d(PC)
+                (t
+                 (pc-expect ctx :rparen)
+                 (let ((base-kw (if (string= base "PC") :pc base)))
+                   (cl-asm/ir:make-ir-operand
+                    :kind :indirect
+                    :value (list :disp base-kw val)
+                    :loc loc))))))
+           ;; Registre direct ou adresse absolue
+           (t
+            (cl-asm/ir:make-ir-operand :kind :direct :value val :loc loc))))))))
+
+(defun parse-m68k-operands (ctx)
+  "Parse 0, 1 ou 2 opérandes M68K séparés par une virgule."
+  (when (member (pc-kind ctx) '(:newline :eof) :test #'eq)
+    (return-from parse-m68k-operands nil))
+  (let ((op1 (parse-m68k-operand ctx)))
+    (if (eq (pc-kind ctx) :comma)
+        (progn
+          (pc-advance ctx)               ; consomme ,
+          (list op1 (parse-m68k-operand ctx)))
+        (list op1))))

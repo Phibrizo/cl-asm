@@ -17,7 +17,8 @@
    #:ir-label #:make-ir-label #:ir-label-p
    #:ir-label-name #:ir-label-kind #:ir-label-number #:ir-label-loc
    #:ir-instruction #:make-ir-instruction #:ir-instruction-p
-   #:ir-instruction-mnemonic #:ir-instruction-operands #:ir-instruction-loc
+   #:ir-instruction-mnemonic #:ir-instruction-operands #:ir-instruction-size
+   #:ir-instruction-loc
    #:ir-directive #:make-ir-directive #:ir-directive-p
    #:ir-directive-name #:ir-directive-args #:ir-directive-loc
    #:ir-relocation #:make-ir-relocation
@@ -196,10 +197,13 @@
 
 (defstruct ir-instruction
   "Une instruction machine."
-  ;; Mnémonique en majuscules, ex. "LDA" "STA" "LDZ"
+  ;; Mnémonique en majuscules, ex. "LDA" "STA" "LDZ" "MOVE"
   (mnemonic  ""  :type string)
   ;; Liste de IR-OPERAND (0 à 2 selon l'architecture)
   (operands  nil :type list)
+  ;; Hint de taille pour M68K : nil | :byte | :word | :long
+  ;; NIL pour toutes les architectures autres que M68K (champ ignoré)
+  (size      nil)
   (loc       nil))
 
 ;;; --- Directive -------------------------------------------------------------

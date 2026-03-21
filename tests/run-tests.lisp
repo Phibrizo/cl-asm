@@ -66,6 +66,8 @@
     (run-suite cl-asm/test.45gs02)
     (run-suite cl-asm/test.65816)
     (run-suite cl-asm/test.z80)
+    (run-suite cl-asm/test.m68k-parser)
+    (run-suite cl-asm/test.m68k)
 
     ;; --- Bilan global ---
     (format t "~%")
@@ -112,6 +114,13 @@
     (format t "=== z80          : ~3D OK, ~D KO~%"
             cl-asm/test.z80:*pass*
             cl-asm/test.z80:*fail*)
+    (format t "--- ~A ---~%" (%msg "Parsers architectures" "Architecture parsers"))
+    (format t "=== m68k-parser  : ~3D OK, ~D KO~%"
+            cl-asm/test.m68k-parser:*pass*
+            cl-asm/test.m68k-parser:*fail*)
+    (format t "=== m68k         : ~3D OK, ~D KO~%"
+            cl-asm/test.m68k:*pass*
+            cl-asm/test.m68k:*fail*)
     (format t "-------------------------------~%")
     (format t (%msg "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
                     "=== TOTAL        : ~3D OK, ~D KO out of ~D tests~%")

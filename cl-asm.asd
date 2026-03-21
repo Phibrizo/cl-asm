@@ -44,6 +44,12 @@
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/frontend/classic-parser"))
+   (:file "src/backend/m68k"
+    :depends-on ("src/core/ir"
+                 "src/core/backends"
+                 "src/core/expression"
+                 "src/core/symbol-table"
+                 "src/frontend/classic-parser"))
    (:file "src/frontend/lasm"
     :depends-on ("src/core/ir"
                  "src/core/expression"
@@ -84,6 +90,10 @@
     :depends-on ("tests/test-6502"))
    (:file "tests/test-z80"
     :depends-on ())
+   (:file "tests/test-m68k-parser"
+    :depends-on ())
+   (:file "tests/test-m68k"
+    :depends-on ())
    (:file "tests/run-tests"
     :depends-on ("tests/test-expression"
                  "tests/test-symbol-table"
@@ -97,7 +107,9 @@
                  "tests/test-45gs02"
                  "tests/test-r65c02"
                  "tests/test-65816"
-                 "tests/test-z80")))
+                 "tests/test-z80"
+                 "tests/test-m68k-parser"
+                 "tests/test-m68k")))
   :perform (test-op (o c)
              (let ((output (make-string-output-stream)))
                (let ((*standard-output* output))
