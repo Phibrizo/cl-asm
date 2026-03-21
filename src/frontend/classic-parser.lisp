@@ -7,7 +7,10 @@
    #:rockwell-mnemonic-p
    #:rockwell-bit-number
    #:rockwell-opcode
-   #:rockwell-two-operands-p))
+   #:rockwell-two-operands-p
+   ;; Helpers pour le backend Z80
+   #:z80-mnemonic-p
+   #:*z80-mode*))
 ;;; src/frontend/classic-parser.lisp
 ;;;
 ;;; Parser pour syntaxe assembleur classique (ca65-like).
@@ -49,6 +52,8 @@
 (declaim (ftype (function (t t) t) emit-node parse-directive-arg))
 (declaim (ftype (function (t t t) t) parse-directive))
 (declaim (ftype (function (t string &rest t) t) parser-error))
+;; Z80 helpers (définis en fin de fichier)
+(declaim (ftype (function (t) t) z80-mnemonic-p parse-z80-operands))
 (declaim (ftype (function (t t list) t) expand-macro))
 
 
@@ -875,6 +880,9 @@
             (let* ((mnem-up (string-upcase name))
                    (operands
                     (cond
+                      ;; Z80 : opérandes séparées par virgules
+                      ((z80-mnemonic-p mnem-up)
+                       (parse-z80-operands ctx))
                       ;; BBRn/BBSn : zp-expr , rel-expr
                       ;; On parse les deux expressions directement
                       ;; sans passer par parse-operand (qui consommerait
@@ -1025,3 +1033,112 @@
   "Retourne T si NAME prend deux opérandes (BBR/BBS : zero-page + branche)."
   (let ((prefix (subseq name 0 3)))
     (or (string= prefix "BBR") (string= prefix "BBS"))))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Helpers pour les instructions Z80
+;;; --------------------------------------------------------------------------
+
+(defvar *z80-mode* nil
+  "T si on est en train d'assembler du code Z80.
+   Quand NIL, les mnémoniques partagés avec 6502 (INC, DEC, AND…) sont
+   traités par le parser 6502 standard.")
+
+(defparameter *z80-mnemonics*
+  '("LD" "LDI" "LDIR" "LDD" "LDDR"
+    "PUSH" "POP"
+    "EX" "EXX"
+    "IN" "INI" "INIR" "IND" "INDR"
+    "OUT" "OUTI" "OTIR" "OUTD" "OTDR"
+    "ADD" "ADC" "SUB" "SBC" "AND" "OR" "XOR" "CP"
+    "INC" "DEC"
+    "DAA" "CPL" "NEG" "CCF" "SCF" "NOP" "HALT"
+    "RLCA" "RLA" "RRCA" "RRA"
+    "RLC" "RL" "RRC" "RR" "SLA" "SRA" "SRL" "SLL"
+    "RLD" "RRD"
+    "BIT" "SET" "RES"
+    "JP" "JR" "CALL" "RET" "RETI" "RETN" "DJNZ"
+    "RST"
+    "IM"
+    "CPI" "CPIR" "CPD" "CPDR"
+    "DI" "EI")
+  "Liste des mnémoniques Z80 (en majuscules).")
+
+(defun z80-mnemonic-p (name)
+  "Retourne T si NAME (chaîne majuscules) est un mnémonique Z80 ET que le
+   mode Z80 est actif (*z80-mode* = T)."
+  (and *z80-mode*
+       (member name *z80-mnemonics* :test #'string=)
+       t))
+
+(defun z80-comma-is-6502-index-p (tok-after-comma tok-after-that)
+  "Retourne T si TOK-AFTER-COMMA est X/Y/Z seul (fin de ligne).
+   Distingue 'LDA $10,X' (6502) de 'LD A,B' (Z80).
+   Un mnémonique Z80 comme AND peut apparaître dans du code 6502."
+  (and tok-after-comma
+       (eq (cl-asm/lexer:token-kind tok-after-comma) :identifier)
+       (member (string-upcase (cl-asm/lexer:token-value tok-after-comma))
+               '("X" "Y" "Z") :test #'string=)
+       (or (null tok-after-that)
+           (member (cl-asm/lexer:token-kind tok-after-that)
+                   '(:newline :eof :comment) :test #'eq))))
+
+(defun parse-z80-operand-raw (ctx)
+  "Parse un opérande Z80 : registre, (reg), (IX+d), (nn), #n, ou expr.
+   Retourne un IR-OPERAND.
+   Ne consomme pas ',X' / ',Y' comme indicateur d'indexe."
+  (let ((loc  (pc-loc ctx))
+        (kind (pc-kind ctx)))
+    (cond
+      ;; Indirect : (expr) ou (IX+d) ou (IY+d)
+      ((eq kind :lparen)
+       (pc-advance ctx)                       ; consomme (
+       (let ((inner-loc (pc-loc ctx))
+             (val (parse-expr ctx)))          ; expr ou sym (IX, IY, HL, C…)
+         ;; Déplacement optionnel : + ou -
+         (let ((disp nil))
+           (when (member (pc-kind ctx) '(:plus :minus) :test #'eq)
+             (let ((sign (if (eq (pc-kind ctx) :plus) 1 -1)))
+               (pc-advance ctx)
+               (let ((d (parse-expr ctx)))
+                 (setf disp (if (= sign 1) d (list '- d))))))
+           (unless (eq (pc-kind ctx) :rparen)
+             (error "')' attendu dans opérande Z80 (got ~A)" (pc-kind ctx)))
+           (pc-advance ctx)                   ; consomme )
+           (if disp
+               (cl-asm/ir:make-ir-operand
+                :kind :indirect :value (list :+ val disp) :loc inner-loc)
+               (cl-asm/ir:make-ir-operand
+                :kind :indirect :value val :loc inner-loc)))))
+      ;; Immédiat # (syntaxe optionnelle)
+      ((eq kind :hash)
+       (pc-advance ctx)
+       (cl-asm/ir:make-ir-operand
+        :kind :immediate :value (parse-expr ctx) :loc loc))
+      ;; Identificateur, nombre, expression
+      (t
+       (cl-asm/ir:make-ir-operand
+        :kind :direct :value (parse-expr ctx) :loc loc)))))
+
+(defun parse-z80-operands (ctx)
+  "Parse 0, 1 ou 2 opérandes Z80 séparés par une virgule.
+   Distingue 'ADD A, B' (Z80, 2 opérandes) de 'AND $10,X' (6502 index)."
+  (when (member (pc-kind ctx) '(:newline :eof :comment) :test #'eq)
+    (return-from parse-z80-operands nil))
+  (let ((op1 (parse-z80-operand-raw ctx)))
+    (cond
+      ;; Virgule présente
+      ((eq (pc-kind ctx) :comma)
+       (let ((tok-after  (pc-peek ctx 1))
+             (tok-after2 (pc-peek ctx 2)))
+         (cond
+           ;; Virgule 6502-index : ,X  ,Y  ,Z  seul en fin de ligne
+           ((z80-comma-is-6502-index-p tok-after tok-after2)
+            ;; On ne consomme pas la virgule — le backend 6502 la verra si besoin
+            (list op1))
+           ;; Virgule Z80 : deuxième opérande
+           (t
+            (pc-advance ctx)                 ; consomme ,
+            (list op1 (parse-z80-operand-raw ctx))))))
+      ;; Pas de virgule — opérande unique
+      (t (list op1)))))

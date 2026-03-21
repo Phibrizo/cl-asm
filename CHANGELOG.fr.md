@@ -5,6 +5,74 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.3.0] — 2026-03-21
+
+### Ajouté
+
+**Backend Zilog Z80** — nouveau fichier `src/backend/z80.lisp`
+(package `cl-asm/backend.z80`) supportant le processeur Z80 (ZX Spectrum, MSX, CPC, ZX81) :
+
+- Alias CLI : `z80`, `z80cpu`, `zx80`, `zx81`, `zxspectrum`, `spectrum`, `cpc`, `msx`
+- Origine par défaut `$0000`
+- Jeu d'instructions complet Z80 :
+  - Instructions implied, LD complet (44 formes), ALU (ADD/ADC/SUB/SBC/AND/OR/XOR/CP)
+  - INC/DEC registres 8/16 bits et indirects
+  - PUSH/POP BC/DE/HL/AF/IX/IY
+  - EX DE,HL / EX (SP),HL/IX/IY / EXX
+  - Rotations/shifts CB : RLC/RRC/RL/RR/SLA/SRA/SRL/SLL
+  - BIT/SET/RES (CB prefix) + formes (IX+d)/(IY+d) (DD CB/FD CB)
+  - JP/JR conditionnel et inconditionnel, CALL/RET conditionnel
+  - DJNZ (branche relative avec décrément B)
+  - IN r,(C) / IN A,(n) / OUT (C),r / OUT (n),A
+  - Instructions étendues ED : NEG, RETN, RETI, RLD, RRD, IM 0/1/2
+  - Opérations sur blocs : LDI/LDIR/LDD/LDDR/CPI/CPIR/CPD/CPDR/INI/INIR/IND/INDR/OUTI/OTIR/OUTD/OTDR
+  - RST $00-$38
+
+**Gestion des conflits de mnémoniques** — variable `cl-asm/parser:*z80-mode*` :
+  - Certains mnémoniques Z80 (`INC`, `DEC`, `AND`, `BIT`, `ADC`…) existent aussi en 6502.
+  - `*z80-mode*` est NIL par défaut ; mis à T par `assemble-string-z80` / `assemble-file-z80` pendant le parsing.
+  - Évite tout conflit de parsing entre backends sans modifier le parser 6502.
+
+**Tests Z80** — `tests/test-z80.lisp` : 191 tests répartis en 19 groupes :
+instructions implied, LD r/r' et n, LD indirect, LD 16 bits, LD mémoire,
+PUSH/POP, INC/DEC, ALU, rotations CB, BIT/SET/RES, JP/JR/CALL/RET/DJNZ,
+EX/EXX, IN/OUT, ADD IX/IY, divers (IM/blocs), directives, forward references,
+programme ZX Spectrum minimal, erreurs attendues.
+
+### Modifié
+
+**`src/core/version.lisp`** — version incrémentée : `0.2.0` → `0.3.0`
+
+**`src/frontend/classic-parser.lisp`** — ajout du dispatch Z80 dans `parse-line`
+et des helpers : `*z80-mode*`, `*z80-mnemonics*`, `z80-mnemonic-p`,
+`z80-comma-is-6502-index-p`, `parse-z80-operand-raw`, `parse-z80-operands`.
+
+**Scripts de test** — `run-tests.sh`, `run-tests-clisp.lisp`, `run-tests-ecl.lisp`
+chargent désormais `src/backend/z80.lisp` et `tests/test-z80.lisp`.
+
+### Tests
+
+| Suite | 0.2.0 | 0.3.0 |
+|---|---|---|
+| symbol-table | 65 | 65 |
+| expression | 129 | 129 |
+| lexer | 119 | 119 |
+| parser | 84 | 84 |
+| macros | 27 | 27 |
+| conditionnel | 27 | 27 |
+| lasm | 58 | 58 |
+| 6502 | 82 | 82 |
+| 65c02 | 41 | 41 |
+| r65c02 | 117 | 117 |
+| 45gs02 | 80 | 80 |
+| 65816 | 104 | 104 |
+| **z80** | — | **191** |
+| **TOTAL** | **933** | **1124** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.2.0] — 2026-03-20
 
 ### Ajouté

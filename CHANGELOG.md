@@ -5,6 +5,74 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.3.0] — 2026-03-21
+
+### Added
+
+**Zilog Z80 backend** — new file `src/backend/z80.lisp`
+(package `cl-asm/backend.z80`) supporting the Z80 processor (ZX Spectrum, MSX, CPC, ZX81):
+
+- CLI aliases: `z80`, `z80cpu`, `zx80`, `zx81`, `zxspectrum`, `spectrum`, `cpc`, `msx`
+- Default origin `$0000`
+- Full Z80 instruction set:
+  - Implied, full LD (44 forms), ALU (ADD/ADC/SUB/SBC/AND/OR/XOR/CP)
+  - INC/DEC 8/16-bit registers and indirects
+  - PUSH/POP BC/DE/HL/AF/IX/IY
+  - EX DE,HL / EX (SP),HL/IX/IY / EXX
+  - CB-prefix rotations/shifts: RLC/RRC/RL/RR/SLA/SRA/SRL/SLL
+  - BIT/SET/RES (CB) + (IX+d)/(IY+d) forms (DD CB/FD CB)
+  - JP/JR conditional and unconditional, conditional CALL/RET
+  - DJNZ (relative branch with B decrement)
+  - IN r,(C) / IN A,(n) / OUT (C),r / OUT (n),A
+  - ED-prefix extended: NEG, RETN, RETI, RLD, RRD, IM 0/1/2
+  - Block operations: LDI/LDIR/LDD/LDDR/CPI/CPIR/CPD/CPDR/INI/INIR/IND/INDR/OUTI/OTIR/OUTD/OTDR
+  - RST $00-$38
+
+**Mnemonic conflict resolution** — `cl-asm/parser:*z80-mode*` variable:
+  - Some Z80 mnemonics (`INC`, `DEC`, `AND`, `BIT`, `ADC`…) also exist in 6502.
+  - `*z80-mode*` is NIL by default; set to T by `assemble-string-z80`/`assemble-file-z80` during parsing.
+  - Prevents any parsing conflict between backends without modifying the 6502 parser.
+
+**Z80 tests** — `tests/test-z80.lisp`: 191 tests across 19 groups:
+implied, LD r/r' and n, LD indirect, LD 16-bit, LD memory,
+PUSH/POP, INC/DEC, ALU, CB rotations, BIT/SET/RES, JP/JR/CALL/RET/DJNZ,
+EX/EXX, IN/OUT, ADD IX/IY, misc (IM/blocks), directives, forward references,
+minimal ZX Spectrum program, expected errors.
+
+### Modified
+
+**`src/core/version.lisp`** — version bumped: `0.2.0` → `0.3.0`
+
+**`src/frontend/classic-parser.lisp`** — Z80 dispatch added to `parse-line`
+and helpers: `*z80-mode*`, `*z80-mnemonics*`, `z80-mnemonic-p`,
+`z80-comma-is-6502-index-p`, `parse-z80-operand-raw`, `parse-z80-operands`.
+
+**Test scripts** — `run-tests.sh`, `run-tests-clisp.lisp`, `run-tests-ecl.lisp`
+now load `src/backend/z80.lisp` and `tests/test-z80.lisp`.
+
+### Tests
+
+| Suite | 0.2.0 | 0.3.0 |
+|---|---|---|
+| symbol-table | 65 | 65 |
+| expression | 129 | 129 |
+| lexer | 119 | 119 |
+| parser | 84 | 84 |
+| macros | 27 | 27 |
+| conditional | 27 | 27 |
+| lasm | 58 | 58 |
+| 6502 | 82 | 82 |
+| 65c02 | 41 | 41 |
+| r65c02 | 117 | 117 |
+| 45gs02 | 80 | 80 |
+| 65816 | 104 | 104 |
+| **z80** | — | **191** |
+| **TOTAL** | **933** | **1124** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.2.0] — 2026-03-20
 
 ### Added

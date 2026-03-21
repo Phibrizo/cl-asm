@@ -63,6 +63,7 @@
 (load-filtered "src/backend/65c02.lisp")
 (load-filtered "src/backend/r65c02.lisp")
 (load-filtered "src/backend/65816.lisp")
+(load-filtered "src/backend/z80.lisp")
 (load-filtered "src/frontend/lasm.lisp")
 (load-filtered "tests/test-65c02.lisp")
 (load-filtered "tests/test-r65c02.lisp")
@@ -76,6 +77,7 @@
 (load-filtered "tests/test-expression.lisp")
 (load-filtered "tests/test-symbol-table.lisp")
 (load-filtered "tests/test-65816.lisp")
+(load-filtered "tests/test-z80.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 

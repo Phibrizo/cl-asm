@@ -65,6 +65,7 @@
     (run-suite cl-asm/test.r65c02)
     (run-suite cl-asm/test.45gs02)
     (run-suite cl-asm/test.65816)
+    (run-suite cl-asm/test.z80)
 
     ;; --- Bilan global ---
     (format t "~%")
@@ -108,6 +109,9 @@
     (format t "=== 65816        : ~3D OK, ~D KO~%"
             cl-asm/test.65816:*pass*
             cl-asm/test.65816:*fail*)
+    (format t "=== z80          : ~3D OK, ~D KO~%"
+            cl-asm/test.z80:*pass*
+            cl-asm/test.z80:*fail*)
     (format t "-------------------------------~%")
     (format t (%msg "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
                     "=== TOTAL        : ~3D OK, ~D KO out of ~D tests~%")
