@@ -255,13 +255,16 @@
     (:tilde
      (pc-advance ctx)
      (list :~ (parse-expr-unary ctx)))
-    ;; < = octet bas,  > = octet haut
+    ;; < = octet bas,  > = octet haut,  ^ = octet banque (bits 16-23, ca65)
     (:lt
      (pc-advance ctx)
      (list :lo (parse-expr-unary ctx)))
     (:gt
      (pc-advance ctx)
      (list :hi (parse-expr-unary ctx)))
+    (:caret
+     (pc-advance ctx)
+     (list :bank (parse-expr-unary ctx)))
     (otherwise
      (parse-expr-atom ctx))))
 
@@ -437,7 +440,7 @@
 ;;; --------------------------------------------------------------------------
 
 (defparameter *directive-names*
-  '(".org" ".byte" ".word" ".dword" ".text" ".fill" ".align"
+  '(".org" ".byte" ".word" ".dword" ".text" ".fill" ".res" ".align"
     ".equ" ".define" ".section" ".global" ".extern" ".include"
     ".if" ".else" ".endif" ".macro" ".endmacro"
     ;; Directives de mode 65816
@@ -462,10 +465,16 @@
   (or (member (string-downcase name) *directive-names* :test #'string=)
       (motorola-directive-alias name)))
 
+(defparameter *directive-aliases*
+  '((:res . :fill))
+  "Alias de directives : :res → :fill, etc.")
+
 (defun directive-keyword (name)
-  "Convertit \".byte\" -> :byte, \"DC.B\" -> :byte, etc."
-  (or (motorola-directive-alias name)
-      (intern (string-upcase (subseq name 1)) :keyword)))
+  "Convertit \".byte\" -> :byte, \"DC.B\" -> :byte, \".res\" -> :fill, etc."
+  (let* ((alias  (motorola-directive-alias name))
+         (kw     (or alias (intern (string-upcase (subseq name 1)) :keyword)))
+         (mapped (cdr (assoc kw *directive-aliases*))))
+    (or mapped kw)))
 
 (defun parse-directive (ctx name loc)
   "Parse les arguments d'une directive et construit un IR-DIRECTIVE."
@@ -1012,6 +1021,172 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Labels anonymes ca65  (':' définition, ':-'/':-−'... ref arrière,
+;;;                          ':+'/'':++'... ref avant)
+;;; --------------------------------------------------------------------------
+
+(defun anon-label-name (n)
+  "Nom interne du N-ième label anonyme ca65."
+  (format nil "__ANON_~D" n))
+
+(defun preprocess-anonymous-labels (tokens)
+  "Pré-traite les labels anonymes ca65 dans le flux de tokens.
+   ':' en début de ligne logique → :label-def '__ANON_N'
+   ':-' ':--' ...               → :identifier de la N-ième def précédente
+   ':+' ':++' ...               → :identifier de la N-ième def suivante
+   Retourne une nouvelle liste de tokens transformée."
+  (let* ((vec (coerce tokens 'vector))
+         (n   (length vec))
+         ;; anon-idx-at(i) = numéro anon du token i, ou -1
+         (anon-idx-at (make-array n :initial-element -1))
+         (anon-counter 0))
+    ;; Vérification rapide : y a-t-il des tokens anonymes ?
+    (unless (some (lambda (tok)
+                    (member (cl-asm/lexer:token-kind tok)
+                            '(:colon :anon-bwd :anon-fwd)))
+                  tokens)
+      (return-from preprocess-anonymous-labels tokens))
+    ;; Phase 1 : identifier les ':' en début de ligne logique
+    (let ((at-line-start t))
+      (loop for i from 0 below n
+            for tok = (aref vec i)
+            for kind = (cl-asm/lexer:token-kind tok) do
+            (cond
+              ((eq kind :newline)
+               (setf at-line-start t))
+              ((and at-line-start (eq kind :colon))
+               (setf (aref anon-idx-at i) anon-counter)
+               (incf anon-counter)
+               (setf at-line-start nil))
+              (t
+               (setf at-line-start nil)))))
+    (let ((total-anon anon-counter))
+      ;; Phase 2 : construire les tokens résultants
+      (let ((result nil)
+            (last-anon-seen -1))
+        (loop for i from 0 below n
+              for tok = (aref vec i)
+              for kind = (cl-asm/lexer:token-kind tok)
+              for loc  = (cl-asm/lexer:token-loc tok) do
+              (let ((ai (aref anon-idx-at i)))
+                (cond
+                  ;; Définition de label anonyme → :label-def "__ANON_N"
+                  ((>= ai 0)
+                   (setf last-anon-seen ai)
+                   (push (cl-asm/lexer:make-token
+                          :kind :label-def
+                          :value (anon-label-name ai)
+                          :loc loc)
+                         result))
+                  ;; Référence arrière :- :-- :---
+                  ((eq kind :anon-bwd)
+                   (let* ((k      (cl-asm/lexer:token-value tok))
+                          (target (- last-anon-seen (1- k))))
+                     (if (and (>= target 0) (< target total-anon))
+                         (push (cl-asm/lexer:make-token
+                                :kind :identifier
+                                :value (anon-label-name target)
+                                :loc loc)
+                               result)
+                         (error 'cl-asm/ir:asm-syntax-error
+                                :message (format nil "Label anonyme arrière invalide :~A" (make-string k :initial-element #\-))
+                                :source-loc loc))))
+                  ;; Référence avant :+ :++
+                  ((eq kind :anon-fwd)
+                   (let* ((k (cl-asm/lexer:token-value tok))
+                          (count 0)
+                          (target-name nil))
+                     (loop for j from (1+ i) below n
+                           when (>= (aref anon-idx-at j) 0) do
+                           (incf count)
+                           (when (= count k)
+                             (setf target-name (anon-label-name (aref anon-idx-at j)))
+                             (return)))
+                     (if target-name
+                         (push (cl-asm/lexer:make-token
+                                :kind :identifier
+                                :value target-name
+                                :loc loc)
+                               result)
+                         (error 'cl-asm/ir:asm-syntax-error
+                                :message (format nil "Label anonyme avant invalide :~A" (make-string k :initial-element #\+))
+                                :source-loc loc))))
+                  ;; Autres tokens → inchangés
+                  (t
+                   (push tok result)))))
+        (nreverse result)))))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Labels locaux ca65 scoped ('@name' ou '__name' scopés au dernier label global)
+;;; --------------------------------------------------------------------------
+
+(defun local-label-p (name)
+  "Vrai si NAME est un label local ca65 (commence par '@')."
+  (and (stringp name)
+       (> (length name) 1)
+       (char= (char name 0) #\@)))
+
+(defun scoped-label-name (scope local)
+  "Construit le nom interne scopé : 'SCOPE@@local' (sans le @ initial de local)."
+  (format nil "~A@@~A" scope (subseq local 1)))
+
+(defun preprocess-scoped-labels (tokens)
+  "Scoping des labels locaux ca65 ('@name' scopés au dernier label global).
+   Chaque '@name:' ou référence '@name' est renommée en 'SCOPE@@name'
+   où SCOPE est le nom du dernier label non-local défini.
+   Retourne la liste de tokens transformée."
+  ;; Vérification rapide : y a-t-il des labels locaux @?
+  (unless (some (lambda (tok)
+                  (let ((kind (cl-asm/lexer:token-kind tok))
+                        (val  (cl-asm/lexer:token-value tok)))
+                    (and (member kind '(:label-def :identifier))
+                         (local-label-p (if (listp val) (first val) val)))))
+                tokens)
+    (return-from preprocess-scoped-labels tokens))
+  (let ((scope "")
+        (result nil))
+    (dolist (tok tokens)
+      (let ((kind (cl-asm/lexer:token-kind tok))
+            (val  (cl-asm/lexer:token-value tok))
+            (loc  (cl-asm/lexer:token-loc tok)))
+        (cond
+          ;; Définition de label
+          ((eq kind :label-def)
+           (let ((name (if (listp val) (first val) val))
+                 (globalp (and (listp val) (member :global val))))
+             (cond
+               ;; Label local @name → scoper
+               ((local-label-p name)
+                (push (cl-asm/lexer:make-token
+                       :kind :label-def
+                       :value (scoped-label-name scope name)
+                       :loc loc)
+                      result))
+               ;; Label global (sauf labels anonymes internes) → met à jour le scope
+               (t
+                (unless (and (> (length name) 7)
+                             (string= (subseq name 0 7) "__ANON_"))
+                  (setf scope (string-upcase name)))
+                (push (cl-asm/lexer:make-token
+                       :kind :label-def
+                       :value (if globalp (list name :global) name)
+                       :loc loc)
+                      result)))))
+          ;; Référence à un label local dans une expression
+          ((and (eq kind :identifier) (local-label-p val))
+           (push (cl-asm/lexer:make-token
+                  :kind :identifier
+                  :value (scoped-label-name scope val)
+                  :loc loc)
+                 result))
+          ;; Autres tokens → inchangés
+          (t
+           (push tok result)))))
+    (nreverse result)))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Point d'entrée
 ;;; --------------------------------------------------------------------------
 
@@ -1020,7 +1195,9 @@
    FILE   : nom du fichier source (pour les messages d'erreur).
    SECTION : section initiale (défaut :text)."
   (declare (ignore file))
-  (let* ((program  (cl-asm/ir:make-ir-program))
+  (let* ((tokens   (preprocess-anonymous-labels tokens))
+         (tokens   (preprocess-scoped-labels tokens))
+         (program  (cl-asm/ir:make-ir-program))
          (sect     (cl-asm/ir:program-find-or-create-section program section))
          (symtable (cl-asm/symbol-table:make-symbol-table))
          (ctx      (make-parse-context

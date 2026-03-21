@@ -389,18 +389,31 @@
 
         ;; En passe 1 avec forward-ref : estimer la taille
         (when (and (not resolved) (= pass 1))
-          (let ((has-relative (find :relative clauses :key #'clause-mode))
-                (max-bytes (reduce #'max clauses
-                                   :key #'clause-bytes :initial-value 1)))
+          (let* ((has-relative (find :relative clauses :key #'clause-mode))
+                 (max-bytes (reduce #'max clauses
+                                    :key #'clause-bytes :initial-value 1))
+                 ;; Si le mode est déjà déterminé sans ambiguïté ZP/abs,
+                 ;; utiliser la taille exacte de la clause (ex: #imm = 2 octets)
+                 (exact-bytes (when (and clause (not (member mode '(:absolute :absolute-x
+                                                                    :absolute-y :zero-page
+                                                                    :zero-page-x :zero-page-y))))
+                                (clause-bytes clause)))
+                 (estimated (cond (has-relative 2)
+                                  (exact-bytes exact-bytes)
+                                  (t max-bytes))))
             (return-from encode-instruction
-              (values (make-list (if has-relative 2 max-bytes)
-                                 :initial-element 0)
-                      (if has-relative 2 max-bytes)))))
+              (values (make-list estimated :initial-element 0)
+                      estimated))))
 
         ;; Verifier qu'on a un encodage pour ce mode
         (unless clause
+          ;; Fallback :implied → :accumulator (ex: ASL sans opérande = ASL A)
+          (when (eq mode :implied)
+            (let ((acc (find :accumulator clauses :key #'clause-mode)))
+              (when acc
+                (setf mode :accumulator clause acc))))
           ;; Essayer le mode :relative pour les branches
-          (when (and resolved (find :relative clauses :key #'clause-mode))
+          (when (and (null clause) resolved (find :relative clauses :key #'clause-mode))
             (setf mode :relative
                   clause (find :relative clauses :key #'clause-mode)))
           (unless clause
@@ -481,7 +494,9 @@
               symtable sym-name val)))
          pc))
       (:byte
-       (+ pc (length args)))
+       (+ pc (reduce #'+ args
+                     :key (lambda (a) (if (stringp a) (length a) 1))
+                     :initial-value 0)))
       (:word
        (+ pc (* 2 (length args))))
       (:dword
@@ -554,12 +569,18 @@
       (:extern pc)
       (:byte
        (dolist (arg args)
-         (multiple-value-bind (val ok)
-             (cl-asm/expression:eval-expr arg env)
-           (if ok
-               (vector-push-extend (logand val #xFF) result)
-               (vector-push-extend 0 result))
-           (incf pc)))
+         (if (stringp arg)
+             ;; Chaîne inline : émettre les octets ASCII directement
+             (loop for c across arg
+                   do (vector-push-extend (char-code c) result)
+                      (incf pc))
+             ;; Expression numérique
+             (multiple-value-bind (val ok)
+                 (cl-asm/expression:eval-expr arg env)
+               (if ok
+                   (vector-push-extend (logand val #xFF) result)
+                   (vector-push-extend 0 result))
+               (incf pc))))
        pc)
       (:word
        (dolist (arg args)

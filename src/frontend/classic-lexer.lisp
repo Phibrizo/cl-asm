@@ -444,7 +444,25 @@
 
             ;; Opérateurs et ponctuations
             ((char= ch #\,) (lc-advance ctx) (lc-emit ctx :comma     nil loc))
-            ((char= ch #\:) (lc-advance ctx) (lc-emit ctx :colon     nil loc))
+            ;; ':' : label anonyme ca65 (':' en début de ligne),
+            ;; référence arrière ':-' ':-−' ou avant ':+' ':++' ...
+            ((char= ch #\:)
+             (lc-advance ctx)
+             (cond
+               ;; ':-' ':-−' ... → référence arrière
+               ((eql (lc-current ctx) #\-)
+                (let ((count 0))
+                  (loop while (eql (lc-current ctx) #\-)
+                        do (lc-advance ctx) (incf count))
+                  (lc-emit ctx :anon-bwd count loc)))
+               ;; ':+' ':++' ... → référence avant
+               ((eql (lc-current ctx) #\+)
+                (let ((count 0))
+                  (loop while (eql (lc-current ctx) #\+)
+                        do (lc-advance ctx) (incf count))
+                  (lc-emit ctx :anon-fwd count loc)))
+               (t
+                (lc-emit ctx :colon nil loc))))
             ((char= ch #\#) (lc-advance ctx) (lc-emit ctx :hash      nil loc))
             ((char= ch #\() (lc-advance ctx) (lc-emit ctx :lparen    nil loc))
             ((char= ch #\)) (lc-advance ctx) (lc-emit ctx :rparen    nil loc))

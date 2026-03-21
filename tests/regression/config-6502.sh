@@ -16,7 +16,7 @@
 #
 # Cibles gérées par ce fichier : c64, mega65, x16
 
-REF_COMPILER="acme"
+REF_COMPILER="ca65"
 
 # --------------------------------------------------------------------------
 #  Conversion syntaxe cl-asm → ACME

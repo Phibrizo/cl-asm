@@ -143,6 +143,80 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Test : anonymous labels, scoped @labels, .res, forward-ref immediate
+;;; --------------------------------------------------------------------------
+
+(deftest test/anon-scoped-labels
+  ;; Programme avec :, :-, @labels scopés, .res, .byte "str", forward-ref imm
+  (let* ((src ".org $0801
+               .byte $0B,$08,$0A,$00,$9E,$32,$30,$36,$31,$00,$00,$00
+               main:
+               ldx #5
+               :
+               dex
+               bne :-
+               ldx #<data
+               ldy #>data
+               jsr routine1
+               jsr routine2
+               rts
+               routine1:
+               ldy #3
+               @loop:
+               dey
+               bne @loop
+               rts
+               routine2:
+               ldy #2
+               @loop:
+               dey
+               bne @loop
+               rts
+               buffer: .res 4
+               data: .byte \"Hi\",0")
+         (bytes (asm src :origin #x0801)))
+    ;; Taille brute (sans header PRG) : 47 octets
+    (check "taille totale 47"          (= (length bytes) 47))
+    ;; BASIC stub
+    (check "stub[0] = $0B"             (= #x0B (aref bytes 0)))
+    ;; ldx #5 : après stub (offset 12-13)
+    (check "ldx #5 opcode A2"          (= #xA2 (aref bytes 12)))
+    (check "ldx #5 operande 05"        (= #x05 (aref bytes 13)))
+    ;; dex : offset 14 (anonymous label ici)
+    (check "dex = CA"                  (= #xCA (aref bytes 14)))
+    ;; bne :- : offset 15-16, offset rel = $FD (-3)
+    (check "bne opcode D0"             (= #xD0 (aref bytes 15)))
+    (check "bne :- offset = FD"        (= #xFD (aref bytes 16)))
+    ;; ldx #<data : forward-ref immédiat, data=$082D → low=$2D
+    (check "ldx #<data opcode A2"      (= #xA2 (aref bytes 17)))
+    (check "ldx #<data = $2D"          (= #x2D (aref bytes 18)))
+    ;; ldy #>data : forward-ref immédiat → high=$08
+    (check "ldy #>data opcode A0"      (= #xA0 (aref bytes 19)))
+    (check "ldy #>data = $08"          (= #x08 (aref bytes 20)))
+    ;; routine1 : ldy #3, @loop dey, bne -3, rts (offset 28-33)
+    (check "routine1 ldy #3 opcode"    (= #xA0 (aref bytes 28)))
+    (check "routine1 ldy #3 = 03"      (= #x03 (aref bytes 29)))
+    (check "routine1 @loop dey = 88"   (= #x88 (aref bytes 30)))
+    (check "routine1 bne D0"           (= #xD0 (aref bytes 31)))
+    (check "routine1 bne offset FD"    (= #xFD (aref bytes 32)))
+    (check "routine1 rts = 60"         (= #x60 (aref bytes 33)))
+    ;; routine2 : ldy #2, @loop dey, bne -3, rts (offset 34-39)
+    (check "routine2 ldy #2 opcode"    (= #xA0 (aref bytes 34)))
+    (check "routine2 ldy #2 = 02"      (= #x02 (aref bytes 35)))
+    (check "routine2 @loop dey = 88"   (= #x88 (aref bytes 36)))
+    (check "routine2 bne D0"           (= #xD0 (aref bytes 37)))
+    (check "routine2 bne offset FD"    (= #xFD (aref bytes 38)))
+    (check "routine2 rts = 60"         (= #x60 (aref bytes 39)))
+    ;; buffer .res 4 → 4 zéros (offset 40-43)
+    (check ".res 4 → zero[0]"          (= #x00 (aref bytes 40)))
+    (check ".res 4 → zero[3]"          (= #x00 (aref bytes 43)))
+    ;; data .byte "Hi",0 → 48 69 00 (offset 44-46)
+    (check ".byte H = $48"             (= #x48 (aref bytes 44)))
+    (check ".byte i = $69"             (= #x69 (aref bytes 45)))
+    (check ".byte nul = $00"           (= #x00 (aref bytes 46)))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Lanceur
 ;;; --------------------------------------------------------------------------
 
@@ -160,6 +234,7 @@
   (test/bit-extended)
   (test/jmp-indirect-x)
   (test/x16-hello)
+  (test/anon-scoped-labels)
   (when *failures*
     (format t "~&Echecs 65c02 :~%")
     (dolist (f (reverse *failures*))

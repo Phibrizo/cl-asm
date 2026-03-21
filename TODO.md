@@ -4,12 +4,20 @@
 
 - [x] Tests de régression mega65 et x16 : générer les fichiers `.ref.prg`
       de référence. *(fichiers de test créés, validés avec ACME et ca65)*
-- [ ] Backend M68K : bug `EOR.W #imm, Dn` (et `AND.W #imm`, `OR.W #imm`) —
-      "N is not a string designator" pour immédiats passés à encode-alu-dn.
-      Ces formes doivent être routées vers encode-imm-op (EORI/ANDI/ORI).
+- [x] Backend M68K : bug `EOR.W #imm, Dn` — crash "N is not a string designator".
+      Corrigé : EOR #imm → EORI, AND/OR #imm → AND/OR avec EA=imm (comme vasm).
 - [ ] Conversion clasm→acme/ca65 : gérer les lignes `label: .directive`
       (label et directive sur la même ligne). Implémenter en bash ou en Lisp,
       sans dépendances externes (pas Python).
+
+## Outils de développement
+
+- [ ] **Simulateur CPU** : exécuter les instructions une par une dans un environnement
+      mémoire virtuel. Commencer par le 6502 (jeu d'instructions limité, bien documenté),
+      puis étendre aux autres architectures. Base nécessaire avant tout débogueur.
+- [ ] **Débogueur** : breakpoints, step/next, affichage registres/mémoire, liaison
+      adresse PC ↔ ligne source (via SOURCE-LOC déjà présent dans l'IR).
+      Nécessite le simulateur.
 
 ## Nouvelles architectures
 
