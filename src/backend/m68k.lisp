@@ -1049,6 +1049,14 @@
 (defun m68k-eval-expr (expr env)
   (cl-asm/expression:eval-expr expr env))
 
+(defun m68k-string-is-literal-p (arg symtable)
+  "Vrai si ARG est une string littérale (pas une référence symbolique).
+   Une string est considérée littérale si elle ne correspond pas à un symbole
+   connu dans SYMTABLE, ou si SYMTABLE est nil."
+  (and (stringp arg)
+       (or (null symtable)
+           (not (cl-asm/symbol-table:symbol-defined-p symtable arg)))))
+
 (defun m68k-directive-pass1 (name args env pc symtable)
   "Traite une directive en passe 1. Retourne le nouveau PC."
   (case name
@@ -1064,14 +1072,17 @@
          (when ok
            (cl-asm/symbol-table:define-constant symtable sym-name val)))
        pc))
-    (:byte  (+ pc (length args)))
-    (:word  (+ pc (* 2 (length args))))
+    (:byte  (+ pc (loop for a in args
+                        sum (if (m68k-string-is-literal-p a symtable) (length a) 1))))
+    (:word  (+ pc (* 2 (loop for a in args
+                             sum (if (m68k-string-is-literal-p a symtable) (length a) 1)))))
     (:long  (+ pc (* 4 (length args))))
     (:dword (+ pc (* 4 (length args))))
     (:fill
      (multiple-value-bind (n ok)
          (m68k-eval-expr (first args) env)
        (if ok (+ pc n) pc)))
+    (:even  (if (oddp pc) (1+ pc) pc))
     (otherwise pc)))
 
 (defun pass-1-m68k (program symtable &key (origin 0))
@@ -1113,11 +1124,18 @@
     (:global  pc)
     (:extern  pc)
     (:byte
-     (dolist (arg args)
-       (multiple-value-bind (val ok)
-           (m68k-eval-expr arg env)
-         (vector-push-extend (logand (if ok val 0) #xFF) result)
-         (incf pc)))
+     (let ((st (cl-asm/expression:env-symbol-table env)))
+       (dolist (arg args)
+         (if (m68k-string-is-literal-p arg st)
+             ;; String littérale → émettre char par char
+             (loop for c across arg
+                   do (vector-push-extend (char-code c) result)
+                      (incf pc))
+             ;; Expression / référence symbolique → évaluer
+             (multiple-value-bind (val ok)
+                 (m68k-eval-expr arg env)
+               (vector-push-extend (logand (if ok val 0) #xFF) result)
+               (incf pc)))))
      pc)
     (:word
      (dolist (arg args)
@@ -1152,6 +1170,11 @@
            (dotimes (_ count)
              (vector-push-extend fill-val result)
              (incf pc)))))
+     pc)
+    (:even
+     (when (oddp pc)
+       (vector-push-extend 0 result)
+       (incf pc))
      pc)
     (otherwise pc)))
 
@@ -1198,12 +1221,14 @@
 (defun assemble-string-m68k (source &key (origin 0))
   "Assemble une chaîne source M68K. Retourne un vecteur d'octets."
   (let* ((cl-asm/parser:*m68k-mode* t)
+         (cl-asm/lexer:*star-comment-col1* t)
          (prog (cl-asm/parser:parse-string source)))
     (assemble-m68k prog :origin origin)))
 
 (defun assemble-file-m68k (path &key (origin 0))
   "Assemble le fichier PATH M68K. Retourne un vecteur d'octets."
   (let* ((cl-asm/parser:*m68k-mode* t)
+         (cl-asm/lexer:*star-comment-col1* t)
          (prog (cl-asm/parser:parse-file path)))
     (assemble-m68k prog :origin origin)))
 

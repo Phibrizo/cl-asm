@@ -35,11 +35,11 @@ clasm_to_vasm() {
     local src="$1"
     local dst="$2"
     sed \
-        -e 's/^\([[:space:]]*\)\.org \(.*\)/\1ORG \2/g' \
-        -e 's/^\([[:space:]]*\)\.byte /\1DC.B /g' \
-        -e 's/^\([[:space:]]*\)\.word /\1DC.W /g' \
-        -e 's/^\([[:space:]]*\)\.long /\1DC.L /g' \
-        -e 's/^\([[:space:]]*\)\.text /\1DC.B /g' \
+        -e 's/^\([[:space:]]*\)\.org[[:space:]]\+\(.*\)/\1ORG \2/g' \
+        -e 's/^\([[:space:]]*\)\.byte[[:space:]]\+/\1DC.B /g' \
+        -e 's/^\([[:space:]]*\)\.word[[:space:]]\+/\1DC.W /g' \
+        -e 's/^\([[:space:]]*\)\.long[[:space:]]\+/\1DC.L /g' \
+        -e 's/^\([[:space:]]*\)\.text[[:space:]]\+/\1DC.B /g' \
         -e 's/^\([[:space:]]*\)\.fill \([0-9][0-9]*\).*$/\1DS.B \2/g' \
         -e 's/, /,/g' \
         "$src" > "$dst"

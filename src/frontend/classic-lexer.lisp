@@ -7,7 +7,8 @@
    #:token-is #:token-is-one-of
    #:lex-context #:make-lex-context
    #:lexer-error
-   #:tokenize #:tokenize-string #:tokenize-file #:tokens->string))
+   #:tokenize #:tokenize-string #:tokenize-file #:tokens->string
+   #:*star-comment-col1*))
 ;;; src/frontend/classic-lexer.lisp
 ;;;
 ;;; Lexer pour syntaxes assembleur textuelles (ca65-like, NASM-like).
@@ -84,6 +85,10 @@
 ;;; --------------------------------------------------------------------------
 ;;;  Conditions
 ;;; --------------------------------------------------------------------------
+
+(defvar *star-comment-col1* nil
+  "Quand T, '*' en colonne 1 est traité comme commentaire de fin de ligne
+   (syntaxe Motorola 68000 / DevPac / vasm motorola). NIL par défaut.")
 
 (define-condition lexer-error (cl-asm/ir:asm-error) ()
   (:documentation "Erreur de tokenisation."))
@@ -447,7 +452,12 @@
             ((char= ch #\]) (lc-advance ctx) (lc-emit ctx :rbracket  nil loc))
             ((char= ch #\+) (lc-advance ctx) (lc-emit ctx :plus      nil loc))
             ((char= ch #\-) (lc-advance ctx) (lc-emit ctx :minus     nil loc))
-            ((char= ch #\*) (lc-advance ctx) (lc-emit ctx :star      nil loc))
+            ;; '*' : commentaire col 1 si *star-comment-col1* actif (mode M68K),
+            ;; sinon opérateur / référence PC.
+            ((char= ch #\*)
+             (if (and *star-comment-col1* (= (lex-context-col ctx) 1))
+                 (skip-line-comment ctx)
+                 (progn (lc-advance ctx) (lc-emit ctx :star nil loc))))
             ((char= ch #\&) (lc-advance ctx) (lc-emit ctx :ampersand nil loc))
             ((char= ch #\^) (lc-advance ctx) (lc-emit ctx :caret     nil loc))
             ((char= ch #\~) (lc-advance ctx) (lc-emit ctx :tilde     nil loc))

@@ -444,13 +444,28 @@
     ".al" ".as" ".xl" ".xs")
   "Directives reconnues.")
 
+;; Synonymes Motorola 68000 (vasm motorola syntax) → directive interne
+(defparameter *motorola-directive-aliases*
+  '(("dc.b" . :byte)  ("dc.w" . :word)  ("dc.l" . :long)
+    ("dc.s" . :word)
+    ("ds.b" . :fill)  ("ds.w" . :fill)  ("ds.l" . :fill)
+    ("org"  . :org)   ("even" . :even)  ("section" . :section))
+  "Synonymes Motorola : nom (downcase) → keyword directive interne.")
+
+(defun motorola-directive-alias (name)
+  "Retourne le keyword directive pour un synonyme Motorola, ou NIL."
+  (cdr (assoc (string-downcase name) *motorola-directive-aliases*
+              :test #'string=)))
+
 (defun directive-p (name)
-  "Vrai si NAME (string) est une directive."
-  (member (string-downcase name) *directive-names* :test #'string=))
+  "Vrai si NAME (string) est une directive (style .xxx ou synonyme Motorola)."
+  (or (member (string-downcase name) *directive-names* :test #'string=)
+      (motorola-directive-alias name)))
 
 (defun directive-keyword (name)
-  "Convertit \".byte\" -> :byte etc."
-  (intern (string-upcase (subseq name 1)) :keyword))
+  "Convertit \".byte\" -> :byte, \"DC.B\" -> :byte, etc."
+  (or (motorola-directive-alias name)
+      (intern (string-upcase (subseq name 1)) :keyword)))
 
 (defun parse-directive (ctx name loc)
   "Parse les arguments d'une directive et construit un IR-DIRECTIVE."
@@ -829,6 +844,26 @@
             (unless (member (pc-kind ctx) '(:newline :eof))
               (parse-line ctx)
               (return-from parse-line t)))
+
+           ;; Assignation : NOM EQU EXPR (syntaxe Motorola)
+           ((and (eq (pc-kind ctx) :identifier)
+                 (string-equal (pc-value ctx) "EQU"))
+            (pc-advance ctx)
+            (let* ((val-expr (parse-expr ctx))
+                   (env      (cl-asm/expression:make-env
+                              :symbol-table (parse-context-symtable ctx)
+                              :pc 0)))
+              (multiple-value-bind (val ok)
+                  (cl-asm/expression:eval-expr val-expr env)
+                (when (and ok (parse-context-symtable ctx))
+                  (cl-asm/symbol-table:define-constant
+                   (parse-context-symtable ctx)
+                   (string-upcase name) val)))
+              (emit-node ctx
+                         (cl-asm/ir:make-ir-directive
+                          :name :equ
+                          :args (list (string-upcase name) val-expr)
+                          :loc loc))))
 
            ;; Assignation : NOM = EXPR
            ((eq (pc-kind ctx) :equals)
