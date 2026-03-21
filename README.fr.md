@@ -3,20 +3,21 @@
 Assembleur modulaire écrit en Common Lisp. Cibles actuelles : **6502**
 (Commodore 64, Apple II…), **45GS02** (Mega65), **65C02**
 (Commander X16), **R65C02** (Rockwell), **WDC 65816**
-(SNES, Apple IIgs) et **Z80** (ZX Spectrum, MSX, CPC, ZX81).
-L'architecture est pensée pour accueillir d'autres backends (68000…)
+(SNES, Apple IIgs), **Z80** (ZX Spectrum, MSX, CPC, ZX81)
+et **M68K** (Amiga, Atari ST, Mac 68k).
+L'architecture est pensée pour accueillir d'autres backends
 sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.3.0**
+**Version courante : 0.4.0**
 
 ```
-cl-asm/version:+version+         ; → "0.3.0"
+cl-asm/version:+version+         ; → "0.4.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 3
+cl-asm/version:+version-minor+   ; → 4
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.3.0"
+(cl-asm/version:version-string)  ; → "0.4.0"
 ```
 
 ---
@@ -36,12 +37,14 @@ cl-asm/version:+version-patch+   ; → 0
 | Backend R65C02 (Rockwell) | ✓ | 117 |
 | Backend WDC 65816 (SNES/Apple IIgs) | ✓ | 104 |
 | Backend Z80 (ZX Spectrum, MSX, CPC, ZX81) | ✓ | 191 |
+| Parser M68K | ✓ | 85 |
+| Backend M68K (Amiga, Atari ST, Mac 68k) | ✓ | 139 |
 | Émetteurs BIN / PRG / listing | ✓ | — |
 | Macros textuelles | ✓ | 27 |
 | Assemblage conditionnel | ✓ | 27 |
 | Frontend .lasm (Lisp natif) | ✓ | 58 |
 
-**Total : 1124 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 1348 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -100,7 +103,8 @@ cl-asm/
 │   │   ├── 65c02.lisp          encodeur 65C02 (superset 6502, X16)
 │   │   ├── r65c02.lisp         encodeur R65C02 (Rockwell, superset 65C02)
 │   │   ├── 65816.lisp          encodeur WDC 65816 (SNES/Apple IIgs, 24-bit)
-│   │   └── z80.lisp            encodeur Z80 (ZX Spectrum, MSX, CPC, ZX81)
+│   │   ├── z80.lisp            encodeur Z80 (ZX Spectrum, MSX, CPC, ZX81)
+│   │   └── m68k.lisp           encodeur M68K (Amiga, Atari ST, Mac 68k)
 │   └── emit/
 │       └── output.lisp         émetteurs BIN, PRG, listing
 ├── tests/
@@ -117,7 +121,9 @@ cl-asm/
 │   ├── test-conditional.lisp
 │   ├── test-lasm.lisp
 │   ├── test-65816.lisp
-│   └── test-z80.lisp
+│   ├── test-z80.lisp
+│   ├── test-m68k-parser.lisp
+│   └── test-m68k.lisp
 └── examples/
     ├── c64-raster.asm          raster bar C64 (syntaxe classique)
     ├── mega65-hello.lasm       hello world Mega65 (syntaxe .lasm)
@@ -183,8 +189,11 @@ Résultat attendu :
 === 45gs02       :  80 OK, 0 KO
 === 65816        : 104 OK, 0 KO
 === z80          : 191 OK, 0 KO
+--- Parsers architectures ---
+=== m68k-parser  :  85 OK, 0 KO
+=== m68k         : 139 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1124 OK, 0 KO
+=== TOTAL        : 1348 OK, 0 KO sur 1348 tests
 ```
 
 ---

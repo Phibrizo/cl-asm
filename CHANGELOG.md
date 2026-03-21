@@ -5,6 +5,70 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.4.0] — 2026-03-21
+
+### Added
+
+**Motorola 68000 backend** — new file `src/backend/m68k.lisp`
+(package `cl-asm/backend.m68k`) supporting the M68K processor (Amiga, Atari ST, Mac 68k):
+
+- CLI aliases: `m68k`, `68000`, `68k`, `amiga`, `atari`, `mac68k`, `atarist`
+- Default origin `$0000`
+- Full M68K instruction set:
+  - Data movement: `MOVE`, `MOVEA`, `MOVEQ`, `MOVEM`, `MOVEP`, `LEA`, `PEA`, `EXG`, `SWAP`
+  - Arithmetic: `ADD`, `ADDI`, `ADDQ`, `ADDA`, `SUB`, `SUBI`, `SUBQ`, `SUBA`, `MULS`, `MULU`, `DIVS`, `DIVU`, `ABCD`, `SBCD`, `NBCD`
+  - Logic: `AND`, `ANDI`, `OR`, `ORI`, `EOR`, `EORI`, `NOT`
+  - Compare: `CMP`, `CMPI`, `CMPA`, `CMPM`, `TST`
+  - Shifts: `ASL`, `ASR`, `LSL`, `LSR`, `ROL`, `ROR`, `ROXL`, `ROXR` (immediate, register, memory)
+  - Bit manipulation: `BTST`, `BSET`, `BCLR`, `BCHG`
+  - Unary: `CLR`, `NEG`, `NEGX`, `EXT`, `EXTB`
+  - Branch/jump: `BRA`, `BSR`, `Bcc` (all 14 conditions), `DBcc`, `JMP`, `JSR`, `RTS`, `RTR`, `RTE`
+  - System: `TRAP`, `TRAPV`, `LINK`, `UNLK`, `NOP`, `STOP`, `RESET`, `ILLEGAL`, `CHK`
+  - All addressing modes: Dn, An, (An), (An)+, -(An), d(An), d(An,Xi), abs.W, abs.L, d(PC), d(PC,Xi), #imm
+- Big-endian encoding throughout (`words->bytes`)
+
+**M68K parser tests** — `tests/test-m68k-parser.lisp`: 85 tests covering M68K operand parsing, EA modes, size suffixes, register syntax.
+
+**M68K backend tests** — `tests/test-m68k.lisp`: 139 tests across 17 groups:
+implied, MOVE, MOVEA, MOVEQ, ADD/ADDI/ADDQ/ADDA, SUB/SUBI/SUBQ/SUBA,
+AND/ANDI, OR/ORI, EOR/EORI, CMP/CMPI/CMPA, MULDIV, shifts, unary (CLR/NEG/etc.),
+EXT/SWAP, JMP/JSR/LEA, branches/DBcc, misc (LINK/UNLK/TRAP/EXG/BCD), bit ops,
+labels, addressing modes.
+
+### Modified
+
+**`src/core/version.lisp`** — version bumped: `0.3.0` → `0.4.0`
+
+**Test scripts** — `run-tests.sh`, `run-tests-clisp.lisp`, `run-tests-ecl.lisp`
+now load `src/backend/m68k.lisp`, `tests/test-m68k-parser.lisp`, and `tests/test-m68k.lisp`.
+
+**`tests/run-tests.lisp`** — added `run-suite cl-asm/test.m68k-parser` and `run-suite cl-asm/test.m68k`; new "Architecture parsers" section in the summary output.
+
+### Tests
+
+| Suite | 0.3.0 | 0.4.0 |
+|---|---|---|
+| symbol-table | 65 | 65 |
+| expression | 129 | 129 |
+| lexer | 119 | 119 |
+| parser | 84 | 84 |
+| macros | 27 | 27 |
+| conditional | 27 | 27 |
+| lasm | 58 | 58 |
+| 6502 | 82 | 82 |
+| 65c02 | 41 | 41 |
+| r65c02 | 117 | 117 |
+| 45gs02 | 80 | 80 |
+| 65816 | 104 | 104 |
+| z80 | 191 | 191 |
+| **m68k-parser** | — | **85** |
+| **m68k** | — | **139** |
+| **TOTAL** | **1124** | **1348** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.3.0] — 2026-03-21
 
 ### Added

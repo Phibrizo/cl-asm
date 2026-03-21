@@ -18,8 +18,8 @@ cl-asm est structuré en trois couches indépendantes :
                │ consommé par
                ▼
 ┌─────────────────────────────────────────────┐
-│  Backends (architectures cibles)                  │
-│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80    │
+│  Backends (architectures cibles)                        │
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K   │
 └──────────────┬──────────────────────────────┘
                │ produit un vecteur d'octets
                ▼
@@ -48,6 +48,7 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/backend.r65c02` | `src/backend/r65c02.lisp` | Backend R65C02 (Rockwell) |
 | `cl-asm/backend.65816` | `src/backend/65816.lisp` | Backend WDC 65816 (SNES/Apple IIgs) |
 | `cl-asm/backend.z80` | `src/backend/z80.lisp` | Backend Z80 (ZX Spectrum, MSX, CPC, ZX81) |
+| `cl-asm/backend.m68k` | `src/backend/m68k.lisp` | Backend M68K (Amiga, Atari ST, Mac 68k) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Frontend Lisp natif (.lasm) |
 | `cl-asm/emit` | `src/emit/output.lisp` | Émetteurs de fichiers |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Suites de tests |
@@ -485,6 +486,50 @@ Backend Zilog Z80 complet (ZX Spectrum, MSX, CPC, ZX81). Origine par défaut : `
 | Mémoire directe | `(nn)` | `LD A, ($8000)` |
 | Relatif | `e` (offset signé 8 bits) | `JR NZ, label` |
 | Bit + registre | `n, r` | `BIT 3, A` |
+
+---
+
+## Module `cl-asm/backend.m68k`
+
+Backend complet Motorola 68000 (Amiga, Atari ST, Mac 68k). Origine par défaut : `$0000`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.m68k:assemble-m68k        PROGRAM &key origin)
+(cl-asm/backend.m68k:assemble-string-m68k SOURCE  &key origin)
+(cl-asm/backend.m68k:assemble-file-m68k   PATH    &key origin)
+```
+
+### Encodage du champ EA
+
+Le champ EA sur 6 bits vaut `(mode << 3) | reg`, intégré dans le mot opcode.
+
+| Mode | Encodage | Syntaxe |
+|---|---|---|
+| Registre de données | `000 rrr` | `Dn` |
+| Registre d'adresse | `001 rrr` | `An` |
+| Indirect | `010 rrr` | `(An)` |
+| Post-incrément | `011 rrr` | `(An)+` |
+| Pré-décrément | `100 rrr` | `-(An)` |
+| Déplacement | `101 rrr` | `d(An)` |
+| Indexé | `110 rrr` | `d(An,Xi)` |
+| Abs.W | `111 000` | `$nnnn.W` |
+| Abs.L | `111 001` | `$nnnnnn` |
+| Dépl. PC | `111 010` | `d(PC)` |
+| Indexé PC | `111 011` | `d(PC,Xi)` |
+| Immédiat | `111 100` | `#n` |
+
+### Particularité de MOVE
+
+MOVE inverse les bits EA destination dans le mot opcode :
+bits 11-9 = dst_reg, bits 8-6 = dst_mode (contrairement à toutes les autres instructions).
+Champ taille MOVE (bits 13-12) : `.B`→1, `.W`→3, `.L`→2.
+
+### Sortie big-endian
+
+`words->bytes` convertit une liste de mots 16 bits en octets big-endian.
+Tous les mots d'extension (immédiats, déplacements, adresses) suivent le mot opcode.
 
 ---
 

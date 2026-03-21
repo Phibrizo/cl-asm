@@ -3,20 +3,20 @@
 A modular assembler written in Common Lisp. Current targets: **6502**
 (Commodore 64, Apple II…), **45GS02** (Mega65), **65C02**
 (Commander X16), **R65C02** (Rockwell), **WDC 65816**
-(SNES, Apple IIgs), and **Z80** (ZX Spectrum, MSX, CPC, ZX81). The
-architecture is designed to accommodate additional backends (68000…)
-without modifying the core.
+(SNES, Apple IIgs), **Z80** (ZX Spectrum, MSX, CPC, ZX81),
+and **M68K** (Amiga, Atari ST, Mac 68k). The architecture is designed
+to accommodate additional backends without modifying the core.
 
 ## Version
 
-**Current version: 0.3.0**
+**Current version: 0.4.0**
 
 ```
-cl-asm/version:+version+         ; → "0.3.0"
+cl-asm/version:+version+         ; → "0.4.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 3
+cl-asm/version:+version-minor+   ; → 4
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.3.0"
+(cl-asm/version:version-string)  ; → "0.4.0"
 ```
 
 ---
@@ -27,7 +27,7 @@ cl-asm/version:+version-patch+   ; → 0
 | --- | --- | --- |
 | IR (Intermediate Representation) | ✓ | — |
 | Expression evaluator | ✓ | 129 |
-| Symbol table | ✓ | 59 |
+| Symbol table | ✓ | 65 |
 | Classic lexer | ✓ | 119 |
 | Classic parser (ca65-like) | ✓ | 84 |
 | 6502 backend | ✓ | 82 |
@@ -36,12 +36,14 @@ cl-asm/version:+version-patch+   ; → 0
 | R65C02 backend (Rockwell) | ✓ | 117 |
 | WDC 65816 backend (SNES/Apple IIgs) | ✓ | 104 |
 | Z80 backend (ZX Spectrum, MSX, CPC, ZX81) | ✓ | 191 |
+| M68K parser | ✓ | 85 |
+| M68K backend (Amiga, Atari ST, Mac 68k) | ✓ | 139 |
 | BIN / PRG / listing emitters | ✓ | — |
 | Text macros | ✓ | 27 |
 | Conditional assembly | ✓ | 27 |
 | .lasm frontend (native Lisp) | ✓ | 58 |
 
-**Total: 1124 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 1348 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -100,7 +102,8 @@ cl-asm/
 │   │   ├── 65c02.lisp          65C02 encoder (6502 superset, X16)
 │   │   ├── r65c02.lisp         R65C02 encoder (65C02 + Rockwell bit ops)
 │   │   ├── 65816.lisp          WDC 65816 encoder (SNES/Apple IIgs, 24-bit)
-│   │   └── z80.lisp            Z80 encoder (ZX Spectrum, MSX, CPC, ZX81)
+│   │   ├── z80.lisp            Z80 encoder (ZX Spectrum, MSX, CPC, ZX81)
+│   │   └── m68k.lisp           M68K encoder (Amiga, Atari ST, Mac 68k)
 │   └── emit/
 │       └── output.lisp         BIN, PRG, listing emitters
 ├── tests/
@@ -117,7 +120,9 @@ cl-asm/
 │   ├── test-conditional.lisp
 │   ├── test-lasm.lisp
 │   ├── test-65816.lisp
-│   └── test-z80.lisp
+│   ├── test-z80.lisp
+│   ├── test-m68k-parser.lisp
+│   └── test-m68k.lisp
 └── examples/
     ├── c64-raster.asm          C64 raster bar (classic syntax)
     ├── mega65-hello.lasm       Mega65 hello world (.lasm syntax)
@@ -190,8 +195,11 @@ Expected output (all methods):
 === 45gs02       :  80 OK, 0 KO
 === 65816        : 104 OK, 0 KO
 === z80          : 191 OK, 0 KO
+--- Architecture parsers ---
+=== m68k-parser  :  85 OK, 0 KO
+=== m68k         : 139 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1124 OK, 0 KO
+=== TOTAL        : 1348 OK, 0 KO out of 1348 tests
 ```
 
 ---

@@ -18,8 +18,8 @@ cl-asm is structured in three independent layers:
                │ consumed by
                ▼
 ┌─────────────────────────────────────────────┐
-│  Backends (target architectures)                  │
-│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80    │
+│  Backends (target architectures)                        │
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K   │
 └──────────────┬──────────────────────────────┘
                │ produces a byte vector
                ▼
@@ -48,6 +48,7 @@ cl-asm is structured in three independent layers:
 | `cl-asm/backend.r65c02` | `src/backend/r65c02.lisp` | R65C02 backend (Rockwell) |
 | `cl-asm/backend.65816` | `src/backend/65816.lisp` | WDC 65816 backend (SNES/Apple IIgs) |
 | `cl-asm/backend.z80` | `src/backend/z80.lisp` | Z80 backend (ZX Spectrum, MSX, CPC, ZX81) |
+| `cl-asm/backend.m68k` | `src/backend/m68k.lisp` | M68K backend (Amiga, Atari ST, Mac 68k) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Native Lisp frontend |
 | `cl-asm/emit` | `src/emit/output.lisp` | File emitters |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Test suites |
@@ -485,6 +486,50 @@ Full Zilog Z80 backend (ZX Spectrum, MSX, CPC, ZX81). Default origin: `$8000`.
 | Direct memory | `(nn)` | `LD A, ($8000)` |
 | Relative | `e` (signed byte offset) | `JR NZ, label` |
 | Bit + register | `n, r` | `BIT 3, A` |
+
+---
+
+## Module `cl-asm/backend.m68k`
+
+Full Motorola 68000 backend (Amiga, Atari ST, Mac 68k). Default origin: `$0000`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.m68k:assemble-m68k        PROGRAM &key origin)
+(cl-asm/backend.m68k:assemble-string-m68k SOURCE  &key origin)
+(cl-asm/backend.m68k:assemble-file-m68k   PATH    &key origin)
+```
+
+### EA field encoding
+
+The 6-bit EA field is `(mode << 3) | reg`, embedded directly in the instruction word.
+
+| Mode | Encoding | Syntax |
+|---|---|---|
+| Data register | `000 rrr` | `Dn` |
+| Address register | `001 rrr` | `An` |
+| Address indirect | `010 rrr` | `(An)` |
+| Post-increment | `011 rrr` | `(An)+` |
+| Pre-decrement | `100 rrr` | `-(An)` |
+| Displacement | `101 rrr` | `d(An)` |
+| Indexed | `110 rrr` | `d(An,Xi)` |
+| Abs.W | `111 000` | `$nnnn.W` |
+| Abs.L | `111 001` | `$nnnnnn` |
+| PC displacement | `111 010` | `d(PC)` |
+| PC indexed | `111 011` | `d(PC,Xi)` |
+| Immediate | `111 100` | `#n` |
+
+### MOVE encoding peculiarity
+
+MOVE reverses the destination EA bits in the opcode word:
+bits 11-9 = dst_reg, bits 8-6 = dst_mode (opposite of all other instructions).
+MOVE size field (bits 13-12): `.B`→1, `.W`→3, `.L`→2.
+
+### Big-endian output
+
+`words->bytes` converts a list of 16-bit words to a big-endian byte sequence.
+All extension words (immediates, displacements, addresses) follow the opcode word.
 
 ---
 
