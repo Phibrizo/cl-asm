@@ -25,7 +25,7 @@
         ; CMP
         CMP.W   D0, D1
         CMP.W   #$10, D0
-        CMP.L   #0, D0
+        CMP.L   #1, D0
 
         ; MUL/DIV
         MULU    D0, D1
@@ -34,12 +34,12 @@
         DIVS    D0, D1
 
         ; Shifts
-        ASL.W   #1, D0
-        ASR.W   #1, D0
+        ASL.W   #2, D0
+        ASR.W   #2, D0
         LSL.W   #2, D1
         LSR.W   #2, D1
-        ROL.W   #1, D0
-        ROR.W   #1, D0
+        ROL.W   #2, D0
+        ROR.W   #2, D0
 
         ; NOT/NEG/CLR
         NOT.W   D0

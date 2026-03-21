@@ -182,16 +182,16 @@
 
 (deftest test-m68k-addq
   ;; ADDQ.W #4, D0
-  ;; Format : 0101 nnn 1 ss EA  (bit8=1 pour ADDQ)
-  ;; n=4(100) ; sc=1(01) ; ea=D0=0 → (5<<12)|(4<<9)|(1<<8)|(1<<6)|0 = $5940
+  ;; Format : 0101 nnn 0 ss EA  (bit8=0 pour ADDQ, base=$5000)
+  ;; n=4(100) ; sc=1(01) ; ea=D0=0 → (5<<12)|(4<<9)|(0<<8)|(1<<6)|0 = $5840
   (check "ADDQ.W #4,D0"
-         (bytes= (asm "ADDQ.W #4, D0")      #x59 #x40))
-  ;; ADDQ.L #1, D0 : n=1, sc=2, bit8=1 → 0101 001 1 10 000 000 = $5380
+         (bytes= (asm "ADDQ.W #4, D0")      #x58 #x40))
+  ;; ADDQ.L #1, D0 : n=1, sc=2, bit8=0 → 0101 001 0 10 000 000 = $5280
   (check "ADDQ.L #1,D0"
-         (bytes= (asm "ADDQ.L #1, D0")      #x53 #x80))
-  ;; ADDQ.W #8, D0 : n=8→encodé comme 0 → (5<<12)|(0<<9)|(1<<8)|(1<<6)|0 = $5140
+         (bytes= (asm "ADDQ.L #1, D0")      #x52 #x80))
+  ;; ADDQ.W #8, D0 : n=8→encodé comme 0 → (5<<12)|(0<<9)|(0<<8)|(1<<6)|0 = $5040
   (check "ADDQ.W #8,D0"
-         (bytes= (asm "ADDQ.W #8, D0")      #x51 #x40)))
+         (bytes= (asm "ADDQ.W #8, D0")      #x50 #x40)))
 
 (deftest test-m68k-adda
   ;; ADDA.L D0, A0
@@ -233,13 +233,13 @@
 
 (deftest test-m68k-subq
   ;; SUBQ.W #4, D0
-  ;; Format : 0101 nnn 0 ss EA (bit8=0 pour SUBQ)
-  ;; n=4 ; sc=1 ; ea=D0=0 → (5<<12)|(4<<9)|(0<<8)|(1<<6)|0 = $5840
+  ;; Format : 0101 nnn 1 ss EA (bit8=1 pour SUBQ, base=$5100)
+  ;; n=4 ; sc=1 ; ea=D0=0 → (5<<12)|(4<<9)|(1<<8)|(1<<6)|0 = $5940
   (check "SUBQ.W #4,D0"
-         (bytes= (asm "SUBQ.W #4, D0")      #x58 #x40))
-  ;; SUBQ.L #1, D0 : n=1, sc=2, bit8=0 → 0101 001 0 10 000 000 = $5280
+         (bytes= (asm "SUBQ.W #4, D0")      #x59 #x40))
+  ;; SUBQ.L #1, D0 : n=1, sc=2, bit8=1 → 0101 001 1 10 000 000 = $5380
   (check "SUBQ.L #1,D0"
-         (bytes= (asm "SUBQ.L #1, D0")      #x52 #x80)))
+         (bytes= (asm "SUBQ.L #1, D0")      #x53 #x80)))
 
 (deftest test-m68k-suba
   ;; SUBA.L D0, A0 : base=$9000 ; sc_bit=1 ; word=$91C0

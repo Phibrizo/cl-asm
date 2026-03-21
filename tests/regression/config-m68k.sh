@@ -41,6 +41,7 @@ clasm_to_vasm() {
         -e 's/^\([[:space:]]*\)\.long /\1DC.L /g' \
         -e 's/^\([[:space:]]*\)\.text /\1DC.B /g' \
         -e 's/^\([[:space:]]*\)\.fill \([0-9][0-9]*\).*$/\1DS.B \2/g' \
+        -e 's/, /,/g' \
         "$src" > "$dst"
 }
 
@@ -75,7 +76,7 @@ ref_assemble() {
             tmp_src=$(mktemp /tmp/cl-asm-vasm-XXXXXX.asm)
             tmp_bin=$(mktemp /tmp/cl-asm-vasm-XXXXXX.bin)
             clasm_to_vasm "$source" "$tmp_src"
-            vasmm68k_mot -Fbin -o "$tmp_bin" "$tmp_src" 2>/dev/null
+            vasmm68k_mot -m68000 -Fbin -o "$tmp_bin" "$tmp_src" 2>/dev/null
             result=$?
             if [[ $result -eq 0 && -f "$tmp_bin" ]]; then
                 add_prg_header "$origin" "$tmp_bin" "$output"

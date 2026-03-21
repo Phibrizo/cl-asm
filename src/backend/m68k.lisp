@@ -318,8 +318,9 @@
 ;;;  Estimation de taille (passe 1)
 ;;; --------------------------------------------------------------------------
 
-(defun m68k-ea-words-count (op)
-  "Estime le nombre de mots d'extension pour une EA (sans évaluation)."
+(defun m68k-ea-words-count (op &optional size)
+  "Estime le nombre de mots d'extension pour une EA (sans évaluation).
+   SIZE (:byte/:word/:long) affine l'estimation pour les immédiats."
   (let ((kind (op-kind op))
         (val  (op-val op)))
     (cond
@@ -334,10 +335,19 @@
          (t 0)))
       ((eq kind :post-increment) 0)
       ((eq kind :pre-decrement)  0)
-      ((eq kind :immediate)      2)  ; pessimiste → sera .L (2 mots)
-      ;; abs : on estime abs.L (2 mots) par défaut
-      ((and (eq kind :direct) (not (stringp val))) 2)
-      (t 2)))) ; symbole → abs.L par défaut
+      ((eq kind :immediate)
+       ;; .B et .W → 1 mot ; .L → 2 mots ; sans info → pessimiste 2 mots
+       (if (eq size :long) 2 (if size 1 2)))
+      ;; abs numérique : évaluer si possible (constante littérale) pour choisir
+      ;; abs.W (1 mot, addr ≤ 32767) ou abs.L (2 mots).
+      ((and (eq kind :direct) (not (stringp val)))
+       (multiple-value-bind (addr ok)
+           (m68k-eval val nil)
+         (if (and ok (<= -32768 addr 32767)) 1 2)))
+      ;; symbole → abs.W (1 mot) : pour les programmes à origine ≤ $7FFF,
+      ;; l'adresse résolue tient dans 16 bits, ce qui correspond à ce que
+      ;; l'encodeur fait en passe 2 (abs.W si addr ≤ 32767).
+      (t 1))))
 
 (defun m68k-estimate-size (mnem size ops)
   "Estime la taille en octets d'une instruction M68K."
@@ -392,7 +402,7 @@
                      (if op1 (m68k-ea-words-count op1) 0)))))
       ;; MOVE / MOVEA : 1 mot + extensions src + extensions dst
       ((member mnem '("MOVE" "MOVEA") :test #'string=)
-       (+ 2 (* 2 (+ (if op1 (m68k-ea-words-count op1) 0)
+       (+ 2 (* 2 (+ (if op1 (m68k-ea-words-count op1 size) 0)
                     (if op2 (m68k-ea-words-count op2) 0)))))
       ;; ADDI/SUBI/ANDI/ORI/EORI/CMPI : 1 mot + imm words + EA
       ((member mnem '("ADDI" "SUBI" "ANDI" "ORI" "EORI" "CMPI")
@@ -404,9 +414,9 @@
       ;; ADDQ/SUBQ : 1 mot + EA
       ((member mnem '("ADDQ" "SUBQ") :test #'string=)
        (+ 2 (* 2 (if op2 (m68k-ea-words-count op2) 0))))
-      ;; MULU/MULS/DIVU/DIVS : 1 mot + EA
+      ;; MULU/MULS/DIVU/DIVS : 1 mot + EA source
       ((member mnem '("MULU" "MULS" "DIVU" "DIVS") :test #'string=)
-       (+ 2 (* 2 (if op1 (m68k-ea-words-count op1) 0))))
+       (+ 2 (* 2 (if op1 (m68k-ea-words-count op1 :word) 0))))
       ;; BTST/BCHG/BCLR/BSET : variable
       ((member mnem '("BTST" "BCHG" "BCLR" "BSET") :test #'string=)
        (if (and op1 (op-is-dn-p op1))
@@ -428,8 +438,8 @@
            (+ 2 (* 2 (if op1 (m68k-ea-words-count op1) 0)))))
       ;; ADD/SUB/AND/OR/EOR/CMP + variantes A/X
       (t
-       (+ 2 (* 2 (+ (if op1 (m68k-ea-words-count op1) 0)
-                    (if op2 (m68k-ea-words-count op2) 0))))))))
+       (+ 2 (* 2 (+ (if op1 (m68k-ea-words-count op1 size) 0)
+                    (if op2 (m68k-ea-words-count op2 size) 0))))))))
 
 
 ;;; --------------------------------------------------------------------------
@@ -566,7 +576,7 @@
 
 (defun encode-addq-subq (mnem size op1 op2 env pc)
   "Encode ADDQ/SUBQ #n, <ea>."
-  (let* ((base (if (string= mnem "ADDQ") #x5100 #x5000))
+  (let* ((base (if (string= mnem "ADDQ") #x5000 #x5100))
          (n    (logand (m68k-eval! (op-val op1) env) 7))
          (sc   (m68k-size-code (or size :word)))
          (ea   (m68k-ea-field op2 env))

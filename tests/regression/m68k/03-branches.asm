@@ -3,18 +3,18 @@
 
         .org $0000
 
-        ; Bcc — branches conditionnelles
-        CMP.W   #0, D0
-        BEQ     fwd_beq
-        BGT     fwd_bgt
-        BLT     fwd_blt
-        BNE     fwd_bne
-        BGE     fwd_bge
-        BLE     fwd_ble
-        BCC     fwd_bcc
-        BCS     fwd_bcs
-        BMI     fwd_bmi
-        BPL     fwd_bpl
+        ; Bcc — branches conditionnelles (suffix .W pour forcer word form)
+        CMP.W   #1, D0
+        BEQ.W   fwd_beq
+        BGT.W   fwd_bgt
+        BLT.W   fwd_blt
+        BNE.W   fwd_bne
+        BGE.W   fwd_bge
+        BLE.W   fwd_ble
+        BCC.W   fwd_bcc
+        BCS.W   fwd_bcs
+        BMI.W   fwd_bmi
+        BPL.W   fwd_bpl
 
 fwd_beq: NOP
 fwd_bgt: NOP
@@ -28,7 +28,7 @@ fwd_bmi: NOP
 fwd_bpl: NOP
 
         ; BRA — branche inconditionnelle
-        BRA     bra_target
+        BRA.W   bra_target
         NOP
 bra_target: NOP
 
@@ -39,11 +39,11 @@ loop:
         DBRA    D0, loop
 
         ; JSR/RTS
-        JSR     sub
+        JSR     my_sub
         NOP
-        BRA     end
+        BRA.W   done
 
-sub:
+my_sub:
         MOVE.W  #$42, D0
         RTS
 
@@ -51,5 +51,5 @@ sub:
         LEA     $1234, A0
         LEA     $10(A0), A1
 
-end:
+done:
         RTS
