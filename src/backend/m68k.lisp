@@ -936,11 +936,15 @@
          (words->bytes (list word))))
 
       ;; --- AND / OR / EOR ---
+      ;; AND/OR acceptent EA=immédiat directement (opcode $C/$8 avec mode 7/4).
+      ;; EOR n'a pas de forme <ea>→Dn : EOR #imm est un alias pour EORI.
       ((string= mnem "AND")  (encode-alu-dn mnem size op1 op2 env pc))
       ((string= mnem "ANDI") (encode-imm-op mnem size op1 op2 env pc))
       ((string= mnem "OR")   (encode-alu-dn mnem size op1 op2 env pc))
       ((string= mnem "ORI")  (encode-imm-op mnem size op1 op2 env pc))
-      ((string= mnem "EOR")  (encode-alu-dn mnem size op1 op2 env pc))
+      ((string= mnem "EOR")  (if (eq (op-kind op1) :immediate)
+                                 (encode-imm-op "EORI" size op1 op2 env pc)
+                                 (encode-alu-dn mnem size op1 op2 env pc)))
       ((string= mnem "EORI") (encode-imm-op mnem size op1 op2 env pc))
 
       ;; --- CMP ---

@@ -269,7 +269,13 @@
 (deftest test-m68k-andi
   ;; ANDI.W #$FF00, D0 : base=$0200, sc=1, ea=0 → $0240 ; ext=($FF00)
   (check "ANDI.W #$FF00,D0"
-         (bytes= (asm "ANDI.W #$FF00, D0")  #x02 #x40 #xFF #x00)))
+         (bytes= (asm "ANDI.W #$FF00, D0")  #x02 #x40 #xFF #x00))
+  ;; AND.W #$FF, D0 — AND <ea=imm>,Dn : ($C<<12)|(0<<9)|(1<<6)|$3C = $C07C
+  (check "AND.W #$FF,D0"
+         (bytes= (asm "AND.W #$FF, D0")     #xC0 #x7C #x00 #xFF))
+  ;; AND.L #$1234, D1 — AND.L EA=imm,D1 : ($C<<12)|(1<<9)|(2<<6)|$3C = $C2BC
+  (check "AND.L #$1234,D1"
+         (bytes= (asm "AND.L #$1234, D1")   #xC2 #xBC #x00 #x00 #x12 #x34)))
 
 (deftest test-m68k-or
   ;; OR.W D0, D1 : ($8<<12)|(1<<9)|0|(1<<6)|0 = $8240
@@ -282,7 +288,10 @@
 (deftest test-m68k-ori
   ;; ORI.W #$1234, D0 : base=$0000, sc=1, ea=0 → $0040 ; ext=($1234)
   (check "ORI.W #$1234,D0"
-         (bytes= (asm "ORI.W #$1234, D0")   #x00 #x40 #x12 #x34)))
+         (bytes= (asm "ORI.W #$1234, D0")   #x00 #x40 #x12 #x34))
+  ;; OR.W #$0F, D0 — OR <ea=imm>,Dn : ($8<<12)|(0<<9)|(1<<6)|$3C = $807C
+  (check "OR.W #$0F,D0"
+         (bytes= (asm "OR.W #$0F, D0")      #x80 #x7C #x00 #x0F)))
 
 (deftest test-m68k-eor
   ;; EOR.W D0, D1 : toujours Dn→EA (dir=1)
@@ -296,7 +305,13 @@
 (deftest test-m68k-eori
   ;; EORI.W #$1234, D0 : base=$0A00, sc=1, ea=0 → $0A40 ; ext=($1234)
   (check "EORI.W #$1234,D0"
-         (bytes= (asm "EORI.W #$1234, D0")  #x0A #x40 #x12 #x34)))
+         (bytes= (asm "EORI.W #$1234, D0")  #x0A #x40 #x12 #x34))
+  ;; EOR.W #$0F0F, D0 — alias EORI
+  (check "EOR.W #$0F0F,D0 (alias EORI)"
+         (bytes= (asm "EOR.W #$0F0F, D0")   #x0A #x40 #x0F #x0F))
+  ;; EOR.L #$DEADBEEF, D1 — alias EORI.L : $0A00|($2<<6)|D1=1 = $0A81
+  (check "EOR.L #$DEADBEEF,D1 (alias EORI)"
+         (bytes= (asm "EOR.L #$DEADBEEF, D1") #x0A #x81 #xDE #xAD #xBE #xEF)))
 
 
 ;;; --------------------------------------------------------------------------
