@@ -12,7 +12,7 @@
         LD A, (IX+$10)
         LD B, (IX+1)
         LD H, (IY+2)
-        LD L, (IY+$FF)
+        LD L, (IY+$7F)
 
         ; LD (IX+d), reg
         LD (IX+0), A
@@ -21,7 +21,7 @@
 
         ; LD (IX+d), n
         LD (IX+0), $42
-        LD (IY+$10), $FF
+        LD (IY+$10), $42
 
         ; ADD/ADC avec IX
         ADD A, (IX+0)
