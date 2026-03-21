@@ -309,12 +309,14 @@ for target in "${targets[@]}"; do
             continue
         fi
 
+        # Détecter l'adresse d'origine depuis la directive .org du source
+        origin=$(grep -m1 '\.org' "$source" | grep -oP '\$[0-9A-Fa-f]+' | \
+                 python3 -c "import sys; print(int(sys.stdin.read().strip()[1:],16))" 2>/dev/null \
+                 || echo "2049")
+
         # Pas de référence → essayer de la générer à la volée
         if [[ ! -f "$ref" ]]; then
             if ref_check_available; then
-                origin=$(grep -m1 '\.org' "$source" | grep -oP '\$[0-9A-Fa-f]+' | \
-                         python3 -c "import sys; print(int(sys.stdin.read().strip()[1:],16))" 2>/dev/null \
-                         || echo "2049")
                 ref_assemble "$source" "$ref" "$origin" "$target" 2>/dev/null || true
             fi
         fi
@@ -326,10 +328,10 @@ for target in "${targets[@]}"; do
         fi
 
         # Assembler avec cl-asm
-        cl_asm_opts=""
+        cl_asm_opts="--origin $origin"
         case "$target" in
-            mega65) cl_asm_opts="--target 45gs02" ;;
-            x16)    cl_asm_opts="--target x16" ;;
+            mega65) cl_asm_opts="$cl_asm_opts --target 45gs02" ;;
+            x16)    cl_asm_opts="$cl_asm_opts --target x16" ;;
         esac
 
         if ! "$CL_ASM" $cl_asm_opts "$source" -o "$out" 2>/dev/null; then

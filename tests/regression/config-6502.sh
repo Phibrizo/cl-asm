@@ -37,7 +37,7 @@ clasm_to_acme() {
         -e 's/^\([[:space:]]*\)\.if /\1!if /g' \
         -e 's/^\([[:space:]]*\)\.else/\1!else/g' \
         -e 's/^\([[:space:]]*\)\.endif/\1!endif/g' \
-        -e 's/^\([[:space:]]*\)\(asl\|lsr\|rol\|ror\) A[[:space:]]*$/\1\2/g' \
+        -e 's/^\([[:space:]]*\)\(asl\|lsr\|rol\|ror\|inc\|dec\) A[[:space:]]*$/\1\2/g' \
         "$src" > "$dst"
 }
 

@@ -53,6 +53,16 @@
 
 (require :asdf)
 
+;;; Pré-déclarer cl-asm/backends pour que le lecteur puisse résoudre les
+;;; symboles qualifiés avant que load-cl-asm ne charge le vrai paquet.
+(unless (find-package "CL-ASM/BACKENDS")
+  (let ((pkg (make-package "CL-ASM/BACKENDS" :use '())))
+    (export (mapcar (lambda (s) (intern s pkg))
+                    '("ALL-BACKENDS" "BACKEND-ALIASES" "BACKEND-KEYWORD"
+                      "BACKEND-PACKAGE" "BACKEND-FUNCTION"
+                      "FIND-BACKEND-BY-ALIAS"))
+            pkg)))
+
 (defun find-cl-asm-asd (script-dir)
   (let ((candidates (list
                      (merge-pathnames "cl-asm.asd" script-dir)
@@ -190,6 +200,15 @@
       (print-usage)
       (exit-lisp 0))
 
+    (handler-case
+        (load-cl-asm script-dir)
+      (error (e)
+        (format *error-output*
+                (msg "Erreur chargement cl-asm : ~A~%"
+                     "Error loading cl-asm: ~A~%")
+                e)
+        (exit-lisp 1)))
+
     (let ((input   nil)
           (output  nil)
           (format  :prg)
@@ -240,15 +259,6 @@
                      "Error: file not found: ~A~%")
                 input)
         (exit-lisp 1))
-
-      (handler-case
-          (load-cl-asm script-dir)
-        (error (e)
-          (format *error-output*
-                  (msg "Erreur chargement cl-asm : ~A~%"
-                       "Error loading cl-asm: ~A~%")
-                  e)
-          (exit-lisp 1)))
 
       (unless target
         (setf target (or (detect-target input) :6502)))
