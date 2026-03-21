@@ -2,20 +2,21 @@
 
 A modular assembler written in Common Lisp. Current targets: **6502**
 (Commodore 64, Apple II…), **45GS02** (Mega65), **65C02**
-(Commander X16), **R65C02** (Rockwell), and **WDC 65816**
-(SNES, Apple IIgs). The architecture is designed to accommodate additional
-backends (Z80, 68000…) without modifying the core.
+(Commander X16), **R65C02** (Rockwell), **WDC 65816**
+(SNES, Apple IIgs), and **Z80** (ZX Spectrum, MSX, CPC, ZX81). The
+architecture is designed to accommodate additional backends (68000…)
+without modifying the core.
 
 ## Version
 
-**Current version: 0.2.0**
+**Current version: 0.3.0**
 
 ```
-cl-asm/version:+version+         ; → "0.2.0"
+cl-asm/version:+version+         ; → "0.3.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 2
+cl-asm/version:+version-minor+   ; → 3
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.1.3"
+(cl-asm/version:version-string)  ; → "0.3.0"
 ```
 
 ---
@@ -34,12 +35,13 @@ cl-asm/version:+version-patch+   ; → 0
 | 65C02 backend (X16) | ✓ | 41 |
 | R65C02 backend (Rockwell) | ✓ | 117 |
 | WDC 65816 backend (SNES/Apple IIgs) | ✓ | 104 |
+| Z80 backend (ZX Spectrum, MSX, CPC, ZX81) | ✓ | 191 |
 | BIN / PRG / listing emitters | ✓ | — |
 | Text macros | ✓ | 27 |
 | Conditional assembly | ✓ | 27 |
 | .lasm frontend (native Lisp) | ✓ | 58 |
 
-**Total: 933 tests, 0 failures, 0 warnings — SBCL 2.6.2 and CLISP 2.49.95+**
+**Total: 1124 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -77,6 +79,7 @@ cl-asm/
 ├── bootstrap.lisp          manual loading (without ASDF)
 ├── run-tests.sh            SBCL test script
 ├── run-tests-clisp.sh      CLISP test script
+├── run-tests-ecl.sh        ECL test script
 ├── cl-asm                  command-line script
 ├── acme2clasm              ACME to cl-asm converter (shell wrapper)
 ├── acme2clasm.lisp         ACME to cl-asm converter (Common Lisp engine)
@@ -96,7 +99,8 @@ cl-asm/
 │   │   ├── 45gs02.lisp         45GS02 encoder (6502 superset)
 │   │   ├── 65c02.lisp          65C02 encoder (6502 superset, X16)
 │   │   ├── r65c02.lisp         R65C02 encoder (65C02 + Rockwell bit ops)
-│   │   └── 65816.lisp          WDC 65816 encoder (SNES/Apple IIgs, 24-bit)
+│   │   ├── 65816.lisp          WDC 65816 encoder (SNES/Apple IIgs, 24-bit)
+│   │   └── z80.lisp            Z80 encoder (ZX Spectrum, MSX, CPC, ZX81)
 │   └── emit/
 │       └── output.lisp         BIN, PRG, listing emitters
 ├── tests/
@@ -112,7 +116,8 @@ cl-asm/
 │   ├── test-macros.lisp
 │   ├── test-conditional.lisp
 │   ├── test-lasm.lisp
-│   └── test-65816.lisp
+│   ├── test-65816.lisp
+│   └── test-z80.lisp
 └── examples/
     ├── c64-raster.asm          C64 raster bar (classic syntax)
     ├── mega65-hello.lasm       Mega65 hello world (.lasm syntax)
@@ -135,6 +140,7 @@ Three methods coexist — they all produce identical output.
 cd cl-asm/
 ./run-tests.sh          # SBCL
 ./run-tests-clisp.sh    # CLISP
+./run-tests-ecl.sh      # ECL
 ```
 
 ### Method 2 — ASDF from a REPL
@@ -183,8 +189,9 @@ Expected output (all methods):
 === r65c02       : 117 OK, 0 KO
 === 45gs02       :  80 OK, 0 KO
 === 65816        : 104 OK, 0 KO
+=== z80          : 191 OK, 0 KO
 -------------------------------
-=== TOTAL        : 933 OK, 0 KO sur 933 tests
+=== TOTAL        : 1124 OK, 0 KO
 ```
 
 ---
@@ -341,6 +348,19 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
    RTS")
 ```
 
+### Assemble Z80 code (ZX Spectrum / MSX / CPC)
+
+```
+(cl-asm/backend.z80:assemble-string-z80
+  ".org $8000
+   LD A, $42
+   LD (HL), A
+   INC HL
+   DJNZ loop
+   loop:
+   RET")
+```
+
 ### Full pipeline: parse then assemble
 
 ```
@@ -436,6 +456,21 @@ main::                     ; global label (ca65-style)
         lda [$00]          ; [32-bit indirect]
         ldq ($20),Z        ; 32-bit Q register
 
+; Z80 addressing modes (use --target z80)
+        ld a, $42       ; immediate
+        ld (hl), a      ; register indirect
+        ld a, (ix+2)    ; indexed (IX+d) or (IY+d)
+        ld a, ($8000)   ; direct memory
+        push bc         ; register pair
+        bit 3, a        ; bit test (CB prefix)
+        set 3, a        ; bit set (CB prefix)
+        res 3, a        ; bit reset (CB prefix)
+        jr nz, label    ; relative branch
+        djnz loop       ; decrement B, jump if non-zero
+        ldir            ; block copy (ED prefix)
+        in a, ($FE)     ; I/O port read
+        out ($FE), a    ; I/O port write
+
 ; Text macros
 .macro PUSH_AXY
     PHA
@@ -499,6 +534,9 @@ The `cl-asm` script assembles a file directly from the terminal.
 # WDC 65816 / SNES target
 ./cl-asm snes.asm --target 65816
 
+# Z80 / ZX Spectrum / MSX target
+./cl-asm prog.asm --target z80
+
 # Verbose mode
 ./cl-asm programme.asm -v
 ```
@@ -510,7 +548,7 @@ The `cl-asm` script assembles a file directly from the terminal.
 | `-o FILE` | Output file | same name, .prg extension |
 | `-f FORMAT` | `prg` or `bin` | `prg` |
 | `--origin ADDR` | Origin address (e.g. `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502` (also `mos6502`, `c64`), `45gs02` (also `mega65`), `x16` (also `65c02`, `commander-x16`), `r65c02` (also `rockwell`), `65816` (also `wdc65816`, `snes`, `apple2gs`) | `6502` |
+| `-t TARGET` | `6502` (also `mos6502`, `c64`), `45gs02` (also `mega65`), `x16` (also `65c02`, `commander-x16`), `r65c02` (also `rockwell`), `65816` (also `wdc65816`, `snes`, `apple2gs`), `z80` (also `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`) | `6502` |
 | `-v` | Verbose mode | — |
 
 Target is auto-detected from the first lines of the source file:

@@ -18,8 +18,8 @@ cl-asm is structured in three independent layers:
                │ consumed by
                ▼
 ┌─────────────────────────────────────────────┐
-│  Backends (target architectures)            │
-│  6502 · 65C02 · R65C02 · 45GS02 · 65816    │
+│  Backends (target architectures)                  │
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80    │
 └──────────────┬──────────────────────────────┘
                │ produces a byte vector
                ▼
@@ -47,6 +47,7 @@ cl-asm is structured in three independent layers:
 | `cl-asm/backend.65c02` | `src/backend/65c02.lisp` | 65C02 backend (X16) |
 | `cl-asm/backend.r65c02` | `src/backend/r65c02.lisp` | R65C02 backend (Rockwell) |
 | `cl-asm/backend.65816` | `src/backend/65816.lisp` | WDC 65816 backend (SNES/Apple IIgs) |
+| `cl-asm/backend.z80` | `src/backend/z80.lisp` | Z80 backend (ZX Spectrum, MSX, CPC, ZX81) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Native Lisp frontend |
 | `cl-asm/emit` | `src/emit/output.lisp` | File emitters |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Test suites |
@@ -200,6 +201,22 @@ BASE+1    → (:+ "BASE" 1)
 (A|B)&$FF → (:& (:bitor "A" "B") 255)
 *-2       → (:- :current-pc 2)
 ```
+
+### Z80 mode
+
+The parser is shared between 6502 and Z80. A dynamic variable controls
+which set of mnemonics is active:
+
+```lisp
+cl-asm/parser:*z80-mode*   ; NIL by default (6502 mode)
+```
+
+`assemble-string-z80` and `assemble-file-z80` bind `*z80-mode*` to T
+before parsing. This prevents shared mnemonics (`INC`, `DEC`, `AND`,
+`ADC`, `BIT`…) from being misinterpreted in 6502 code.
+
+Z80 operands use `:direct "A"` for registers (not `:register`),
+`:indirect "HL"` for `(HL)`, and `:indirect (:+ "IX" d)` for `(IX+d)`.
 
 ---
 
@@ -431,6 +448,46 @@ State is tracked across both passes via a mutable `(list m-long x-long)` cons.
 
 ---
 
+## Module `cl-asm/backend.z80`
+
+Full Zilog Z80 backend (ZX Spectrum, MSX, CPC, ZX81). Default origin: `$8000`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.z80:assemble-z80        PROGRAM &key origin)
+(cl-asm/backend.z80:assemble-string-z80 SOURCE  &key origin)
+(cl-asm/backend.z80:assemble-file-z80   PATH    &key origin)
+```
+
+### Instruction prefixes
+
+| Prefix | Instructions |
+|---|---|
+| (none) | Main set: LD, ADD, ADC, SUB, SBC, AND, OR, XOR, CP, INC, DEC, JR, JP, CALL, RET, PUSH, POP, EX, DJNZ, RST, IN, OUT, IM, block ops |
+| `$CB` | Rotations (RLC/RRC/RL/RR/SLA/SRA/SLL/SRL) + BIT/SET/RES |
+| `$DD` | IX register operations |
+| `$ED` | Extended: 16-bit ADD, block ops (LDIR/LDDR/CPIR/CPDR…), IN/OUT groups, IM |
+| `$FD` | IY register operations |
+| `$DD $CB` | Bit ops on (IX+d) |
+| `$FD $CB` | Bit ops on (IY+d) |
+
+### Addressing modes
+
+| Mode | Syntax | Example |
+|---|---|---|
+| Implied | — | `NOP`, `LDIR` |
+| Register direct | `A`, `B`, `HL`… | `LD A, B` |
+| Immediate byte | `n` | `LD A, $42` |
+| Immediate word | `nn` | `LD HL, $1234` |
+| Register indirect | `(HL)`, `(BC)`, `(DE)` | `LD A, (HL)` |
+| Indexed | `(IX+d)`, `(IY+d)` | `LD A, (IX+2)` |
+| Direct memory | `(nn)` | `LD A, ($8000)` |
+| Relative | `e` (signed byte offset) | `JR NZ, label` |
+| Bit + register | `n, r` | `BIT 3, A` |
+
+---
+
 ## Module `cl-asm/lasm`
 
 Native Lisp frontend. `.lasm` files are valid Common Lisp where each
@@ -509,4 +566,4 @@ All inherit from `asm-error` which displays the message with source location.
 - **`otherwise` in `case`**: always `(t ...)` or `otherwise` as last clause,
   never followed by `declare`. SBCL rejects `declare` after `otherwise`.
 - **Tests**: each module has `tests/test-<module>.lisp`, run by `run-all-tests`.
-- **SBCL/CLISP compatibility**: test on both at each session.
+- **SBCL/CLISP/ECL compatibility**: test on all three at each session.
