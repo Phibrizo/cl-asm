@@ -70,7 +70,9 @@
                  "src/backend/i8080"))
    (:file "src/emit/output"
     :depends-on ("src/core/ir"
-                 "src/backend/6502"))))
+                 "src/backend/6502"))
+   (:file "src/simulator/6502"
+    :depends-on ())))
 
 (defsystem "cl-asm/tests"
   :description "Suite de tests pour cl-asm"
@@ -104,6 +106,8 @@
     :depends-on ())
    (:file "tests/test-8080"
     :depends-on ())
+   (:file "tests/test-sim-6502"
+    :depends-on ())
    (:file "tests/test-m68k-parser"
     :depends-on ())
    (:file "tests/test-m68k"
@@ -123,6 +127,7 @@
                  "tests/test-65816"
                  "tests/test-z80"
                  "tests/test-8080"
+                 "tests/test-sim-6502"
                  "tests/test-m68k-parser"
                  "tests/test-m68k")))
   :perform (test-op (o c)
