@@ -66,7 +66,10 @@
    ;; Helpers Intel 8080
    #:i8080r
    #:i8080rp
-   #:i8080))
+   #:i8080
+   ;; Helpers generiques pour architectures non-6502
+   #:make-imm
+   #:make-dir))
 
 (in-package #:cl-asm/lasm)
 
@@ -115,6 +118,18 @@
     (symbol  (sym->string val))
     (string  (string-upcase val))
     (list    val)))   ; expression deja sous forme d'arbre prefixe
+
+(defun make-imm (val)
+  "Operande immediat generique pour Z80, 8080, M68K.
+   (make-imm 42)       → :immediate 42
+   (make-imm 'label)   → :immediate \"LABEL\" (resolue a l'assemblage)"
+  (cl-asm/ir:make-ir-operand :kind :immediate :value (make-expr val)))
+
+(defun make-dir (sym)
+  "Operande direct/adresse generique pour Z80, 8080, M68K.
+   (make-dir 'start)   → :direct \"START\" (label, resolue a l'assemblage)
+   (make-dir #x1234)   → :direct #x1234  (adresse numerique)"
+  (cl-asm/ir:make-ir-operand :kind :direct :value (make-expr sym)))
 
 (defun resolve-mode-and-operand (keyword val)
   "Construit un IR-OPERAND depuis un keyword de mode et une valeur."

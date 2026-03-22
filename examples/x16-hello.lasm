@@ -1,0 +1,70 @@
+; -*- coding: utf-8 -*-
+(target :x16)
+
+;; x16-hello.lasm
+;; Hello World Commander X16 (WDC 65C02).
+;; Utilise l'appel KERNAL CHROUT ($FFD2) pour afficher du texte.
+;;
+;; Montre :
+;;   - defun qui génère des séquences PETSCII à l'assemblage
+;;   - dotimes sur des listes construites par Lisp
+;;   - BRA = branchement relatif, instruction spécifique au 65C02
+;;   - génération de plusieurs lignes de texte en une seule passe Lisp
+;;
+;; Assemblage : ./cl-asm examples/x16-hello.lasm
+;; Chargement : LOAD "X16-HELLO.PRG" : RUN
+
+;; --------------------------------------------------------------------------
+;;  Constantes Commander X16
+;; --------------------------------------------------------------------------
+
+(defparameter *chrout*  #xFFD2)  ; KERNAL : affiche le caractère dans A
+(defparameter *cr*      13)      ; retour chariot PETSCII
+(defparameter *clrscr*  147)     ; effacer l'écran ($93)
+(defparameter *yellow*  158)     ; code couleur jaune (PETSCII)
+(defparameter *white*   5)       ; code couleur blanc
+
+;; --------------------------------------------------------------------------
+;;  Utilitaires Lisp — zéro octet émis
+;; --------------------------------------------------------------------------
+
+;; Convertit une chaîne en liste de codes PETSCII majuscules + CR
+(defun petscii-line (str)
+  (append (cl:map 'list #'char-code (coerce (string-upcase str) 'list))
+          (list *cr*)))
+
+;; Construit la séquence complète à afficher :
+;; efface l'écran, change la couleur, puis concatène toutes les lignes
+(defun display-seq (color &rest lines)
+  (list* *clrscr* color
+         (apply #'append (cl:map 'list #'petscii-line lines))))
+
+;; --------------------------------------------------------------------------
+;;  Programme
+;; --------------------------------------------------------------------------
+
+(org #x0801)
+
+;; Stub BASIC : 10 SYS 2061
+(db #x0B #x08 #x0A #x00 #x9E
+    #x32 #x30 #x36 #x31 #x00 #x00 #x00)
+
+;; $080D : point d'entrée
+(label 'start)
+
+;; Lisp calcule la séquence entière à l'assemblage.
+;; Chaque octet devient un LDA #n / JSR CHROUT dans le binaire.
+(let ((seq (display-seq *yellow*
+                        "HELLO, COMMANDER X16!"
+                        ""
+                        "ASSEMBLED WITH CL-ASM"
+                        "A COMMON LISP ASSEMBLER"
+                        ""
+                        (format nil "BUILD : ~A INSTRUCTIONS" 42))))
+  (dotimes (i (length seq))
+    (lda :imm (nth i seq))
+    (jsr *chrout*)))
+
+;; Boucle infinie — BRA est une instruction 65C02
+(label 'done)
+(bra 'done)

@@ -1,0 +1,98 @@
+; -*- coding: utf-8 -*-
+(target :m68k)
+
+;; m68k-tables.lasm
+;; Démonstration Motorola 68000 — génération de tables et boucles.
+;;
+;; Montre :
+;;   - mi  : émettre une instruction M68K avec taille optionnelle
+;;   - dn / an : registres de données et d'adresse
+;;   - m68k-imm : opérande immédiat
+;;   - post-an / pre-an : modes post-increment et pré-décrement
+;;   - sine-table, linear-ramp, cosine-table : tables mathématiques prêtes
+;;   - auto-operand : label comme opérande de branchement
+;;   - génération de tables par Lisp pur (zéro instruction 68000 pour les données)
+;;
+;; Assemblage : ./cl-asm examples/m68k-tables.lasm --target m68k
+;; Cible      : Amiga / Atari ST / Mac 68k (bare metal)
+
+;; --------------------------------------------------------------------------
+;;  Constantes (zéro octet émis)
+;; --------------------------------------------------------------------------
+
+(defparameter *tbl-size*  256)   ; taille des tables de lookup
+(defparameter *half-tbl*  128)   ; moitié de la table
+
+;; Génère une table de parité (nombre de bits à 1 dans l'octet, modulo 2)
+(defun parity-table (n)
+  (loop for i from 0 below n
+        collect (mod (logcount i) 2)))
+
+;; Génère une table de nibble haut (bits 7-4)
+(defun hi-nibble-table (n)
+  (loop for i from 0 below n
+        collect (ash (logand i #xF0) -4)))
+
+;; --------------------------------------------------------------------------
+;;  Programme
+;; --------------------------------------------------------------------------
+
+(org #x0000)
+
+;; --- Initialisation ---
+(label 'start)
+
+;; D7 = taille de la table (compteur DBRA = taille - 1)
+(mi "MOVEQ" nil (m68k-imm (1- *tbl-size*)) (dn 7))
+
+;; A0 = adresse de la table sinus
+;; make-imm convertit le symbole en nom de label résolu à l'assemblage
+(mi "MOVE" :long (make-imm 'sine-data) (an 0))
+
+;; --- Copie de la table sinus dans une zone de destination ---
+;; A1 = adresse destination ($1000)
+(mi "MOVE" :long (m68k-imm #x1000) (an 1))
+
+;; Boucle DBRA : copie (A0)+ → (A1)+
+(label 'copy-loop)
+(mi "MOVE" :byte (post-an 0) (post-an 1))   ; MOVE.B (A0)+, (A1)+
+(mi "DBRA" nil (dn 7) (auto-operand 'copy-loop))
+
+;; --- Calcul de la somme de la table cosinus ---
+;; (montre l'utilisation de registres 68000 pour accumuler des données)
+(mi "MOVEQ" nil (m68k-imm 0) (dn 0))              ; D0 = accumulateur
+(mi "MOVEQ" nil (m68k-imm (1- *tbl-size*)) (dn 7)) ; D7 = compteur
+(mi "MOVE"  :long (make-imm 'cos-data) (an 0))
+
+(label 'sum-loop)
+(mi "ADD" :byte (post-an 0) (dn 0))              ; D0 += (A0)+
+(mi "DBRA" nil (dn 7) (auto-operand 'sum-loop))
+
+;; Stocker le résultat à $2000
+(mi "MOVE" :byte (dn 0) (m68k-imm #x2000))
+
+(label 'done)
+(mi "RTS")
+
+;; --------------------------------------------------------------------------
+;;  Tables de données — générées par Lisp à l'assemblage
+;;  Aucune instruction 68000 n'est utilisée pour leur production.
+;; --------------------------------------------------------------------------
+
+;; Table sinus : 256 valeurs, amplitude 127, centrée sur 128 (0..255)
+;; sine-table place automatiquement le label avant les données
+(sine-table 'sine-data *tbl-size* 127 128)
+
+;; Table cosinus : 256 valeurs, même format
+(cosine-table 'cos-data *tbl-size* 127 128)
+
+;; Table de rampe linéaire : 0..255
+(linear-ramp 'ramp-data 0 255 *tbl-size*)
+
+;; Table de parité : calculée par Lisp, un bit par octet
+(label 'parity-data)
+(apply #'db (parity-table *tbl-size*))
+
+;; Table nibble haut : calculée par Lisp
+(label 'hi-nibble-data)
+(apply #'db (hi-nibble-table *tbl-size*))

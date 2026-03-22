@@ -1,0 +1,86 @@
+; -*- coding: utf-8 -*-
+(target :i8080)
+
+;; i8080-cpm.lasm
+;; Hello World CP/M — Intel 8080.
+;;
+;; Montre :
+;;   - i8080  : émettre une instruction 8080 générique
+;;   - i8080r : opérande registre 8 bits (B C D E H L M A)
+;;   - i8080rp : opérande paire de registres (B D H SP PSW)
+;;   - make-imm : valeur immédiate ou adresse de label
+;;   - make-dir : label comme opérande
+;;   - génération de chaînes CP/M par Lisp (format, map, append)
+;;   - format nil pour créer du texte dynamique à l'assemblage
+;;
+;; Assemblage : ./cl-asm examples/i8080-cpm.lasm --target i8080
+;; Exécution  : sous CP/M (emulateur ou vrai système)
+
+;; --------------------------------------------------------------------------
+;;  Constantes CP/M (zéro octet émis)
+;; --------------------------------------------------------------------------
+
+(defparameter *bdos*       #x0005)   ; vecteur d'entrée BDOS
+(defparameter *print-str*  9)        ; fonction BDOS 9 : PRINT STRING$
+(defparameter *print-char* 2)        ; fonction BDOS 2 : CONSOLE OUTPUT
+(defparameter *warm-boot*  0)        ; fonction BDOS 0 : WARM BOOT (quitter)
+
+;; --------------------------------------------------------------------------
+;;  Utilitaires Lisp — zéro octet émis
+;; --------------------------------------------------------------------------
+
+;; Construit une chaîne CP/M : codes ASCII + CR + LF + terminateur '$'
+(defun cpm-str (s)
+  (append (cl:map 'list #'char-code (coerce s 'list))
+          (list 13 10 (char-code #\$))))
+
+;; Émet un appel BDOS : charge DE=addr, C=fn, CALL $0005
+(defun bdos-call (fn addr-label)
+  (i8080 "LXI"  (i8080rp "D") (make-imm addr-label))
+  (i8080 "MVI"  (i8080r "C")  (make-imm fn))
+  (i8080 "CALL" (make-imm *bdos*)))
+
+;; --------------------------------------------------------------------------
+;;  Programme : TPA CP/M commence à $0100
+;; --------------------------------------------------------------------------
+
+(org #x0100)
+
+(label 'start)
+
+;; Afficher le message principal
+(bdos-call *print-str* 'msg-hello)
+
+;; Afficher la ligne de version — générée par Lisp à l'assemblage
+;; format nil permet de construire du texte dynamique
+(bdos-call *print-str* 'msg-version)
+
+;; Afficher un compteur de mots : Lisp calcule le total à l'assemblage
+;; (illustre que la valeur peut être déterminée statiquement)
+(let* ((words-hello   (length (cpm-str "HELLO, CP/M WORLD!")))
+       (words-version (length (cpm-str "")))  ; sera remplacé ci-dessous
+       (msg (format nil "MSG SIZE : ~D BYTES" words-hello)))
+  (declare (ignore words-version))
+  (bdos-call *print-str* 'msg-stats)
+  (ignore-errors msg))   ; force l'évaluation de la chaîne
+
+(bdos-call *print-str* 'msg-stats)
+
+;; Warm boot = retour propre au système CP/M
+(i8080 "JMP" (make-imm *warm-boot*))
+
+;; --------------------------------------------------------------------------
+;;  Données : chaînes générées par Lisp
+;; --------------------------------------------------------------------------
+
+(label 'msg-hello)
+(apply #'db (cpm-str "HELLO, CP/M WORLD!"))
+
+;; La version est construite par format à l'assemblage — pas dans le source
+(label 'msg-version)
+(apply #'db (cpm-str (format nil "CL-ASM v~A.~A.~A — COMMON LISP ASSEMBLER" 0 5 0)))
+
+;; Statistique calculée à l'assemblage par Lisp
+(label 'msg-stats)
+(apply #'db (cpm-str (format nil "HELLO MSG : ~D BYTES GENERATED"
+                              (length (cpm-str "HELLO, CP/M WORLD!")))))

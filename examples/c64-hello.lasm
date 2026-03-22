@@ -1,0 +1,109 @@
+; -*- coding: utf-8 -*-
+(target :6502)
+
+;; c64-hello.lasm
+;; Hello World Commodore 64.
+;; Affiche "HELLO, WORLD!" au centre de l'écran avec un arc-en-ciel de couleurs.
+;;
+;; Montre :
+;;   - defparameter pour les constantes matériel
+;;   - defun pour la conversion caractère → code écran
+;;   - dotimes pour les boucles d'écriture
+;;   - génération de palettes et chaînes en Lisp pur (zéro octet émis)
+;;
+;; Assemblage : ./cl-asm examples/c64-hello.lasm
+;; Chargement : LOAD "C64-HELLO.PRG",8,1  puis  RUN
+
+;; --------------------------------------------------------------------------
+;;  Constantes Commodore 64 (définitions Lisp — zéro octet émis)
+;; --------------------------------------------------------------------------
+
+(defparameter *screen*   #x0400)  ; RAM écran texte (40×25 caractères)
+(defparameter *coloram*  #xD800)  ; RAM couleur (1 octet par cellule)
+(defparameter *border*   #xD020)  ; registre couleur bordure
+(defparameter *bgcolor*  #xD021)  ; registre couleur fond
+
+;; Palette 16 couleurs C64
+(defparameter *black*   0)  (defparameter *white*   1)  (defparameter *red*     2)
+(defparameter *cyan*    3)  (defparameter *purple*  4)  (defparameter *green*   5)
+(defparameter *blue*    6)  (defparameter *yellow*  7)  (defparameter *orange*  8)
+(defparameter *lred*   10)  (defparameter *lgreen* 13)  (defparameter *lblue*  14)
+
+;; Conversion caractère ASCII → code écran C64 (mode majuscule)
+;; A=1 … Z=26, espace=32, virgule=44, !=33
+(defun screen-code (ch)
+  (let ((c (char-code ch)))
+    (cond
+      ((cl:and (>= c (char-code #\A)) (<= c (char-code #\Z)))
+       (- c (- (char-code #\A) 1)))
+      ((char= ch #\Space) 32)
+      ((char= ch #\,)     44)
+      ((char= ch #\!)     33)
+      (t 32))))
+
+;; Palette arc-en-ciel (13 couleurs, une par caractère du message)
+(defparameter *rainbow*
+  (list *yellow* *orange* *lred* *red* *purple*
+        *blue*   *cyan*   *green* *lgreen* *white*
+        *yellow* *orange* *lred*))
+
+;; --------------------------------------------------------------------------
+;;  Programme
+;; --------------------------------------------------------------------------
+
+(org #x0801)
+
+;; Stub BASIC : 10 SYS 2061
+;; La ligne BASIC "10 SYS 2061" représente le point d'entrée à $080D
+(db #x0B #x08              ; pointeur ligne suivante → $080B
+    #x0A #x00              ; numéro de ligne 10
+    #x9E                   ; token SYS
+    #x32 #x30 #x36 #x31   ; "2061" en ASCII (= $080D en décimal)
+    #x00                   ; fin de ligne
+    #x00 #x00)             ; fin du programme BASIC
+
+;; $080D : point d'entrée
+(label 'start)
+
+;; Couleurs : bordure bleue, fond noir
+(lda :imm *blue*)  (sta *border*)
+(lda :imm *black*) (sta *bgcolor*)
+
+;; Effacer l'écran (1000 cellules = 3×256 + 232)
+;; Lisp génère 4 boucles de 256 octets
+(lda :imm 32)  ; espace
+(ldx :imm 0)
+(label 'cls0) (sta :x #x0400) (inx) (bne 'cls0)
+(label 'cls1) (sta :x #x0500) (inx) (bne 'cls1)
+(label 'cls2) (sta :x #x0600) (inx) (bne 'cls2)
+(label 'cls3) (sta :x #x0700) (inx) (cpx :imm 232) (bne 'cls3)
+
+;; Écrire "HELLO, WORLD!" centré sur la ligne 12
+;; Offset = 12×40 + 13 = 493 — calculé par Lisp à l'assemblage
+(let* ((msg  "HELLO, WORLD!")
+       (base (+ *screen* (* 12 40) 13)))
+  (dotimes (i (length msg))
+    (lda :imm (screen-code (char msg i)))
+    (sta (+ base i))))
+
+;; Colorier en arc-en-ciel
+(let ((base (+ *coloram* (* 12 40) 13)))
+  (dotimes (i (length *rainbow*))
+    (lda :imm (nth i *rainbow*))
+    (sta (+ base i))))
+
+;; Tracer une ligne de tirets sous le message (ligne 13)
+(let ((base (+ *screen* (* 13 40) 13)))
+  (dotimes (i (length "HELLO, WORLD!"))
+    (lda :imm #x60)   ; tiret horizontal PETSCII
+    (sta (+ base i))))
+
+;; Colorier les tirets en cyan
+(lda :imm *cyan*)
+(let ((base (+ *coloram* (* 13 40) 13)))
+  (dotimes (i (length "HELLO, WORLD!"))
+    (sta (+ base i))))
+
+;; Boucle infinie
+(label 'done)
+(jmp 'done)

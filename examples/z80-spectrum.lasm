@@ -1,0 +1,85 @@
+; -*- coding: utf-8 -*-
+(target :z80)
+
+;; z80-spectrum.lasm
+;; Hello World ZX Spectrum (Zilog Z80).
+;; Utilise RST $10 (PRINT-CHAR ROM) pour afficher du texte.
+;;
+;; Montre :
+;;   - zi  : émettre une instruction Z80 générique
+;;   - z80r : opérande registre (:direct "HL")
+;;   - z80ind : opérande indirect (:indirect "HL")
+;;   - make-imm / make-dir : immédiats et labels
+;;   - auto-operand : valeur numérique comme opérande
+;;   - loop Lisp → instructions déroulées dans le binaire
+;;   - DJNZ : boucle Z80 avec registre B comme compteur
+;;
+;; Assemblage : ./cl-asm examples/z80-spectrum.lasm --target z80
+;; Chargement : LOAD "" CODE 32768 : RANDOMIZE USR 32768
+
+;; --------------------------------------------------------------------------
+;;  Constantes ZX Spectrum
+;; --------------------------------------------------------------------------
+
+(defparameter *print-char* 16)     ; RST 16 = PRINT_CHAR (affiche A)
+(defparameter *newline*    13)     ; newline ZX Spectrum (CR)
+(defparameter *border*     #xFE)  ; port E/S : couleur bordure (OUT)
+
+;; --------------------------------------------------------------------------
+;;  Utilitaires Lisp — zéro octet émis
+;; --------------------------------------------------------------------------
+
+;; Construit une liste de codes ASCII pour la chaîne + newline Spectrum
+(defun spectrum-str (s)
+  (append (cl:map 'list #'char-code (coerce (string-upcase s) 'list))
+          (list *newline*)))
+
+;; Concatène plusieurs lignes
+(defun spectrum-text (&rest lines)
+  (apply #'append (cl:map 'list #'spectrum-str lines)))
+
+;; Émet LD A, n / RST 16 pour chaque code de la liste
+;; Les instructions sont déroulées à l'assemblage par Lisp
+(defun print-codes (codes)
+  (dolist (code codes)
+    (zi "LD"  (z80r "A") (auto-operand code))
+    (zi "RST" (auto-operand *print-char*))))
+
+;; --------------------------------------------------------------------------
+;;  Programme
+;; --------------------------------------------------------------------------
+
+(org #x8000)
+
+(label 'start)
+
+;; Afficher plusieurs lignes — Lisp déroule toutes les instructions
+(print-codes (spectrum-text "HELLO, SPECTRUM!"
+                             "ASSEMBLED WITH CL-ASM"
+                             "A COMMON LISP ASSEMBLER"))
+
+;; Changer la couleur de la bordure avec OUT ($FE), A
+;; Lisp génère 8 appels successifs pour un effet arc-en-ciel
+(dotimes (color 8)
+  (zi "LD"  (z80r "A") (auto-operand color))
+  (zi "OUT" (z80ind "C") (z80r "A")))   ; OUT (C), A — port dans BC
+
+;; Délai : double boucle DJNZ + DEC D
+;; DJNZ = Decrement B and Jump if Not Zero (instruction 1 octet + offset)
+(label 'delay)
+(zi "LD" (z80r "D") (auto-operand #xFF))          ; D = compteur externe
+(label 'delay-outer)
+(zi "LD" (z80r "B") (auto-operand #xFF))          ; B = compteur interne
+(label 'delay-inner)
+(zi "DJNZ" (make-dir 'delay-inner))               ; B-- → boucle interne
+(zi "DEC"  (z80r "D"))
+(zi "JR"   (z80r "NZ") (make-dir 'delay-outer))   ; D-- → boucle externe
+
+;; Table de sinus calculée par Lisp et émise comme données
+;; 32 valeurs, amplitude 63, centrée sur 128
+;; sine-table place automatiquement le label au début de la table
+(sine-table 'sine-tbl 32 63 128)
+
+;; Boucle infinie : HALT
+(label 'forever)
+(zi "HALT")
