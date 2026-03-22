@@ -15,7 +15,7 @@ to accommodate additional backends without modifying the core.
 cl-asm/version:+version+         ; → "0.4.3"
 cl-asm/version:+version-major+   ; → 0
 cl-asm/version:+version-minor+   ; → 4
-cl-asm/version:+version-patch+   ; → 0
+cl-asm/version:+version-patch+   ; → 3
 (cl-asm/version:version-string)  ; → "0.4.3"
 ```
 
