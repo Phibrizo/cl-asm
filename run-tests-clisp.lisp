@@ -35,15 +35,18 @@
 
 (defun load-filtered (path)
   "Charge PATH en sautant les declaim ftype incompatibles avec CLISP."
-  (with-open-file (stream path :direction :input)
-    (let ((*package* *package*)
-          (*readtable* *readtable*))
-      (loop
-        (let ((form (read stream nil stream)))
-          (when (eq form stream) (return))
-          (if (ftype-with-key-p form)
-              (format t "; skipped: ~S~%" (car form))
-              (eval form)))))))
+  (let* ((truepath (truename path))
+         (*load-truename* truepath)
+         (*load-pathname* (pathname path)))
+    (with-open-file (stream truepath :direction :input)
+      (let ((*package* *package*)
+            (*readtable* *readtable*))
+        (loop
+          (let ((form (read stream nil stream)))
+            (when (eq form stream) (return))
+            (if (ftype-with-key-p form)
+                (format t "; skipped: ~S~%" (car form))
+                (eval form))))))))
 
 
 ;;; --------------------------------------------------------------------------
@@ -85,6 +88,7 @@
 (load-filtered "tests/test-m68k.lisp")
 (load-filtered "tests/test-8080.lisp")
 (load-filtered "tests/test-sim-6502.lisp")
+(load-filtered "tests/test-acme2clasm.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 
