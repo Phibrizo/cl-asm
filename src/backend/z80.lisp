@@ -28,6 +28,18 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Utilitaires
+;;; --------------------------------------------------------------------------
+
+(defun ascii-to-petscii (code)
+  "Convertit un code ASCII en PETSCII (comme ACME !PET)."
+  (cond
+    ((and (>= code #x61) (<= code #x7A)) (- code #x20))
+    ((and (>= code #x41) (<= code #x5A)) (+ code #x80))
+    (t code)))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Tables de registres
 ;;; --------------------------------------------------------------------------
 
@@ -871,13 +883,78 @@
          (when ok
            (cl-asm/symbol-table:define-constant symtable sym-name val)))
        pc))
-    (:byte  (+ pc (length args)))
+    ((:byte :pet)
+     (+ pc (reduce #'+ args
+                   :key (lambda (a) (if (stringp a) (length a) 1))
+                   :initial-value 0)))
     (:word  (+ pc (* 2 (length args))))
     (:dword (+ pc (* 4 (length args))))
+    (:asciiz   (+ pc (if (stringp (first args)) (length (first args)) 0) 1))
+    (:pascalstr (+ pc (if (stringp (first args)) (length (first args)) 0) 1))
     (:fill
      (multiple-value-bind (n ok)
          (z80-eval-expr (first args) env)
        (if ok (+ pc n) pc)))
+    (:padto
+     (multiple-value-bind (target ok)
+         (z80-eval-expr (first args) env)
+       (if ok
+           (if (> pc target)
+               (error 'cl-asm/ir:asm-error
+                      :message (format nil ".padto $~X : PC courant ($~X) depasse la cible"
+                                       target pc))
+               target)
+           pc)))
+    (:incbin
+     (let* ((filename  (first args))
+            (offset    (if (second args)
+                           (multiple-value-bind (v ok)
+                               (z80-eval-expr (second args) env)
+                             (if ok v 0))
+                           0))
+            (count-arg (when (third args)
+                         (multiple-value-bind (v ok)
+                             (z80-eval-expr (third args) env)
+                           (when ok v)))))
+       (handler-case
+           (let* ((fsize (with-open-file (s filename :element-type '(unsigned-byte 8))
+                           (file-length s)))
+                  (avail (max 0 (- fsize offset)))
+                  (n     (if count-arg (min count-arg avail) avail)))
+             (+ pc n))
+         (file-error ()
+           (error 'cl-asm/ir:asm-error
+                  :message (format nil ".incbin : fichier introuvable \"~A\"" filename))))))
+    (:assertpc pc)    ; verifie en passe 2 uniquement
+    (:assertsize pc)  ; verifie en passe 2 uniquement
+    (:defstruct
+     (let* ((struct-name (first args))
+            (fields      (second args))
+            (offset      0))
+       (dolist (field fields)
+         (cl-asm/symbol-table:define-constant
+          symtable
+          (format nil "~A.~A" struct-name (car field))
+          offset)
+         (incf offset (cdr field)))
+       (cl-asm/symbol-table:define-constant
+        symtable
+        (format nil "~A.SIZE" struct-name)
+        offset))
+     pc)
+    (:defenum
+     (let ((enum-name (first args))
+           (values    (second args)))
+       (dolist (entry values)
+         (cl-asm/symbol-table:define-constant
+          symtable
+          (format nil "~A.~A" enum-name (car entry))
+          (cdr entry)))
+       (cl-asm/symbol-table:define-constant
+        symtable
+        (format nil "~A.COUNT" enum-name)
+        (length values)))
+     pc)
     (otherwise pc)))
 
 (defun pass-2-z80 (program symtable &key (origin 0))
@@ -915,15 +992,59 @@
          (z80-eval-expr (first args) env)
        (if ok val pc)))
     (:equ pc)
+    (:defstruct pc)   ; symboles deja definis en passe 1
+    (:defenum   pc)   ; symboles deja definis en passe 1
+    (:incbin
+     (let* ((filename  (first args))
+            (offset    (if (second args)
+                           (multiple-value-bind (v ok)
+                               (z80-eval-expr (second args) env)
+                             (if ok v 0))
+                           0))
+            (count-arg (when (third args)
+                         (multiple-value-bind (v ok)
+                             (z80-eval-expr (third args) env)
+                           (when ok v)))))
+       (handler-case
+           (with-open-file (s filename :element-type '(unsigned-byte 8))
+             (let* ((fsize (file-length s))
+                    (avail (max 0 (- fsize offset)))
+                    (n     (if count-arg (min count-arg avail) avail)))
+               (when (> offset 0)
+                 (file-position s offset))
+               (dotimes (_ n)
+                 (let ((b (read-byte s nil nil)))
+                   (when b
+                     (vector-push-extend b result)
+                     (incf pc))))))
+         (file-error ()
+           (error 'cl-asm/ir:asm-error
+                  :message (format nil ".incbin : fichier introuvable \"~A\"" filename)))))
+     pc)
     (:section pc)
     (:global pc)
     (:extern pc)
     (:byte
      (dolist (arg args)
-       (multiple-value-bind (val ok)
-           (z80-eval-expr arg env)
-         (vector-push-extend (logand (if ok val 0) #xFF) result)
-         (incf pc)))
+       (if (stringp arg)
+           (loop for c across arg
+                 do (vector-push-extend (char-code c) result)
+                    (incf pc))
+           (multiple-value-bind (val ok)
+               (z80-eval-expr arg env)
+             (vector-push-extend (logand (if ok val 0) #xFF) result)
+             (incf pc))))
+     pc)
+    (:pet
+     (dolist (arg args)
+       (if (stringp arg)
+           (loop for c across arg
+                 do (vector-push-extend (ascii-to-petscii (char-code c)) result)
+                    (incf pc))
+           (multiple-value-bind (val ok)
+               (z80-eval-expr arg env)
+             (vector-push-extend (logand (if ok val 0) #xFF) result)
+             (incf pc))))
      pc)
     (:word
      (dolist (arg args)
@@ -955,6 +1076,63 @@
            (dotimes (_ count)
              (vector-push-extend fill-val result)
              (incf pc)))))
+     pc)
+    (:asciiz
+     (let ((str (first args)))
+       (when (stringp str)
+         (loop for c across str
+               do (vector-push-extend (char-code c) result)
+                  (incf pc)))
+       (vector-push-extend 0 result)
+       (incf pc))
+     pc)
+    (:pascalstr
+     (let ((str (first args)))
+       (let ((len (if (stringp str) (length str) 0)))
+         (vector-push-extend (logand len #xFF) result)
+         (incf pc)
+         (when (stringp str)
+           (loop for c across str
+                 do (vector-push-extend (char-code c) result)
+                    (incf pc)))))
+     pc)
+    (:padto
+     (multiple-value-bind (target ok)
+         (z80-eval-expr (first args) env)
+       (when ok
+         (when (> pc target)
+           (error 'cl-asm/ir:asm-error
+                  :message (format nil ".padto $~X : PC courant ($~X) depasse la cible"
+                                   target pc)))
+         (let ((fill-val (if (second args)
+                             (multiple-value-bind (v fok)
+                                 (z80-eval-expr (second args) env)
+                               (if fok (logand v #xFF) 0))
+                             0)))
+           (dotimes (i (- target pc))
+             (vector-push-extend fill-val result)
+             (incf pc)))))
+     pc)
+    (:assertpc
+     (multiple-value-bind (target ok)
+         (z80-eval-expr (first args) env)
+       (when ok
+         (unless (= pc target)
+           (error 'cl-asm/ir:asm-error
+                  :message (format nil ".assertpc $~X : PC courant est $~X"
+                                   target pc)))))
+     pc)
+    (:assertsize
+     (let ((expected (first args))
+           (lbl      (second args)))
+       (multiple-value-bind (start-pc ok)
+           (z80-eval-expr lbl env)
+         (when ok
+           (let ((actual (- pc start-pc)))
+             (unless (= actual expected)
+               (error 'cl-asm/ir:asm-error
+                      :message (format nil "(assert-size ~D) : bloc emet ~D octet~:P (attendu ~D)"
+                                       expected actual expected)))))))
      pc)
     (otherwise pc)))
 

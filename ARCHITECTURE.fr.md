@@ -540,8 +540,10 @@ qui s'exécute dans un contexte où chaque mnémonique est une fonction.
 Toute la puissance de CL est disponible : `let`, `dotimes`, `loop`,
 `defun`, `defmacro`, etc.
 
-**Cibles supportées :** `:6502` (défaut) et `:45gs02`. Le support de
-`:65c02`, `:r65c02`, `:65816`, `:z80` et `:m68k` est prévu.
+**Cibles supportées :** toutes les architectures — `:6502` (défaut),
+`:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`,
+`:65816`/`:snes`/`:apple2gs`, `:z80`/`:spectrum`/`:msx`/`:cpc`,
+`:m68k`/`:amiga`/`:atari`.
 
 **Symboles CL redéfinis :** `fill`, `bit`, `sec`, `and`, `map` sont
 masqués par des instructions assembleur dans le package `cl-asm/lasm`.
@@ -557,7 +559,9 @@ d'origine si nécessaire.
 (cl-asm/lasm:load-lasm            PATH)    ; → IR-PROGRAM
 ```
 
-`target` : `:6502` (défaut) ou `:45gs02`.
+`target` : `:6502` (défaut), `:45gs02`/`:mega65`, `:65c02`/`:x16`,
+`:r65c02`, `:65816`/`:snes`, `:z80`/`:spectrum`/`:msx`/`:cpc`,
+`:m68k`/`:amiga`/`:atari`.
 
 ### Directive de cible
 
@@ -607,8 +611,15 @@ dans un REPL.
 (dw #x1234)           ; .word (little-endian)
 (dd #x12345678)       ; .dword (little-endian)
 (fill 10 #x00)        ; .fill
-(text "HELLO")        ; .text
+(text "HELLO")        ; .text (sans octet nul)
+(ascii-z "HELLO")     ; .asciiz — chaîne + octet nul final
+(pascal-str "HELLO")  ; .pascalstr — octet de longueur + chaîne
 (align 256)           ; .align
+(pad-to #xC000)       ; .padto — remplit jusqu'à l'adresse cible
+(assert-pc #x0900)    ; .assertpc — erreur si PC ≠ adresse
+(defstruct-asm s :x (:hp 2)) ; offsets auto → S.X=0, S.HP=1, S.SIZE=3
+(defenum color :black :white) ; → COLOR.BLACK=0, COLOR.WHITE=1, COLOR.COUNT=2
+(include-binary "spr.bin")   ; inclut un fichier binaire brut (offset/count optionnels)
 (section :data)       ; .section
 ```
 

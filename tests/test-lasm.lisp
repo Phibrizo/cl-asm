@@ -256,6 +256,185 @@
     (check "INZ = 1B"        (= #x1B (aref bytes 3)))
     (check "RTS = 60"        (= #x60 (aref bytes 4)))))
 
+(deftest test/assert-size-lasm
+  (check "assert-size ok : 2 instructions 1 octet"
+         (let ((bytes (assemble-lasm-string
+                       "(assert-size 2 (nop) (rts))")))
+           (and (= 2 (length bytes))
+                (= #xEA (aref bytes 0))
+                (= #x60 (aref bytes 1)))))
+  (check "assert-size ok : LDA #imm = 2 octets"
+         (let ((bytes (assemble-lasm-string
+                       "(assert-size 2 (lda :imm 0))")))
+           (= 2 (length bytes))))
+  (check "assert-size echoue si taille incorrecte"
+         (handler-case
+             (progn (assemble-lasm-string "(assert-size 3 (nop) (rts))") nil)
+           (cl-asm/ir:asm-error () t))))
+
+(deftest test/petscii-lasm
+  (check "petscii convertit a-z en A-Z PETSCII"
+         ;; 'a'=0x61 → 0x41, 'b'=0x62 → 0x42
+         (bytes= (assemble-lasm-string "(petscii \"ab\")")
+                 #x41 #x42))
+  (check "petscii convertit A-Z en shifted PETSCII"
+         ;; 'A'=0x41 → 0xC1
+         (bytes= (assemble-lasm-string "(petscii \"A\")")
+                 #xC1))
+  (check "petscii : chiffres et ponctuation inchanges"
+         ;; '0'=0x30, ' '=0x20
+         (bytes= (assemble-lasm-string "(petscii \"0 \")")
+                 #x30 #x20)))
+
+(deftest test/include-binary
+  (let ((tmp "/tmp/cl-asm-test-incbin.bin"))
+    (with-open-file (s tmp :direction :output :element-type '(unsigned-byte 8)
+                          :if-exists :supersede)
+      (write-byte #x01 s) (write-byte #x02 s) (write-byte #x03 s))
+    (check "include-binary emet tous les octets"
+           (bytes= (assemble-lasm-string
+                    (format nil "(include-binary \"~A\")" tmp))
+                   #x01 #x02 #x03))
+    (check "include-binary avec offset"
+           (bytes= (assemble-lasm-string
+                    (format nil "(include-binary \"~A\" 1)" tmp))
+                   #x02 #x03))
+    (check "include-binary avec offset et count"
+           (bytes= (assemble-lasm-string
+                    (format nil "(include-binary \"~A\" 0 2)" tmp))
+                   #x01 #x02))))
+
+(deftest test/defenum-lasm
+  (let ((bytes (assemble-lasm-string
+                "(defenum color :black :white :red) (lda 'color.white)"
+                :origin #x0801)))
+    (check "defenum : color.white = 1" (= #x01 (aref bytes 1))))
+  (let ((bytes (assemble-lasm-string
+                "(defenum state :idle :run :pause) (lda 'state.count)"
+                :origin #x0801)))
+    (check "defenum : state.count = 3" (= #x03 (aref bytes 1))))
+  (let ((bytes (assemble-lasm-string
+                "(defenum dir :north :south :east :west) (lda 'dir.north)"
+                :origin #x0801)))
+    (check "defenum : premiere valeur = 0" (= #x00 (aref bytes 1)))))
+
+(deftest test/defstruct-lasm
+  ;; Champs 1 octet : player.hp = offset 2
+  (let ((bytes (assemble-lasm-string
+                "(defstruct-asm player :x :y :hp) (lda 'player.hp)"
+                :origin #x0801)))
+    (check "defstruct-asm : player.hp = 2" (= #x02 (aref bytes 1))))
+  ;; Champ multibyte : npc.state = 0+1+1+2 = 4
+  (let ((bytes (assemble-lasm-string
+                "(defstruct-asm npc :x :y (:score 2) :state) (lda 'npc.state)"
+                :origin #x0801)))
+    (check "defstruct-asm : npc.state = 4" (= #x04 (aref bytes 1))))
+  ;; .SIZE = somme des tailles
+  (let ((bytes (assemble-lasm-string
+                "(defstruct-asm obj :x (:y 2)) (lda 'obj.size)"
+                :origin #x0801)))
+    (check "defstruct-asm : obj.size = 3" (= #x03 (aref bytes 1)))))
+
+(deftest test/65c02-basic
+  ;; BRA vers instruction suivante (offset 0) : BRA $0803 avec origin $0801
+  (let ((bytes (assemble-lasm-string "(bra #x0803)" :target :65c02)))
+    (check "BRA opcode = 80"   (= #x80 (aref bytes 0)))
+    (check "BRA offset = 00"   (= #x00 (aref bytes 1))))
+  ;; STZ zp = $64
+  (let ((bytes (assemble-lasm-string "(stz #x10)" :target :x16)))
+    (check "STZ $10 = 64 10" (and (= #x64 (aref bytes 0))
+                                   (= #x10 (aref bytes 1)))))
+  ;; PHX = $DA, PLY = $7A
+  (let ((bytes (assemble-lasm-string "(phx) (ply)" :target :65c02)))
+    (check "PHX = DA" (= #xDA (aref bytes 0)))
+    (check "PLY = 7A" (= #x7A (aref bytes 1)))))
+
+(deftest test/r65c02-basic
+  ;; RMB0 zp = $07 zp
+  (let ((bytes (assemble-lasm-string "(rmb0 #x20)" :target :r65c02)))
+    (check "RMB0 $20 = 07 20" (and (= #x07 (aref bytes 0))
+                                    (= #x20 (aref bytes 1)))))
+  ;; SMB3 zp = $B7 zp
+  (let ((bytes (assemble-lasm-string "(smb3 #x10)" :target :r65c02)))
+    (check "SMB3 $10 = B7 10" (and (= #xB7 (aref bytes 0))
+                                    (= #x10 (aref bytes 1))))))
+
+(deftest test/65816-basic
+  ;; XBA = $EB (echange A high/low)
+  (let ((bytes (assemble-lasm-string "(xba)" :target :65816 :origin #x8000)))
+    (check "XBA = EB" (= #xEB (aref bytes 0))))
+  ;; SEP #$30 = $E2 $30 (mode immediat obligatoire)
+  (let ((bytes (assemble-lasm-string "(sep :imm #x30)" :target :snes :origin #x8000)))
+    (check "SEP #$30 = E2 30" (and (= #xE2 (aref bytes 0))
+                                    (= #x30 (aref bytes 1))))))
+
+(deftest test/z80-basic
+  ;; NOP Z80 = $00
+  (let ((bytes (assemble-lasm-string "(zi \"NOP\")" :target :z80 :origin 0)))
+    (check "Z80 NOP = 00" (= #x00 (aref bytes 0))))
+  ;; LD A, B = $78
+  (let ((bytes (assemble-lasm-string
+                "(zi \"LD\" (z80r \"A\") (z80r \"B\"))" :target :z80 :origin 0)))
+    (check "Z80 LD A,B = 78" (= #x78 (aref bytes 0))))
+  ;; Directives fonctionnent avec :z80
+  (let ((bytes (assemble-lasm-string "(db #x01 #x02)" :target :spectrum :origin 0)))
+    (check "Z80 .byte fonctionne" (bytes= bytes #x01 #x02))))
+
+(deftest test/m68k-basic
+  ;; NOP M68K = $4E71
+  (let ((bytes (assemble-lasm-string "(mi \"NOP\")" :target :m68k :origin 0)))
+    (check "M68K NOP = 4E 71" (and (= #x4E (aref bytes 0))
+                                    (= #x71 (aref bytes 1)))))
+  ;; MOVE.W D0, D1 = $3200
+  (let ((bytes (assemble-lasm-string
+                "(mi \"MOVE\" :word (dn 0) (dn 1))" :target :m68k :origin 0)))
+    (check "M68K MOVE.W D0,D1 = 32 00" (and (= #x32 (aref bytes 0))
+                                              (= #x00 (aref bytes 1)))))
+  ;; Alias :amiga
+  (let ((bytes (assemble-lasm-string "(mi \"NOP\")" :target :amiga :origin 0)))
+    (check "M68K alias :amiga fonctionne" (= 2 (length bytes)))))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Tests : tables mathématiques
+;;; --------------------------------------------------------------------------
+
+(deftest test/sine-table-lasm
+  (check "sine-table : 256 octets"
+         (let ((bytes (assemble-lasm-string "(sine-table nil 256 127 128)")))
+           (= 256 (length bytes))))
+  (check "sine-table[0] = 128 (offset, sin(0)=0)"
+         (let ((bytes (assemble-lasm-string "(sine-table nil 256 127 128)")))
+           (= 128 (aref bytes 0))))
+  (check "sine-table[64] ≈ 255 (quart de période, max)"
+         (let ((bytes (assemble-lasm-string "(sine-table nil 256 127 128)")))
+           (>= (aref bytes 64) 254))))
+
+(deftest test/cosine-table-lasm
+  (check "cosine-table : 256 octets"
+         (let ((bytes (assemble-lasm-string "(cosine-table nil 256 127 128)")))
+           (= 256 (length bytes))))
+  (check "cosine-table[0] ≈ 255 (cos(0)=1, max)"
+         (let ((bytes (assemble-lasm-string "(cosine-table nil 256 127 128)")))
+           (>= (aref bytes 0) 254))))
+
+(deftest test/linear-ramp-lasm
+  (check "linear-ramp : N octets"
+         (let ((bytes (assemble-lasm-string "(linear-ramp nil 0 255 256)")))
+           (= 256 (length bytes))))
+  (check "linear-ramp[0] = 0 (debut)"
+         (let ((bytes (assemble-lasm-string "(linear-ramp nil 0 255 256)")))
+           (= 0 (aref bytes 0))))
+  (check "linear-ramp[255] = 255 (fin)"
+         (let ((bytes (assemble-lasm-string "(linear-ramp nil 0 255 256)")))
+           (= 255 (aref bytes 255))))
+  (check "linear-ramp : 4 pas de 0 a 3"
+         (let ((bytes (assemble-lasm-string "(linear-ramp nil 0 3 4)")))
+           (and (= 0 (aref bytes 0))
+                (= 1 (aref bytes 1))
+                (= 2 (aref bytes 2))
+                (= 3 (aref bytes 3))))))
+
 
 ;;; --------------------------------------------------------------------------
 ;;;  Lanceur
@@ -281,6 +460,19 @@
   (test/lisp-loop)
   (test/c64-hello)
   (test/45gs02-basic)
+  (test/assert-size-lasm)
+  (test/petscii-lasm)
+  (test/sine-table-lasm)
+  (test/cosine-table-lasm)
+  (test/linear-ramp-lasm)
+  (test/include-binary)
+  (test/defenum-lasm)
+  (test/defstruct-lasm)
+  (test/65c02-basic)
+  (test/r65c02-basic)
+  (test/65816-basic)
+  (test/z80-basic)
+  (test/m68k-basic)
   (when *failures*
     (format t "~&Echecs lasm :~%")
     (dolist (f (reverse *failures*))

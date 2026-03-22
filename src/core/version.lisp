@@ -16,7 +16,7 @@
 
 (defparameter +version-major+ 0)
 (defparameter +version-minor+ 4)
-(defparameter +version-patch+ 0)
+(defparameter +version-patch+ 3)
 
 (defparameter +version+
   (format nil "~D.~D.~D"

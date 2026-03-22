@@ -162,6 +162,39 @@
        (format stream "~4,'0X~20T.ORG $~4,'0X~%" pc (first args)))
       (:equ
        (format stream "~4,'0X~20T~A = ~A~%" pc (first args) (second args)))
+      (:defenum
+       (let ((enum-name (first args))
+             (values    (second args)))
+         (format stream "~4,'0X~20T.DEFENUM ~A~%" pc enum-name)
+         (dolist (entry values)
+           (format stream "~20T  ~A.~A = ~D~%"
+                   enum-name (car entry) (cdr entry)))
+         (format stream "~20T  ~A.COUNT = ~D~%" enum-name (length values))))
+      (:incbin
+       (let* ((filename  (first args))
+              (offset    (or (second args) 0))
+              (count-arg (third args))
+              (n (handler-case
+                     (with-open-file (s filename :element-type '(unsigned-byte 8))
+                       (let* ((fsize (file-length s))
+                              (avail (max 0 (- fsize offset))))
+                         (if count-arg (min count-arg avail) avail)))
+                   (file-error () 0))))
+         (format stream "~4,'0X~20T.INCBIN ~S~44T; ~D byte~:P~%" pc filename n)))
+      (:defstruct
+       (let* ((struct-name (first args))
+              (fields      (second args))
+              (offset      0))
+         (format stream "~4,'0X~20T.DEFSTRUCT ~A~%" pc struct-name)
+         (dolist (field fields)
+           (format stream "~20T  ~A.~A = ~D~%"
+                   struct-name (car field) offset)
+           (incf offset (cdr field)))
+         (format stream "~20T  ~A.SIZE = ~D~%" struct-name offset)))
+      (:pet
+       (format stream "~4,'0X~20T.PETSCII ~{~S~^, ~}~%" pc args))
+      (:assertsize
+       (format stream "~4,'0X~20T; assert-size ~D~%" pc (first args)))
       (:byte
        (format stream "~4,'0X~20T.BYTE ~{$~2,'0X~^, ~}~%" pc args))
       (:word
@@ -183,9 +216,22 @@
   (let ((name (cl-asm/ir:ir-directive-name directive))
         (args (cl-asm/ir:ir-directive-args  directive)))
     (case name
-      (:byte  (length args))
+      ((:byte :pet)
+       (reduce #'+ args
+               :key (lambda (a) (if (stringp a) (length a) 1))
+               :initial-value 0))
       (:word  (* 2 (length args)))
       (:dword (* 4 (length args)))
+      (:incbin
+       (handler-case
+           (let* ((filename  (first args))
+                  (offset    (or (second args) 0))
+                  (count-arg (third args)))
+             (with-open-file (s filename :element-type '(unsigned-byte 8))
+               (let* ((fsize (file-length s))
+                      (avail (max 0 (- fsize offset))))
+                 (if count-arg (min count-arg avail) avail))))
+         (file-error () 0)))
       (:text  (reduce #'+ args
                       :key (lambda (a) (if (stringp a) (length a) 1))
                       :initial-value 0))

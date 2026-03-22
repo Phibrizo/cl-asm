@@ -387,6 +387,11 @@ COLS    = 40
         .text "HELLO"      ; chaîne ASCII
         .fill 10, $00      ; remplissage
         .align 256         ; alignement
+        .padto $C000       ; remplit jusqu'à l'adresse absolue (avec $00)
+        .padto $C000, $FF  ; remplit jusqu'à l'adresse absolue (avec $FF)
+        .assertpc $C000    ; erreur si PC ≠ $C000
+        .asciiz "HELLO"   ; chaîne ASCII + octet nul final
+        .pascalstr "HI"   ; octet de longueur + chaîne
 
 start:                     ; label local
 main::                     ; label global (ca65-style)
@@ -534,9 +539,12 @@ Les fichiers `.lasm` sont du Common Lisp valide exécuté dans un
 contexte où chaque mnémonique est une fonction. Toute la puissance de
 CL est accessible : `let`, `dotimes`, `loop`, `defun`, `defmacro`, etc.
 
-**Cibles supportées :** `:6502` (défaut) et `:45gs02` (Mega65).
-Le support de `:65c02`, `:r65c02`, `:65816`, `:z80` et `:m68k` est
-prévu.
+**Cibles supportées :** toutes les architectures — `:6502` (défaut),
+`:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`, `:65816`/`:snes`/`:apple2gs`,
+`:z80`/`:spectrum`/`:msx`/`:cpc`, `:m68k`/`:amiga`/`:atari`.
+
+> **Note Z80 et M68K :** utiliser `:origin 0` (le défaut `#x0801` est pour le 6502).
+> Les instructions spécifiques utilisent les helpers `zi`/`mi` (voir ci-dessous).
 
 > **Symboles CL redéfinis :** les noms CL standard suivants sont
 > remplacés par des instructions assembleur dans les fichiers `.lasm` :
@@ -597,6 +605,18 @@ Avec keyword — mode explicite :
 | `(text "str")` | Émet une chaîne ASCII sans octet nul final |
 | `(fill n [v])` | Émet `n` octets de valeur `v` (défaut 0) |
 | `(align n [v])` | Aligne le PC sur `n`, rembourrage avec `v` |
+| `(pad-to addr [v])` | Remplit du PC jusqu'à `addr` avec `v` (défaut 0) ; erreur si PC > addr |
+| `(assert-pc addr)` | Erreur si le PC courant ≠ `addr` (vérification de layout) |
+| `(ascii-z "str")` | Émet la chaîne ASCII suivie d'un octet nul (`$00`) |
+| `(pascal-str "str")` | Émet un octet de longueur (1 octet) suivi de la chaîne |
+| `(defstruct-asm nom f…)` | Définit une structure avec calcul automatique des offsets (voir ci-dessous) |
+| `(defenum nom v…)` | Définit un enum : constantes séquentielles à partir de 0 (voir ci-dessous) |
+| `(include-binary "fich" [off [n]])` | Inclut un fichier binaire brut (offset et compteur optionnels) |
+| `(petscii "str")` | Émet une chaîne avec conversion ASCII→PETSCII (a-z → A-Z PETSCII) |
+| `(assert-size n body…)` | Erreur si `body` n'émet pas exactement `n` octets |
+| `(sine-table 'lbl n amp off)` | Émet une table sinus N entrées (amplitude + offset) |
+| `(cosine-table 'lbl n amp off)` | Émet une table cosinus N entrées |
+| `(linear-ramp 'lbl from to n)` | Émet une rampe linéaire N entrées de `from` à `to` |
 | `(section :nom)` | Change de section |
 | `(target :arch)` | Indication d'architecture pour le CLI (no-op à l'exécution) |
 
@@ -615,6 +635,48 @@ Exemple `lasm-if` :
   (sta #xD020))
 ```
 
+### `defstruct-asm` — structure avec offsets automatiques
+
+Les champs sont soit un keyword (champ 1 octet) soit `(keyword taille)` pour les champs multibytes.
+Supporté sur toutes les architectures.
+
+```lisp
+(defstruct-asm player :x :y (:hp 2) :state)
+; → PLAYER.X=0, PLAYER.Y=1, PLAYER.HP=2, PLAYER.STATE=4, PLAYER.SIZE=5
+```
+
+Syntaxe classique `.asm` — bloc multi-lignes :
+```asm
+.defstruct player
+  .field x
+  .field y
+  .field hp, 2
+  .field state
+.endstruct
+; PLAYER.X=0  PLAYER.Y=1  PLAYER.HP=2  PLAYER.STATE=4  PLAYER.SIZE=5
+```
+
+### `defenum` — constantes séquentielles
+
+Les valeurs sont numérotées à partir de 0. `ENUM.COUNT` est défini automatiquement.
+Supporté sur toutes les architectures.
+
+```lisp
+(defenum color :black :white :red :green :blue)
+; → COLOR.BLACK=0, COLOR.WHITE=1, COLOR.RED=2, COLOR.GREEN=3, COLOR.BLUE=4
+;   COLOR.COUNT=5
+```
+
+Syntaxe classique `.asm` — bloc multi-lignes :
+```asm
+.defenum state
+  .val idle
+  .val running
+  .val paused
+.endenum
+; STATE.IDLE=0  STATE.RUNNING=1  STATE.PAUSED=2  STATE.COUNT=3
+```
+
 ### Instructions spécifiques 45GS02
 
 Avec `:target :45gs02`, les mnémoniques suivants sont disponibles :
@@ -624,6 +686,49 @@ Avec `:target :45gs02`, les mnémoniques suivants sont disponibles :
 - **Registre Q (32 bits) :** `ldq  stq  adcq  sbcq  andq  oraq  eorq  aslq  lsrq  rolq  rorq  asrq  bitq  cmpq`
 - **Branches longues :** `lbcc  lbcs  lbeq  lbne  lbmi  lbpl  lbvc  lbvs`
 - **Divers :** `map  eom  neg  asr  inw  dew`
+
+### Helpers Z80
+
+Avec `:target :z80` (ou `:spectrum`, `:msx`, `:cpc`), utiliser les fonctions helper
+pour construire les opérandes Z80 :
+
+| Fonction | Description |
+|----------|-------------|
+| `(z80r "HL")` | Opérande registre Z80 (`:direct "HL"`) |
+| `(z80ind "HL")` | Opérande indirect Z80 `(HL)` |
+| `(z80ind "IX" 5)` | Indirect indexé `(IX+5)` |
+| `(zi "LD" op1 op2)` | Émet une instruction Z80 quelconque |
+
+```lisp
+(assemble-lasm-string
+  "(zi \"LD\" (z80r \"A\") (z80r \"B\"))   ; LD A, B
+   (zi \"PUSH\" (z80r \"HL\"))              ; PUSH HL
+   (zi \"JP\" (make-dir 'start))"           ; JP start
+  :target :z80 :origin 0)
+```
+
+### Helpers M68K
+
+Avec `:target :m68k` (ou `:amiga`, `:atari`, `:mac68k`), utiliser les fonctions helper
+pour construire les opérandes 68000 :
+
+| Fonction | Description |
+|----------|-------------|
+| `(dn n)` | Registre de données Dn (`:direct "Dn"`) |
+| `(an n)` | Registre d'adresse An (`:direct "An"`) |
+| `(ind-an n)` | Indirect `(An)` |
+| `(post-an n)` | Post-incrément `(An)+` |
+| `(pre-an n)` | Pré-décrément `-(An)` |
+| `(m68k-imm val)` | Immédiat `#val` |
+| `(mi "MOVE" :word op1 op2)` | Émet une instruction M68K avec taille optionnelle |
+
+```lisp
+(assemble-lasm-string
+  "(mi \"MOVE\" :word (dn 0) (dn 1))   ; MOVE.W D0, D1
+   (mi \"CLR\"  :byte (dn 3))           ; CLR.B  D3
+   (mi \"NOP\")"                        ; NOP
+  :target :m68k :origin 0)
+```
 
 ### Exemples avec Lisp natif
 

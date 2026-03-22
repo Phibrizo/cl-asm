@@ -54,7 +54,15 @@
    #:load-lasm-string
    #:lasm-program
    #:assemble-lasm
-   #:assemble-lasm-string))
+   #:assemble-lasm-string
+   #:defstruct-asm
+   #:defenum
+   #:include-binary
+   #:petscii
+   #:assert-size
+   #:sine-table
+   #:cosine-table
+   #:linear-ramp))
 
 (in-package #:cl-asm/lasm)
 
@@ -239,6 +247,123 @@
   (emit (cl-asm/ir:make-ir-directive
          :name :align :args (list boundary value))))
 
+(defun pad-to (address &optional fill-value)
+  "Remplit depuis le PC courant jusqu'a ADDRESS avec FILL-VALUE (defaut $00).
+   Ex : (pad-to #xBFFF) ou (pad-to #xBFFF #xFF)"
+  (emit (cl-asm/ir:make-ir-directive
+         :name :padto
+         :args (if fill-value (list address fill-value) (list address)))))
+
+(defun assert-pc (address)
+  "Erreur si le PC courant n'est pas exactement ADDRESS.
+   Ex : (assert-pc #x0900)"
+  (emit (cl-asm/ir:make-ir-directive
+         :name :assertpc :args (list address))))
+
+(defun ascii-z (str)
+  "Emet STR en ASCII suivi d'un octet nul : (ascii-z \"HELLO\")"
+  (emit (cl-asm/ir:make-ir-directive
+         :name :asciiz :args (list str))))
+
+(defun pascal-str (str)
+  "Emet un octet de longueur suivi de STR : (pascal-str \"HELLO\")"
+  (emit (cl-asm/ir:make-ir-directive
+         :name :pascalstr :args (list str))))
+
+(defun petscii (str)
+  "Emet STR avec conversion ASCII→PETSCII : (petscii \"Hello\")
+   a-z → A-Z PETSCII, A-Z → shifted PETSCII (comme ACME !PET)."
+  (emit (cl-asm/ir:make-ir-directive
+         :name :pet :args (list str))))
+
+(defun include-binary (filename &optional offset count)
+  "Inclut un fichier binaire comme données brutes.
+   OFFSET (défaut 0) : octet de départ dans le fichier.
+   COUNT  (défaut nil) : nombre d'octets à émettre (nil = tout le reste).
+   Ex: (include-binary \"sprite.bin\")
+       (include-binary \"sheet.bin\" 64 16)"
+  (emit (cl-asm/ir:make-ir-directive
+         :name :incbin
+         :args (cl:append (list filename)
+                          (when offset (list offset))
+                          (when count  (list count))))))
+
+(defmacro defenum (name &rest values)
+  "Définit un enum avec constantes auto-numérotées à partir de 0.
+   Chaque valeur est un keyword.
+   Ex: (defenum color :black :white :red)
+   → COLOR.BLACK=0, COLOR.WHITE=1, COLOR.RED=2, COLOR.COUNT=3"
+  (let* ((ename (string-upcase (string name)))
+         (alist (loop for v in values
+                      for i from 0
+                      collect (cons (string-upcase (string v)) i))))
+    `(emit (cl-asm/ir:make-ir-directive
+            :name :defenum
+            :args (list ,ename ',alist)))))
+
+;;; --------------------------------------------------------------------------
+;;;  Tables mathématiques
+;;; --------------------------------------------------------------------------
+
+(defun sine-table (label n amplitude offset)
+  "Emet N octets : sin(i*2π/N)*amplitude + offset, pour i de 0 à N-1.
+   Place un label si fourni.
+   Ex: (sine-table 'sin-tbl 256 127 128)"
+  (when label (label label))
+  (let ((bytes (loop for i from 0 below n
+                     collect (logand (round (+ offset
+                                               (* amplitude (sin (* i 2 pi (/ 1 n))))))
+                                     #xFF))))
+    (emit (cl-asm/ir:make-ir-directive :name :byte :args bytes))))
+
+(defun cosine-table (label n amplitude offset)
+  "Emet N octets : cos(i*2π/N)*amplitude + offset, pour i de 0 à N-1.
+   Ex: (cosine-table 'cos-tbl 256 127 128)"
+  (when label (label label))
+  (let ((bytes (loop for i from 0 below n
+                     collect (logand (round (+ offset
+                                               (* amplitude (cos (* i 2 pi (/ 1 n))))))
+                                     #xFF))))
+    (emit (cl-asm/ir:make-ir-directive :name :byte :args bytes))))
+
+(defun linear-ramp (label from to n)
+  "Emet N octets : rampe linéaire de FROM à TO en N pas.
+   Ex: (linear-ramp 'ramp 0 255 256)"
+  (when label (label label))
+  (let ((bytes (loop for i from 0 below n
+                     collect (logand (round (+ from (* (- to from) (/ i (max 1 (1- n))))))
+                                     #xFF))))
+    (emit (cl-asm/ir:make-ir-directive :name :byte :args bytes))))
+
+
+(defmacro assert-size (expected-n &rest body)
+  "Vérifie que le bloc émet exactement EXPECTED-N octets.
+   Génère un label caché, exécute BODY, puis vérifie la taille.
+   Ex: (assert-size 2 (lda :imm 0) (rts))"
+  (let ((lbl (symbol-name (gensym "__ASSERTSZ"))))
+    `(progn
+       (emit (cl-asm/ir:make-ir-label :name ,lbl :kind :local))
+       ,@body
+       (emit (cl-asm/ir:make-ir-directive
+              :name :assertsize
+              :args (list ,expected-n ,lbl))))))
+
+(defmacro defstruct-asm (name &rest fields)
+  "Définit une structure avec calcul automatique des offsets de champs.
+   Chaque champ est soit un keyword (taille 1 octet) soit (keyword taille).
+   Ex: (defstruct-asm player :x :y (:hp 2) :state)
+   → PLAYER.X=0, PLAYER.Y=1, PLAYER.HP=2, PLAYER.STATE=4, PLAYER.SIZE=5"
+  (let* ((sname (string-upcase (string name)))
+         (parsed-fields
+           (mapcar (lambda (f)
+                     (if (consp f)
+                         (cons (string-upcase (string (car f))) (cadr f))
+                         (cons (string-upcase (string f)) 1)))
+                   fields)))
+    `(emit (cl-asm/ir:make-ir-directive
+            :name :defstruct
+            :args (list ,sname ',parsed-fields)))))
+
 (defun section (name)
   "Change de section."
   (let* ((kw   (if (keywordp name) name
@@ -420,6 +545,226 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Instructions 65C02 supplementaires
+;;; --------------------------------------------------------------------------
+
+(macrolet ((def-implied (name mn)
+             `(defun ,name () (make-instr ,mn)))
+           (def-instr (name mn)
+             `(defun ,name (&optional keyword val)
+                (if (cl:and keyword (not (keywordp keyword)))
+                    (make-instr ,mn nil keyword)
+                    (make-instr ,mn keyword val)))))
+  (def-instr bra  "BRA")
+  (def-instr stz  "STZ")
+  (def-instr trb  "TRB")
+  (def-instr tsb  "TSB")
+  (def-implied phx "PHX")
+  (def-implied phy "PHY")
+  (def-implied plx "PLX")
+  (def-implied ply "PLY"))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Instructions R65C02 supplementaires (Rockwell bit manipulation)
+;;; --------------------------------------------------------------------------
+;;;
+;;;  rmb0..rmb7 zp  — Reset Memory Bit n, Zero Page
+;;;  smb0..smb7 zp  — Set Memory Bit n, Zero Page
+;;;  bbr0..bbr7 zp, rel — Branch on Bit Reset
+;;;  bbs0..bbs7 zp, rel — Branch on Bit Set
+;;;
+;;;  Les instructions bbr/bbs prennent deux operandes (zp + branche).
+;;;  On les encode comme deux operandes dans l'IR.
+
+(macrolet ((def-bit-zp (prefix)
+             `(progn
+                ,@(loop for n from 0 to 7
+                        collect
+                        `(defun ,(intern (format nil "~A~D" prefix n))
+                             (zp-addr)
+                           (emit (cl-asm/ir:make-ir-instruction
+                                  :mnemonic ,(format nil "~A~D" prefix n)
+                                  :operands (list (auto-operand zp-addr))))))))
+           (def-bit-branch (prefix)
+             `(progn
+                ,@(loop for n from 0 to 7
+                        collect
+                        `(defun ,(intern (format nil "~A~D" prefix n))
+                             (zp-addr branch-target)
+                           (emit (cl-asm/ir:make-ir-instruction
+                                  :mnemonic ,(format nil "~A~D" prefix n)
+                                  :operands (list (auto-operand zp-addr)
+                                                  (auto-operand branch-target)))))))))
+  (def-bit-zp    "RMB")
+  (def-bit-zp    "SMB")
+  (def-bit-branch "BBR")
+  (def-bit-branch "BBS"))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Instructions 65816 supplementaires
+;;; --------------------------------------------------------------------------
+
+(macrolet ((def-implied (name mn)
+             `(defun ,name () (make-instr ,mn)))
+           (def-instr (name mn)
+             `(defun ,name (&optional keyword val)
+                (if (cl:and keyword (not (keywordp keyword)))
+                    (make-instr ,mn nil keyword)
+                    (make-instr ,mn keyword val)))))
+  ;; Implied
+  (def-implied xba  "XBA")
+  (def-implied xce  "XCE")
+  (def-implied wai  "WAI")
+  (def-implied stp  "STP")
+  (def-implied rtl  "RTL")
+  (def-implied tcd  "TCD")
+  (def-implied tcs  "TCS")
+  (def-implied tdc  "TDC")
+  (def-implied tsc  "TSC")
+  (def-implied txy  "TXY")
+  (def-implied tyx  "TYX")
+  (def-implied phb  "PHB")
+  (def-implied plb  "PLB")
+  (def-implied phd  "PHD")
+  (def-implied pld  "PLD")
+  (def-implied phk  "PHK")
+  ;; Avec operande
+  (def-instr jsl  "JSL")
+  (def-instr jml  "JML")
+  (def-instr brl  "BRL")
+  (def-instr pea  "PEA")
+  (def-instr pei  "PEI")
+  (def-instr per  "PER")
+  (def-instr sep  "SEP")
+  (def-instr rep  "REP")
+  (def-instr cop  "COP"))
+
+(defun mvn (src-bank dst-bank)
+  "MVN src, dst — block move negative (65816)."
+  (emit (cl-asm/ir:make-ir-instruction
+         :mnemonic "MVN"
+         :operands (list (auto-operand src-bank)
+                         (auto-operand dst-bank)))))
+
+(defun mvp (src-bank dst-bank)
+  "MVP src, dst — block move positive (65816)."
+  (emit (cl-asm/ir:make-ir-instruction
+         :mnemonic "MVP"
+         :operands (list (auto-operand src-bank)
+                         (auto-operand dst-bank)))))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Helpers Z80 et emission generique
+;;; --------------------------------------------------------------------------
+;;;
+;;;  L'IR Z80 encode les registres comme :direct "A", :direct "HL", etc.
+;;;  (chaines, pas des keywords).
+;;;
+;;;  Fonctions helper :
+;;;    (z80r "HL")          — operande registre direct
+;;;    (z80ind "HL")        — operande indirect (HL)
+;;;    (z80ind "IX" 5)      — operande indirect avec deplacement (IX+5)
+;;;    (zi "LD" op1 op2)    — emission d'une instruction Z80 generique
+;;;
+;;;  Exemple :
+;;;    (zi "LD" (z80r "A") (z80r "B"))       ; LD A, B
+;;;    (zi "LD" (z80r "HL") (make-imm 100))  ; LD HL, 100
+;;;    (zi "PUSH" (z80r "HL"))               ; PUSH HL
+;;;    (zi "JP" (make-dir 'start))           ; JP start
+
+(defun z80r (name)
+  "Operande registre Z80 : (z80r \"HL\") → :direct \"HL\""
+  (cl-asm/ir:make-ir-operand :kind :direct
+                              :value (string-upcase (string name))))
+
+(defun z80ind (name &optional displacement)
+  "Operande indirect Z80 : (z80ind \"HL\") → :indirect \"HL\"
+   Avec deplacement : (z80ind \"IX\" 5) → :indirect (:+ \"IX\" 5)"
+  (cl-asm/ir:make-ir-operand
+   :kind :indirect
+   :value (if displacement
+              (list :+ (string-upcase (string name)) displacement)
+              (string-upcase (string name)))))
+
+(defun zi (mnemonic &rest operands)
+  "Emet une instruction Z80 generique avec des operandes IR arbitraires.
+   Ex : (zi \"LD\" (z80r \"A\") (z80r \"B\"))"
+  (emit (cl-asm/ir:make-ir-instruction
+         :mnemonic (string-upcase (string mnemonic))
+         :operands operands)))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Helpers M68K et emission generique
+;;; --------------------------------------------------------------------------
+;;;
+;;;  L'IR M68K encode les registres comme :direct "D0".."D7" et "A0".."A7".
+;;;
+;;;  Fonctions helper :
+;;;    (dn 0)         — registre de donnees D0
+;;;    (an 0)         — registre d'adresse A0
+;;;    (ind-an 0)     — indirect (A0)
+;;;    (post-an 0)    — post-increment (A0)+
+;;;    (pre-an 0)     — pre-decrement -(A0)
+;;;    (m68k-imm val) — immediat #val
+;;;    (mi mnem size op...) — emission d'une instruction M68K
+;;;
+;;;  Exemple :
+;;;    (mi "MOVE" :word (dn 0) (dn 1))   ; MOVE.W D0, D1
+;;;    (mi "ADD"  :long (dn 0) (dn 1))   ; ADD.L  D0, D1
+;;;    (mi "CLR"  :byte (dn 3))          ; CLR.B  D3
+;;;    (mi "NOP")                         ; NOP
+
+(defun dn (n)
+  "Registre de donnees M68K Dn : (dn 0) → D0"
+  (cl-asm/ir:make-ir-operand :kind :direct
+                              :value (format nil "D~D" n)))
+
+(defun an (n)
+  "Registre d'adresse M68K An : (an 1) → A1"
+  (cl-asm/ir:make-ir-operand :kind :direct
+                              :value (format nil "A~D" n)))
+
+(defun ind-an (n)
+  "Indirect M68K (An) : (ind-an 0) → (A0)"
+  (cl-asm/ir:make-ir-operand :kind :indirect
+                              :value (format nil "A~D" n)))
+
+(defun post-an (n)
+  "Post-increment M68K (An)+ : (post-an 0) → (A0)+"
+  (cl-asm/ir:make-ir-operand :kind :post-increment
+                              :value (format nil "A~D" n)))
+
+(defun pre-an (n)
+  "Pre-decrement M68K -(An) : (pre-an 0) → -(A0)"
+  (cl-asm/ir:make-ir-operand :kind :pre-decrement
+                              :value (format nil "A~D" n)))
+
+(defun m68k-imm (val)
+  "Immediat M68K : (m68k-imm 42) → #42"
+  (cl-asm/ir:make-ir-operand :kind :immediate :value val))
+
+(defun mi (mnemonic &optional size &rest operands)
+  "Emet une instruction M68K avec taille optionnelle.
+   SIZE : nil | :byte | :word | :long
+   Ex : (mi \"MOVE\" :word (dn 0) (dn 1))  ; MOVE.W D0, D1
+        (mi \"NOP\")                         ; NOP"
+  ;; Si size n'est pas un keyword de taille, c'est un operande
+  (if (cl:and size (not (member size '(:byte :word :long))))
+      (emit (cl-asm/ir:make-ir-instruction
+             :mnemonic (string-upcase (string mnemonic))
+             :size nil
+             :operands (cons size operands)))
+      (emit (cl-asm/ir:make-ir-instruction
+             :mnemonic (string-upcase (string mnemonic))
+             :size size
+             :operands operands))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Point d'entree
 ;;; --------------------------------------------------------------------------
 
@@ -464,22 +809,33 @@
   "Retourne le IR-PROGRAM du contexte courant (depuis un fichier .lasm)."
   (lasm-context-program *ctx*))
 
-(defun assemble-lasm-string (source &key (origin #x0801)
-                                         (target :6502))
+(defun %assemble-program (program origin target)
+  "Assemble PROGRAM avec le backend TARGET depuis ORIGIN.
+   Centralise le dispatch pour assemble-lasm-string et assemble-lasm."
+  (ecase target
+    (:6502
+     (cl-asm/backend.6502:assemble program :origin origin))
+    ((:45gs02 :mega65)
+     (cl-asm/backend.45gs02:assemble-45gs02 program :origin origin))
+    ((:65c02 :x16 :commander-x16)
+     (cl-asm/backend.65c02:assemble-65c02 program :origin origin))
+    (:r65c02
+     (cl-asm/backend.r65c02:assemble-r65c02 program :origin origin))
+    ((:65816 :snes :apple2gs)
+     (cl-asm/backend.65816:assemble-65816 program :origin origin))
+    ((:z80 :zx80 :zx81 :spectrum :msx :cpc)
+     (cl-asm/backend.z80:assemble-z80 program :origin origin))
+    ((:m68k :68000 :amiga :atari :mac68k)
+     (cl-asm/backend.m68k:assemble-m68k program :origin origin))))
+
+(defun assemble-lasm-string (source &key (origin #x0801) (target :6502))
   "Raccourci : charge SOURCE en .lasm, assemble, retourne les octets.
-   TARGET : :6502 (defaut) ou :45gs02"
-  (let ((program (load-lasm-string source)))
-    (ecase target
-      (:6502
-       (cl-asm/backend.6502:assemble program :origin origin))
-      (:45gs02
-       (cl-asm/backend.45gs02:assemble-45gs02 program :origin origin)))))
+   TARGET : :6502 (defaut), :45gs02/:mega65, :65c02/:x16, :r65c02,
+            :65816/:snes/:apple2gs, :z80/:spectrum/:msx/:cpc, :m68k/:amiga
+   Note : pour Z80 et M68K, utiliser :origin 0 (defaut 6502 = #x0801)."
+  (%assemble-program (load-lasm-string source) origin target))
 
 (defun assemble-lasm (path &key (origin #x0801) (target :6502))
-  "Raccourci : charge PATH en .lasm, assemble, retourne les octets."
-  (let ((program (load-lasm path)))
-    (ecase target
-      (:6502
-       (cl-asm/backend.6502:assemble program :origin origin))
-      (:45gs02
-       (cl-asm/backend.45gs02:assemble-45gs02 program :origin origin)))))
+  "Raccourci : charge PATH en .lasm, assemble, retourne les octets.
+   TARGET : voir assemble-lasm-string."
+  (%assemble-program (load-lasm path) origin target))

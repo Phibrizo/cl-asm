@@ -539,8 +539,10 @@ Native Lisp frontend. `.lasm` files are valid Common Lisp where each
 mnemonic is a function and the full CL environment is available
 (`defun`, `defmacro`, `let`, `dotimes`, `loop`, etc.).
 
-**Supported targets:** `:6502` (default) and `:45gs02`. Support for
-`:65c02`, `:r65c02`, `:65816`, `:z80`, and `:m68k` is planned.
+**Supported targets:** all architectures — `:6502` (default),
+`:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`,
+`:65816`/`:snes`/`:apple2gs`, `:z80`/`:spectrum`/`:msx`/`:cpc`,
+`:m68k`/`:amiga`/`:atari`.
 
 **Shadowed CL symbols:** `fill`, `bit`, `sec`, `and`, `map` are
 redefined as assembly instructions inside the `cl-asm/lasm` package.
@@ -584,8 +586,15 @@ Without keyword: value ≤ 255 → zero-page; > 255 or symbol → absolute.
 (dw v …)              ; emit 16-bit words (little-endian)
 (dd v …)              ; emit 32-bit words (little-endian)
 (text "str")          ; emit ASCII string (no null terminator)
+(ascii-z "str")       ; emit ASCII string + null terminator ($00)
+(pascal-str "str")    ; emit length byte + string (Pascal style)
 (fill n [v])          ; emit n bytes of value v (default 0)
 (align n [v])         ; align PC to boundary n
+(pad-to addr [v])     ; fill to absolute address addr with v (default 0)
+(assert-pc addr)      ; error if current PC ≠ addr (layout check)
+(defstruct-asm name :f1 (:f2 2) …) ; struct with auto field offsets → NAME.F1, NAME.SIZE
+(defenum name :a :b :c)            ; enum → NAME.A=0, NAME.B=1, NAME.COUNT=3
+(include-binary "sprite.bin")      ; include raw binary file (optional offset, count)
 (section :name)       ; switch section
 (target :arch)        ; CLI hint, no-op at runtime
 ```

@@ -440,7 +440,8 @@
 ;;; --------------------------------------------------------------------------
 
 (defparameter *directive-names*
-  '(".org" ".byte" ".word" ".dword" ".text" ".fill" ".res" ".align"
+  '(".org" ".byte" ".word" ".dword" ".text" ".fill" ".res" ".align" ".padto" ".assertpc"
+    ".asciiz" ".pascalstr" ".petscii" ".defstruct" ".defenum" ".incbin"
     ".equ" ".define" ".section" ".global" ".extern" ".include"
     ".if" ".else" ".endif" ".macro" ".endmacro"
     ;; Directives de mode 65816
@@ -468,8 +469,8 @@
       (and (> (length name) 1) (char= (char name 0) #\!))))
 
 (defparameter *directive-aliases*
-  '((:res . :fill))
-  "Alias de directives : :res → :fill, etc.")
+  '((:res . :fill) (:petscii . :pet))
+  "Alias de directives : :res → :fill, :petscii → :pet, etc.")
 
 (defun directive-keyword (name)
   "Convertit \".byte\" -> :byte, \"DC.B\" -> :byte, \".res\" -> :fill,
@@ -515,6 +516,18 @@
       (:include
        (push (pc-value ctx) args)
        (pc-expect ctx :string))
+      ;; .incbin "FILE" [, OFFSET [, COUNT]]
+      (:incbin
+       (unless (eq (pc-kind ctx) :string)
+         (parser-error ctx "Nom de fichier attendu pour .incbin"))
+       (push (pc-value ctx) args)
+       (pc-advance ctx)
+       (when (eq (pc-kind ctx) :comma)
+         (pc-advance ctx)
+         (push (parse-expr ctx) args)
+         (when (eq (pc-kind ctx) :comma)
+           (pc-advance ctx)
+           (push (parse-expr ctx) args))))
       ;; .byte, .word, .dword, .text, .fill, .align
       ;; liste d'expressions séparées par des virgules
       (otherwise
@@ -607,6 +620,92 @@
       (make-macro-def :name (string-upcase name)
                       :params params
                       :body (nreverse body)))))
+
+(defun parse-defenum (ctx name loc)
+  "Parse le corps d'un bloc .defenum/.endenum.
+   NAME est le nom de l'enum (string, déjà lu).
+   Syntaxe interne : .val IDENTIFIER sur chaque ligne.
+   Retourne un IR-DIRECTIVE :defenum dont les args sont :
+     (enum-name values-alist) où values-alist = ((NAME . VALUE) ...)."
+  (case (pc-kind ctx)
+    (:newline (pc-advance ctx))
+    (:eof nil))
+  (let ((values nil)
+        (counter 0))
+    (loop
+      (pc-skip-newlines ctx)
+      (case (pc-kind ctx)
+        (:eof
+         (parser-error ctx "Fin de fichier dans la définition d'enum ~A" name))
+        (otherwise
+         (when (and (eq (pc-kind ctx) :identifier)
+                    (string-equal (pc-value ctx) ".endenum"))
+           (pc-advance ctx)
+           (when (eq (pc-kind ctx) :newline) (pc-advance ctx))
+           (return))
+         (unless (and (eq (pc-kind ctx) :identifier)
+                      (string-equal (pc-value ctx) ".val"))
+           (parser-error ctx "Attendu .val ou .endenum dans ~A, trouvé ~A"
+                         name (pc-value ctx)))
+         (pc-advance ctx) ; consomme .val
+         (let ((vname (if (eq (pc-kind ctx) :identifier)
+                          (prog1 (string-upcase (pc-value ctx)) (pc-advance ctx))
+                          (parser-error ctx "Nom de valeur d'enum attendu"))))
+           (push (cons vname counter) values)
+           (incf counter)
+           (when (eq (pc-kind ctx) :newline) (pc-advance ctx))))))
+    (cl-asm/ir:make-ir-directive
+     :name :defenum
+     :args (list (string-upcase name) (nreverse values))
+     :loc loc)))
+
+(defun parse-defstruct (ctx name loc)
+  "Parse le corps d'un bloc .defstruct/.endstruct.
+   NAME est le nom de la structure (string, déjà lu).
+   Retourne un IR-DIRECTIVE :defstruct dont les args sont :
+     (struct-name fields) où fields = ((FIELD-NAME . SIZE) ...)."
+  ;; Consommer la fin de ligne après le nom de la structure
+  (case (pc-kind ctx)
+    (:newline (pc-advance ctx))
+    (:eof nil))
+  (let ((fields nil))
+    (loop
+      (pc-skip-newlines ctx)
+      (case (pc-kind ctx)
+        (:eof
+         (parser-error ctx "Fin de fichier dans la définition de struct ~A" name))
+        (otherwise
+         ;; .endstruct ?
+         (when (and (eq (pc-kind ctx) :identifier)
+                    (string-equal (pc-value ctx) ".endstruct"))
+           (pc-advance ctx)
+           (when (eq (pc-kind ctx) :newline) (pc-advance ctx))
+           (return))
+         ;; .field NAME [, SIZE]
+         (unless (and (eq (pc-kind ctx) :identifier)
+                      (string-equal (pc-value ctx) ".field"))
+           (parser-error ctx "Attendu .field ou .endstruct dans ~A, trouvé ~A"
+                         name (pc-value ctx)))
+         (pc-advance ctx) ; consomme .field
+         (let* ((fname (if (eq (pc-kind ctx) :identifier)
+                           (prog1 (string-upcase (pc-value ctx)) (pc-advance ctx))
+                           (parser-error ctx "Nom de champ attendu")))
+                (fsize 1))
+           (when (eq (pc-kind ctx) :comma)
+             (pc-advance ctx)
+             (let ((size-expr (parse-expr ctx)))
+               (multiple-value-bind (val ok)
+                   (cl-asm/expression:eval-expr
+                    size-expr
+                    (cl-asm/expression:make-env
+                     :symbol-table (parse-context-symtable ctx) :pc 0))
+                 (when ok (setf fsize val)))))
+           (push (cons fname fsize) fields)
+           (when (eq (pc-kind ctx) :newline) (pc-advance ctx))))))
+    (cl-asm/ir:make-ir-directive
+     :name :defstruct
+     :args (list (string-upcase name) (nreverse fields))
+     :loc loc)))
 
 (defun make-unique-token (tok id)
   "Crée un token avec un nom rendu unique par l'ID d'invocation.
@@ -907,6 +1006,20 @@
               ((or (string-equal name "!to") (string-equal name "!cpu"))
                (skip-to-newline ctx)
                (return-from parse-line t))
+              ;; .defenum — définition d'enum
+              ((string-equal name ".defenum")
+               (let ((ename (if (eq (pc-kind ctx) :identifier)
+                                (prog1 (pc-value ctx) (pc-advance ctx))
+                                (parser-error ctx "Nom d'enum attendu"))))
+                 (emit-node ctx (parse-defenum ctx ename loc))
+                 (return-from parse-line t)))
+              ;; .defstruct — définition de structure
+              ((string-equal name ".defstruct")
+               (let ((sname (if (eq (pc-kind ctx) :identifier)
+                                (prog1 (pc-value ctx) (pc-advance ctx))
+                                (parser-error ctx "Nom de structure attendu"))))
+                 (emit-node ctx (parse-defstruct ctx sname loc))
+                 (return-from parse-line t)))
               ;; .macro — définition de macro
               ((string-equal name ".macro")
                (let ((mname (if (eq (pc-kind ctx) :identifier)

@@ -210,18 +210,22 @@
 
 ;;; Directives supportées :
 ;;;
-;;;   .org   ADDR              — définit l'adresse courante
-;;;   .equ   NOM = EXPR        — définit une constante
-;;;   .byte  EXPR [, EXPR...]  — émet des octets
-;;;   .word  EXPR [, EXPR...]  — émet des mots 16 bits
-;;;   .dword EXPR [, EXPR...]  — émet des mots 32 bits (45GS02)
-;;;   .text  "STRING"          — émet une chaîne ASCII
-;;;   .fill  N [, VAL]         — émet N octets de valeur VAL (défaut 0)
-;;;   .align N [, VAL]         — aligne sur N octets
-;;;   .section NAME            — change de section
-;;;   .global NOM              — exporte un label
-;;;   .extern NOM              — importe un label externe
-;;;   .include "FILE"          — inclut un fichier source
+;;;   .org      ADDR           — définit l'adresse courante
+;;;   .equ      NOM = EXPR     — définit une constante
+;;;   .byte     EXPR [,...]    — émet des octets
+;;;   .word     EXPR [,...]    — émet des mots 16 bits
+;;;   .dword    EXPR [,...]    — émet des mots 32 bits (45GS02)
+;;;   .text     "STRING"       — émet une chaîne ASCII (sans octet nul)
+;;;   .asciiz   "STRING"       — émet une chaîne ASCII + octet nul final
+;;;   .pascalstr "STRING"      — émet un octet de longueur + chaîne
+;;;   .fill     N [, VAL]      — émet N octets de valeur VAL (défaut 0)
+;;;   .align    N [, VAL]      — aligne sur N octets
+;;;   .padto    ADDR [, VAL]   — remplit jusqu'à ADDR avec VAL (défaut 0)
+;;;   .assertpc ADDR           — erreur si PC ≠ ADDR
+;;;   .section  NAME           — change de section
+;;;   .global   NOM            — exporte un label
+;;;   .extern   NOM            — importe un label externe
+;;;   .include  "FILE"         — inclut un fichier source
 ;;;   .if / .else / .endif     — assemblage conditionnel
 ;;;   .macro / .endmacro       — définition de macro textuelle
 

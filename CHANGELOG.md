@@ -5,6 +5,115 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.4.3] — 2026-03-22
+
+### Added
+
+**`(petscii "str")` directive** — emit string with ASCII→PETSCII conversion:
+- Lisp frontend (`.lasm`): `(petscii "hello")`
+- Classic frontend (`.asm`): `.petscii "hello"` (alias → `:pet`)
+- Lowercase a-z → PETSCII uppercase (A-Z); uppercase A-Z → PETSCII shifted set
+- Supported on all architectures: 6502, 65C02, R65C02, 45GS02, 65816, Z80, M68K
+
+**`(assert-size N body…)` macro** — verify that a block emits exactly N bytes:
+- Lisp frontend (`.lasm`): `(assert-size 16 (lda :imm 0) …)`
+- Generates a hidden label + `:assertsize` directive; error if actual size ≠ N
+- Supported on all architectures: 6502, 65C02, R65C02, 45GS02, 65816, Z80, M68K
+
+**`(sine-table label n amplitude offset)` directive** — sine wave lookup table:
+- Emits N bytes: `round(sin(2π·i/N) × amplitude + offset)` for i in [0, N)
+- Example: `(sine-table 'sin-tbl 256 127 128)` → 256-entry table, range [1, 255]
+
+**`(cosine-table label n amplitude offset)` directive** — cosine wave lookup table:
+- Same as `sine-table` but using cosine
+- Example: `(cosine-table 'cos-tbl 256 127 128)`
+
+**`(linear-ramp label from to n)` directive** — linear ramp lookup table:
+- Emits N bytes linearly interpolated from `from` to `to`
+- Example: `(linear-ramp 'ramp 0 255 256)` → 256-entry ramp from 0 to 255
+
+### Tests
+
+| Suite | 0.4.2 | 0.4.3 |
+|---|---|---|
+| lasm | 82 | 100 |
+| **TOTAL** | **1445** | **1463** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
+## [0.4.2] — 2026-03-22
+
+### Added
+
+**`.padto` directive** — fill from current PC to an absolute target address:
+- Classic frontend (`.asm`): `.padto ADDR` or `.padto ADDR, VAL`
+- Lisp frontend (`.lasm`): `(pad-to addr)` or `(pad-to addr fill-val)`
+- Supported on all architectures: 6502, 65C02, R65C02, 45GS02, 65816, Z80, M68K
+- Emits fill byte `VAL` (default `$00`) from current PC until `ADDR`; error if PC > ADDR
+- If PC == ADDR: no bytes emitted
+
+**`.assertpc` directive** — layout assertion: error if current PC ≠ expected address:
+- Classic frontend (`.asm`): `.assertpc ADDR`
+- Lisp frontend (`.lasm`): `(assert-pc addr)`
+- Supported on all architectures: 6502, 65C02, R65C02, 45GS02, 65816, Z80, M68K
+- No bytes emitted; error message includes expected and actual PC values
+
+**`.asciiz` directive** — emit ASCII string with null terminator:
+- Classic frontend (`.asm`): `.asciiz "string"`
+- Lisp frontend (`.lasm`): `(ascii-z "string")`
+- Supported on all architectures
+
+**`.pascalstr` directive** — emit length-prefixed string (Pascal style):
+- Classic frontend (`.asm`): `.pascalstr "string"`
+- Lisp frontend (`.lasm`): `(pascal-str "string")`
+- Length byte (max 255) followed by the string bytes; supported on all architectures
+
+**`defenum` / `.defenum` directive** — sequential named constants:
+- Lisp frontend (`.lasm`): `(defenum color :black :white :red)`
+- Classic frontend (`.asm`): `.defenum`/`.val`/`.endenum` block
+- Values numbered from 0; `ENUM.COUNT` defined automatically
+- Supported on all architectures
+
+**`include-binary` / `.incbin` directive** — include raw binary file as data:
+- Lisp frontend (`.lasm`): `(include-binary "sprite.bin")` or `(include-binary "file" offset count)`
+- Classic frontend (`.asm`): `.incbin "file"` or `.incbin "file", offset` or `.incbin "file", offset, count`
+- Supported on all architectures
+- Optional `offset` (skip first N bytes) and `count` (emit N bytes); default = whole file
+- Listing shows filename and byte count
+
+**`defstruct-asm` / `.defstruct` directive** — struct with automatic field offset computation:
+- Lisp frontend (`.lasm`): `(defstruct-asm player :x :y (:hp 2) :state)`
+- Classic frontend (`.asm`): `.defstruct`/`.field`/`.endstruct` block
+- Fields: keyword = 1-byte field; `(keyword size)` = multi-byte field
+- Defines `STRUCT.FIELD` constants for each field + `STRUCT.SIZE` for total size
+- Supported on all architectures (6502, 65C02, R65C02, 45GS02, 65816, Z80, M68K)
+- Listing expanded: `.DEFSTRUCT` header + one `FIELD = offset` line per field
+
+**`.lasm` frontend extended to all architectures** — `assemble-lasm-string` and `assemble-lasm`
+now support all targets:
+- `:6502` (default), `:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`
+- `:65816`/`:snes`/`:apple2gs`
+- `:z80`/`:spectrum`/`:msx`/`:cpc` — use `(z80r)`, `(z80ind)`, `(zi)` helpers
+- `:m68k`/`:amiga`/`:atari`/`:mac68k` — use `(dn)`, `(an)`, `(ind-an)`, `(mi)` helpers
+- New `.lasm` mnemonics: 65C02 (`bra`, `stz`, `trb`, `tsb`, `phx/phy/plx/ply`);
+  R65C02 (`rmb0-7`, `smb0-7`, `bbr0-7`, `bbs0-7`);
+  65816 (`xba`, `xce`, `jsl`, `jml`, `brl`, `sep`, `rep`, `mvn`, `mvp`, `pea`, etc.)
+
+### Tests
+
+| Suite | 0.4.1 | 0.4.2 |
+|---|---|---|
+| 6502 | 82 | 94 |
+| lasm | 58 | 82 |
+| 6502 | 94 | 105 |
+| **TOTAL** | **1398** | **1445** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.4.1] — 2026-03-22
 
 ### Added

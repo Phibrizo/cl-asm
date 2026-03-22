@@ -406,6 +406,11 @@ COLS    = 40
         .text "HELLO"      ; ASCII string
         .fill 10, $00      ; fill
         .align 256         ; alignment
+        .padto $C000       ; pad to absolute address (with $00)
+        .padto $C000, $FF  ; pad to absolute address (with $FF)
+        .assertpc $C000    ; error if PC ≠ $C000
+        .asciiz "HELLO"   ; ASCII string + null terminator
+        .pascalstr "HI"   ; length byte + string
 
 start:                     ; local label
 main::                     ; global label (ca65-style)
@@ -575,9 +580,12 @@ Target is auto-detected from the first lines of the source file:
 mnemonic is a function. The full power of CL is available: `let`,
 `dotimes`, `loop`, `defun`, `defmacro`, etc.
 
-**Supported targets:** `:6502` (default) and `:45gs02` (Mega65).
-Support for `:65c02`, `:r65c02`, `:65816`, `:z80`, and `:m68k` is
-planned.
+**Supported targets:** all architectures — `:6502` (default),
+`:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`, `:65816`/`:snes`/`:apple2gs`,
+`:z80`/`:spectrum`/`:msx`/`:cpc`, `:m68k`/`:amiga`/`:atari`.
+
+> **Note for Z80 and M68K:** use `:origin 0` (the default `#x0801` is for 6502).
+> Architecture-specific instructions use `zi`/`mi` helpers (see below).
 
 > **Note on shadowed symbols:** the following CL standard names are
 > redefined as assembly instructions inside `.lasm` files: `fill`,
@@ -644,8 +652,57 @@ With keyword — explicit mode:
 | `(text "str")` | Emit ASCII string without null terminator |
 | `(fill n [v])` | Emit `n` bytes of value `v` (default 0) |
 | `(align n [v])` | Align PC to boundary `n`, pad with `v` |
+| `(pad-to addr [v])` | Fill from PC to `addr` with `v` (default 0); error if PC > addr |
+| `(assert-pc addr)` | Error if current PC ≠ `addr` (layout check) |
+| `(ascii-z "str")` | Emit ASCII string + null terminator (`$00`) |
+| `(pascal-str "str")` | Emit length byte (1 byte) followed by string |
+| `(defstruct-asm name f…)` | Define a struct: auto-compute field offsets (see below) |
+| `(defenum name v…)` | Define an enum: sequential constants from 0 (see below) |
+| `(include-binary "file" [off [n]])` | Include raw binary file (optional offset and byte count) |
+| `(petscii "str")` | Emit string with ASCII→PETSCII conversion (a-z → PETSCII A-Z) |
+| `(assert-size n body…)` | Error if `body` does not emit exactly `n` bytes |
+| `(sine-table 'lbl n amp off)` | Emit N-entry sine wave table (amplitude + offset) |
+| `(cosine-table 'lbl n amp off)` | Emit N-entry cosine wave table |
+| `(linear-ramp 'lbl from to n)` | Emit N-entry linear ramp from `from` to `to` |
 | `(section :name)` | Switch to named section |
 | `(target :arch)` | Architecture hint for CLI (no-op at runtime) |
+
+### Z80 helpers
+
+| Function | Description |
+|----------|-------------|
+| `(z80r "HL")` | Z80 register operand (`:direct "HL"`) |
+| `(z80ind "HL")` | Indirect Z80 operand `(HL)` |
+| `(z80ind "IX" 5)` | Indexed indirect `(IX+5)` |
+| `(zi "LD" op1 op2)` | Emit arbitrary Z80 instruction |
+
+```lisp
+(assemble-lasm-string
+  "(zi \"LD\" (z80r \"A\") (z80r \"B\"))   ; LD A, B
+   (zi \"PUSH\" (z80r \"HL\"))              ; PUSH HL
+   (zi \"JP\" (make-dir 'start))"           ; JP start
+  :target :z80 :origin 0)
+```
+
+### M68K helpers
+
+| Function | Description |
+|----------|-------------|
+| `(dn n)` | Data register Dn (`:direct "Dn"`) |
+| `(an n)` | Address register An (`:direct "An"`) |
+| `(ind-an n)` | Indirect `(An)` |
+| `(post-an n)` | Post-increment `(An)+` |
+| `(pre-an n)` | Pre-decrement `-(An)` |
+| `(m68k-imm val)` | Immediate `#val` |
+| `(mi "MOVE" :word op1 op2)` | Emit M68K instruction with optional size |
+
+```lisp
+(assemble-lasm-string
+  "(mi \"MOVE\" :word (dn 0) (dn 1))   ; MOVE.W D0, D1
+   (mi \"CLR\"  :byte (dn 3))           ; CLR.B  D3
+   (mi \"NOP\")"                        ; NOP
+  :target :m68k :origin 0)
+```
 
 ### Helper macros
 
@@ -661,6 +718,48 @@ With keyword — explicit mode:
 (lasm-if (lambda (l) (beq l)) 'done 'skip
   (lda :imm 0)
   (sta #xD020))
+```
+
+### `defstruct-asm` — struct with automatic field offsets
+
+Fields are either a keyword (1-byte field) or `(keyword size)` for multi-byte fields.
+All architectures supported.
+
+```lisp
+(defstruct-asm player :x :y (:hp 2) :state)
+; → PLAYER.X=0, PLAYER.Y=1, PLAYER.HP=2, PLAYER.STATE=4, PLAYER.SIZE=5
+```
+
+Classic `.asm` syntax — multi-line block:
+```asm
+.defstruct player
+  .field x
+  .field y
+  .field hp, 2
+  .field state
+.endstruct
+; PLAYER.X=0  PLAYER.Y=1  PLAYER.HP=2  PLAYER.STATE=4  PLAYER.SIZE=5
+```
+
+### `defenum` — sequential constants
+
+Values are numbered from 0. `ENUM.COUNT` is automatically defined.
+All architectures supported.
+
+```lisp
+(defenum color :black :white :red :green :blue)
+; → COLOR.BLACK=0, COLOR.WHITE=1, COLOR.RED=2, COLOR.GREEN=3, COLOR.BLUE=4
+;   COLOR.COUNT=5
+```
+
+Classic `.asm` syntax — multi-line block:
+```asm
+.defenum state
+  .val idle
+  .val running
+  .val paused
+.endenum
+; STATE.IDLE=0  STATE.RUNNING=1  STATE.PAUSED=2  STATE.COUNT=3
 ```
 
 ### 45GS02-specific instructions

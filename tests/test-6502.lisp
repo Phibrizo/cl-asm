@@ -225,11 +225,139 @@
   (check ".text produit des codes ASCII"
          (bytes= (asm ".text \"HI\"") (char-code #\H) (char-code #\I))))
 
+(deftest test/directive-asciiz
+  (check ".asciiz emet la chaine + octet nul"
+         (bytes= (asm ".asciiz \"HI\"")
+                 (char-code #\H) (char-code #\I) #x00))
+  (check ".asciiz chaine vide = un seul octet nul"
+         (bytes= (asm ".asciiz \"\"") #x00)))
+
+(deftest test/directive-pascalstr
+  (check ".pascalstr emet longueur + chaine"
+         (bytes= (asm ".pascalstr \"HI\"")
+                 2 (char-code #\H) (char-code #\I)))
+  (check ".pascalstr chaine vide = longueur 0"
+         (bytes= (asm ".pascalstr \"\"") 0)))
+
+(deftest test/directive-petscii
+  (check "!pet convertit a-z en A-Z PETSCII"
+         ;; 'a' ASCII=0x61 → PETSCII=0x41 ('A')
+         (bytes= (asm "!pet \"abc\"") #x41 #x42 #x43))
+  (check "!pet convertit A-Z en shifted PETSCII"
+         ;; 'A' ASCII=0x41 → PETSCII=0xC1
+         (bytes= (asm "!pet \"ABC\"") #xC1 #xC2 #xC3))
+  (check ".petscii (alias) meme comportement"
+         (bytes= (asm ".petscii \"abc\"") #x41 #x42 #x43)))
+
 (deftest test/directive-fill
   (check ".fill 3 = trois zeros"
          (bytes= (asm ".fill 3") #x00 #x00 #x00))
   (check ".fill 3,$FF = trois $FF"
          (bytes= (asm ".fill 3, $FF") #xFF #xFF #xFF)))
+
+(deftest test/directive-assertpc
+  (check ".assertpc exact : aucune erreur"
+         (let ((bytes (asm (format nil ".org $0900~%.assertpc $0900") :origin #x0900)))
+           (= 0 (length bytes))))
+  (check ".assertpc apres instruction : aucune erreur"
+         (let ((bytes (asm (format nil "NOP~%NOP~%.assertpc $0803") :origin #x0801)))
+           (= 2 (length bytes))))
+  (check ".assertpc echoue si PC different"
+         (handler-case
+             (progn (asm (format nil "NOP~%.assertpc $0900") :origin #x0801) nil)
+           (cl-asm/ir:asm-error () t))))
+
+(deftest test/directive-incbin
+  (let ((tmp "/tmp/cl-asm-test-incbin.bin"))
+    ;; Créer un fichier temporaire avec 3 octets connus
+    (with-open-file (s tmp :direction :output :element-type '(unsigned-byte 8)
+                          :if-exists :supersede)
+      (write-byte #xAB s) (write-byte #xCD s) (write-byte #xEF s))
+    (check ".incbin emet tous les octets"
+           (bytes= (asm (format nil ".incbin \"~A\"" tmp)) #xAB #xCD #xEF))
+    (check ".incbin avec offset"
+           (bytes= (asm (format nil ".incbin \"~A\", 1" tmp)) #xCD #xEF))
+    (check ".incbin avec offset et count"
+           (bytes= (asm (format nil ".incbin \"~A\", 1, 1" tmp)) #xCD))
+    (check ".incbin avance le PC"
+           (let ((bytes (asm (format nil ".incbin \"~A\"~%NOP" tmp))))
+             (= #xEA (aref bytes 3))))   ; NOP après 3 octets du fichier
+    (check ".incbin fichier inexistant = erreur"
+           (handler-case
+               (progn (asm ".incbin \"/tmp/cl-asm-inexistant-xyz.bin\"") nil)
+             (cl-asm/ir:asm-error () t)))))
+
+(deftest test/directive-defenum
+  (check ".defenum : valeurs sequentielles"
+         (let* ((src (format nil
+                      ".defenum color~%  .val black~%  .val white~%  .val red~%.endenum~%~
+                       .org $0801~%LDA color.white"))
+                (bytes (asm src :origin #x0801)))
+           (= #x01 (aref bytes 1))))
+  (check ".defenum .COUNT = nombre de valeurs"
+         (let* ((src (format nil
+                      ".defenum state~%  .val idle~%  .val run~%  .val pause~%.endenum~%~
+                       .org $0801~%LDA state.count"))
+                (bytes (asm src :origin #x0801)))
+           (= #x03 (aref bytes 1))))
+  (check ".defenum premiere valeur = 0"
+         (let* ((src (format nil
+                      ".defenum dir~%  .val north~%  .val south~%.endenum~%~
+                       .org $0801~%LDA dir.north"))
+                (bytes (asm src :origin #x0801)))
+           (= #x00 (aref bytes 1)))))
+
+(deftest test/directive-defstruct
+  ;; Struct avec champs 1 octet : player.hp = offset 2
+  (check ".defstruct : offset champ 1 octet"
+         (let* ((src (format nil
+                      ".defstruct player~%  .field x~%  .field y~%  .field hp~%.endstruct~%~
+                       .org $0801~%LDA player.hp"))
+                (bytes (asm src :origin #x0801)))
+           (= #x02 (aref bytes 1))))
+  ;; Struct avec champ multibyte : npc.state = 0+1+1+2 = 4
+  (check ".defstruct : offset apres champ multibyte"
+         (let* ((src (format nil
+                      ".defstruct npc~%  .field x~%  .field y~%  .field score, 2~%  .field state~%.endstruct~%~
+                       .org $0801~%LDA npc.state"))
+                (bytes (asm src :origin #x0801)))
+           (= #x04 (aref bytes 1))))
+  ;; .SIZE = somme de tous les champs
+  (check ".defstruct : .SIZE = taille totale"
+         (let* ((src (format nil
+                      ".defstruct obj~%  .field x~%  .field y, 2~%.endstruct~%~
+                       .org $0801~%LDA obj.size"))
+                (bytes (asm src :origin #x0801)))
+           (= #x03 (aref bytes 1)))))
+
+(deftest test/directive-pad-to
+  ;; Origine $0801, pad jusqu'a $0804 = 3 octets $00
+  (check ".padto adresse cible = remplit de zeros"
+         (let ((bytes (asm ".padto $0804" :origin #x0801)))
+           (and (= 3 (length bytes))
+                (= #x00 (aref bytes 0))
+                (= #x00 (aref bytes 1))
+                (= #x00 (aref bytes 2)))))
+  (check ".padto avec valeur de remplissage"
+         (let ((bytes (asm ".padto $0804, $FF" :origin #x0801)))
+           (and (= 3 (length bytes))
+                (= #xFF (aref bytes 0))
+                (= #xFF (aref bytes 1))
+                (= #xFF (aref bytes 2)))))
+  (check ".padto adresse = PC : rien emis"
+         (= 0 (length (asm ".padto $0801" :origin #x0801))))
+  (check ".padto apres instruction"
+         ;; NOP (1 octet @ $0801), pad jusqu'a $0804 = 2 octets supplementaires
+         (let ((bytes (asm (format nil "NOP~%.padto $0804") :origin #x0801)))
+           (and (= 3 (length bytes))
+                (= #xEA (aref bytes 0))   ; NOP
+                (= #x00 (aref bytes 1))   ; padding
+                (= #x00 (aref bytes 2)))));; padding
+  (check ".padto erreur si PC depasse la cible"
+         (handler-case
+             (progn (asm (format nil "NOP~%NOP~%NOP~%NOP~%.padto $0803") :origin #x0801)
+                    nil)
+           (cl-asm/ir:asm-error () t))))
 
 
 ;;; --------------------------------------------------------------------------
@@ -361,6 +489,14 @@
   (test/directive-word)
   (test/directive-text)
   (test/directive-fill)
+  (test/directive-asciiz)
+  (test/directive-pascalstr)
+  (test/directive-petscii)
+  (test/directive-assertpc)
+  (test/directive-incbin)
+  (test/directive-defenum)
+  (test/directive-defstruct)
+  (test/directive-pad-to)
   (test/label-forward-ref)
   (test/label-backward-ref)
   (test/constant-in-operand)

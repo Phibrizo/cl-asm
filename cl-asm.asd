@@ -55,7 +55,12 @@
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/backend/6502"
-                 "src/backend/45gs02"))
+                 "src/backend/45gs02"
+                 "src/backend/65c02"
+                 "src/backend/r65c02"
+                 "src/backend/65816"
+                 "src/backend/z80"
+                 "src/backend/m68k"))
    (:file "src/emit/output"
     :depends-on ("src/core/ir"
                  "src/backend/6502"))))
