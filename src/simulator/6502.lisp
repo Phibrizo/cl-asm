@@ -78,32 +78,6 @@
 
 
 ;;; --------------------------------------------------------------------------
-;;;  Conditions
-;;; --------------------------------------------------------------------------
-
-(define-condition cpu-break (condition)
-  ((cpu :initarg :cpu :reader cpu-break-cpu))
-  (:report (lambda (c s)
-             (format s "BRK at PC=$~4,'0X" (cpu-pc (cpu-break-cpu c))))))
-
-(define-condition cpu-illegal-opcode (error)
-  ((cpu    :initarg :cpu    :reader cpu-illegal-opcode-cpu)
-   (opcode :initarg :opcode :reader cpu-illegal-opcode-opcode))
-  (:report (lambda (c s)
-             (format s "Illegal opcode $~2,'0X at PC=$~4,'0X"
-                     (cpu-illegal-opcode-opcode c)
-                     (cpu-pc (cpu-illegal-opcode-cpu c))))))
-
-(define-condition cpu-step-limit (condition)
-  ((cpu   :initarg :cpu   :reader cpu-step-limit-cpu)
-   (steps :initarg :steps :reader cpu-step-limit-steps))
-  (:report (lambda (c s)
-             (format s "Step limit ~D reached at PC=$~4,'0X"
-                     (cpu-step-limit-steps c)
-                     (cpu-pc (cpu-step-limit-cpu c))))))
-
-
-;;; --------------------------------------------------------------------------
 ;;;  Structure CPU
 ;;; --------------------------------------------------------------------------
 ;;;
@@ -175,6 +149,33 @@
         do (mem-write cpu (+ origin i) (aref bytes i)))
   (setf (cpu-pc cpu) origin)
   cpu)
+
+
+;;; --------------------------------------------------------------------------
+;;;  Conditions
+;;; --------------------------------------------------------------------------
+;;; Placées ici, après le defstruct, pour que cpu-pc soit déjà connu.
+
+(define-condition cpu-break (condition)
+  ((cpu :initarg :cpu :reader cpu-break-cpu))
+  (:report (lambda (c s)
+             (format s "BRK at PC=$~4,'0X" (cpu-pc (cpu-break-cpu c))))))
+
+(define-condition cpu-illegal-opcode (error)
+  ((cpu    :initarg :cpu    :reader cpu-illegal-opcode-cpu)
+   (opcode :initarg :opcode :reader cpu-illegal-opcode-opcode))
+  (:report (lambda (c s)
+             (format s "Illegal opcode $~2,'0X at PC=$~4,'0X"
+                     (cpu-illegal-opcode-opcode c)
+                     (cpu-pc (cpu-illegal-opcode-cpu c))))))
+
+(define-condition cpu-step-limit (condition)
+  ((cpu   :initarg :cpu   :reader cpu-step-limit-cpu)
+   (steps :initarg :steps :reader cpu-step-limit-steps))
+  (:report (lambda (c s)
+             (format s "Step limit ~D reached at PC=$~4,'0X"
+                     (cpu-step-limit-steps c)
+                     (cpu-pc (cpu-step-limit-cpu c))))))
 
 
 ;;; --------------------------------------------------------------------------
