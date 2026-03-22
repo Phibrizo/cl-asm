@@ -24,6 +24,12 @@ cl-asm est structuré en trois couches indépendantes :
                │ produit un vecteur d'octets
                ▼
 ┌─────────────────────────────────────────────┐
+│  Simulateur (optionnel, indépendant)        │
+│  cl-asm/simulator.6502                      │
+└──────────────┬──────────────────────────────┘
+               │ prend un vecteur d'octets + mémoire
+               ▼
+┌─────────────────────────────────────────────┐
 │  Émetteurs (formats de fichiers)            │
 │  BIN · PRG (C64) · listing · ROM (futur)   │
 └─────────────────────────────────────────────┘
@@ -52,6 +58,7 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/backend.i8080` | `src/backend/i8080.lisp` | Backend Intel 8080 (CP/M, Altair) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Frontend Lisp natif (.lasm) |
 | `cl-asm/emit` | `src/emit/output.lisp` | Émetteurs de fichiers |
+| `cl-asm/simulator.6502` | `src/simulator/6502.lisp` | Simulateur CPU 6502 |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Suites de tests |
 
 ---
@@ -774,6 +781,69 @@ Offset 2 : début du code/données binaires
 ```
 
 Exemple : pour charger à `$0801`, le header est `$01 $08`.
+
+---
+
+## Module `cl-asm/simulator.6502`
+
+Simulateur CPU MOS 6502. Prend un vecteur d'octets assemblé en entrée,
+exécute les instructions pas à pas dans un espace mémoire virtuel de 64 Ko.
+
+### Interface
+
+```lisp
+;; Construction
+(make-cpu)                              ; → CPU avec 64 Ko de mémoire à zéro
+(reset-cpu CPU &key origin)             ; réinitialise les registres, PC ← origin
+(load-program CPU BYTES &key origin)    ; copie les octets en mémoire, PC ← origin
+
+;; Mémoire
+(mem-read  CPU ADDR)                    ; → (unsigned-byte 8)
+(mem-write CPU ADDR VAL)
+(mem-read16 CPU ADDR)                   ; → mot 16 bits little-endian
+
+;; Exécution
+(step-cpu CPU)                          ; exécute une instruction → CPU
+(run-cpu  CPU &key max-steps)           ; → (values CPU :brk|:step-limit)
+
+;; Accesseurs de registres
+(cpu-a CPU)  (cpu-x CPU)  (cpu-y CPU)
+(cpu-pc CPU) (cpu-sp CPU) (cpu-p CPU)  (cpu-cycles CPU)
+
+;; Lecteurs de flags (retournent T/NIL)
+(flag-c CPU) (flag-z CPU) (flag-i CPU) (flag-d CPU)
+(flag-b CPU) (flag-v CPU) (flag-n CPU)
+
+;; Constantes de flags
++flag-c+ +flag-z+ +flag-i+ +flag-d+ +flag-b+ +flag-5+ +flag-v+ +flag-n+
+```
+
+### Conditions
+
+| Condition | Déclenchée quand |
+|---|---|
+| `cpu-break` | Instruction BRK exécutée |
+| `cpu-illegal-opcode` | Opcode inconnu |
+| `cpu-step-limit` | `max-steps` atteint sans BRK |
+
+### Couverture du jeu d'instructions
+
+| Groupe | Nombre | Instructions |
+|---|---|---|
+| Implicites | 23 | NOP BRK TAX TXA TAY TYA TSX TXS PHA PLA PHP PLP INX INY DEX DEY CLC SEC CLI SEI CLV CLD SED |
+| Load/Store | 31 | LDA×8 LDX×5 LDY×5 STA×7 STX×3 STY×3 |
+| ALU | 56 | ADC×8 SBC×8 AND×8 ORA×8 EOR×8 CMP×8 CPX×3 CPY×3 BIT×2 |
+| Décalages/Rotations | 28 | ASL×5 LSR×5 ROL×5 ROR×5 INC×4 DEC×4 |
+| Sauts | 14 | JMP abs, JMP(ind)*, JSR, RTS, RTI, BCC BCS BEQ BNE BMI BPL BVC BVS |
+| **Total** | **152** | |
+
+*JMP indirect reproduit le bug de traversée de page du 6502 original.
+
+### Comptage des cycles
+
+- Pénalité de traversée de page : +1 cycle pour les instructions de lecture indexées (LDA/LDX/LDY abs,X/Y, ADC/SBC/etc. abs,X/Y)
+- Instructions d'écriture (STA abs,X/Y, STA (ind),Y) : nombre de cycles fixe
+- Branches : 2 cycles non prises, 3 cycles prises même page, 4 cycles prises page différente
 
 ---
 

@@ -9,14 +9,14 @@ The architecture is designed to accommodate additional backends without modifyin
 
 ## Version
 
-**Current version: 0.5.0**
+**Current version: 0.6.0**
 
 ```
-cl-asm/version:+version+         ; → "0.5.0"
+cl-asm/version:+version+         ; → "0.6.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 5
+cl-asm/version:+version-minor+   ; → 6
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.5.0"
+(cl-asm/version:version-string)  ; → "0.6.0"
 ```
 
 ---
@@ -39,13 +39,14 @@ cl-asm/version:+version-patch+   ; → 0
 | M68K parser | ✓ | 85 |
 | M68K backend (Amiga, Atari ST, Mac 68k) | ✓ | 144 |
 | Intel 8080 backend (CP/M, Altair) | ✓ | 144 |
+| 6502 simulator | ✓ | 294 |
 | BIN / PRG / listing emitters | ✓ | — |
 | Text macros | ✓ | 27 |
 | Conditional assembly | ✓ | 27 |
 | .lasm frontend (native Lisp) | ✓ | 97 |
 | acme2clasm converter | ✓ | 20 |
 
-**Total: 1627 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 1921 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -107,6 +108,8 @@ cl-asm/
 │   │   ├── z80.lisp            Z80 encoder (ZX Spectrum, MSX, CPC, ZX81)
 │   │   ├── m68k.lisp           M68K encoder (Amiga, Atari ST, Mac 68k)
 │   │   └── i8080.lisp          Intel 8080 encoder (CP/M, Altair)
+│   ├── simulator/
+│   │   └── 6502.lisp           6502 CPU simulator (152 opcodes, cycle-accurate)
 │   └── emit/
 │       └── output.lisp         BIN, PRG, listing emitters
 ├── tests/
@@ -127,6 +130,7 @@ cl-asm/
 │   ├── test-m68k-parser.lisp
 │   ├── test-m68k.lisp
 │   ├── test-8080.lisp
+│   ├── test-sim-6502.lisp
 │   └── test-acme2clasm.lisp
 └── examples/
     ├── c64-raster.asm          C64 raster bar (classic syntax)
@@ -205,10 +209,12 @@ Expected output (all methods):
 === m68k         : 144 OK, 0 KO
 --- Intel 8080 ---
 === i8080        : 144 OK, 0 KO
+--- Simulator ---
+=== sim-6502     : 294 OK, 0 KO
 --- Tools ---
 === acme2clasm   :  20 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1627 OK, 0 KO out of 1627 tests
+=== TOTAL        : 1921 OK, 0 KO out of 1921 tests
 ```
 
 ---
@@ -388,6 +394,58 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
        (bytes (cl-asm/backend.6502:assemble program :origin #x0801)))
   (format t "~D bytes~%" (length bytes)))
 ```
+
+---
+
+## 6502 Simulator
+
+Package `cl-asm/simulator.6502` — a cycle-accurate 6502 CPU simulator with 64 KB memory.
+
+### Quick start
+
+```lisp
+(ql:quickload "cl-asm")
+
+(let* ((cpu (cl-asm/simulator.6502:make-cpu))
+       (program #(#xa9 #x42   ; LDA #$42
+                  #x85 #x00   ; STA $00
+                  #x00))      ; BRK
+       (cpu (cl-asm/simulator.6502:load-program cpu program #x0300)))
+  (multiple-value-bind (cpu reason)
+      (cl-asm/simulator.6502:run-cpu cpu :origin #x0300)
+    (format t "A=~2,'0X  reason=~A~%" (cl-asm/simulator.6502:cpu-a cpu) reason)))
+;; A=42  reason=:BRK
+```
+
+### Key exports
+
+| Symbol | Description |
+| --- | --- |
+| `make-cpu` | Create a new CPU with zeroed memory and registers |
+| `reset-cpu` | Reset registers (PC/SP/P) without clearing memory |
+| `load-program cpu bytes addr` | Copy byte vector into memory at `addr`, return updated cpu |
+| `step-cpu cpu` | Execute one instruction; signals `cpu-break` on BRK, `cpu-illegal-opcode` on unknown opcode |
+| `run-cpu cpu &key origin max-steps` | Loop until BRK or `max-steps`; returns `(values cpu :brk\|:step-limit)` |
+| `mem-read cpu addr` | Read one byte from memory |
+| `mem-write cpu addr val` | Write one byte to memory |
+| `cpu-a`, `cpu-x`, `cpu-y` | Accumulator / index register accessors |
+| `cpu-pc`, `cpu-sp`, `cpu-p` | Program counter / stack pointer / processor flags accessors |
+| `cpu-cycles` | Cycle counter accessor |
+| `flag-c`, `flag-z`, `flag-i`, `flag-d`, `flag-b`, `flag-v`, `flag-n` | Read individual flags (0 or 1) from a cpu |
+| `+flag-c+`, `+flag-z+`, `+flag-i+`, `+flag-d+`, `+flag-b+`, `+flag-v+`, `+flag-n+` | Bit-mask constants for each flag |
+
+### Instruction coverage
+
+152 opcodes covering the complete 6502 instruction set:
+
+- **Implied (23):** NOP BRK TAX TXA TAY TYA TSX TXS PHA PLA PHP PLP INX INY DEX DEY CLC SEC CLI SEI CLV CLD SED
+- **Load/store:** LDA×8, LDX×5, LDY×5, STA×7, STX×3, STY×3
+- **ALU:** ADC×8, SBC×8, AND×8, ORA×8, EOR×8, CMP×8, CPX×3, CPY×3, BIT×2
+- **Shifts/rotations:** ASL×5, LSR×5, ROL×5, ROR×5
+- **Memory inc/dec:** INC×4, DEC×4
+- **Jumps/branches:** JMP abs, JMP (ind) with original 6502 page bug, JSR, RTS, RTI, BCC BCS BEQ BNE BMI BPL BVC BVS
+
+Page-crossing cycle penalty is applied (+1 for reads; fixed cost for writes). Cycle counts match the original NMOS 6502.
 
 ---
 

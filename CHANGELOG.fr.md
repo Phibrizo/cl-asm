@@ -5,6 +5,41 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.6.0] — 2026-03-22
+
+### Ajouté
+
+**Simulateur CPU 6502** (`src/simulator/6502.lisp`) — nouveau module :
+- Struct `cpu` avec registres A/X/Y/PC/SP/P et mémoire 64 Ko
+- `make-cpu`, `reset-cpu`, `load-program`
+- `mem-read`, `mem-write`, `mem-read16` (inline)
+- `fetch`, `fetch16` — helpers inline de lecture d'opérandes au PC
+- Helpers de mode d'adressage : `addr-zp`, `addr-zpx`, `addr-zpy`, `addr-abs`, `addr-absx*`, `addr-absy*`, `addr-indx`, `addr-indy*`
+- Helpers flags : `set-flag`, `update-nz`, `flag-c/z/i/d/b/v/n`, 8 constantes de masque
+- Pile : `stack-push`, `stack-pull`
+- Helpers ALU : `do-adc` (avec flag V), `do-sbc`, `do-and`, `do-ora`, `do-eor`, `do-cmp`, `do-bit`, `do-asl`, `do-lsr`, `do-rol`, `do-ror`
+- `step-cpu` : 152 opcodes couvrant le jeu d'instructions 6502 complet :
+  - 23 implicites (NOP BRK TAX TXA TAY TYA TSX TXS PHA PLA PHP PLP INX INY DEX DEY CLC SEC CLI SEI CLV CLD SED)
+  - Load/store : LDA×8, LDX×5, LDY×5, STA×7, STX×3, STY×3
+  - ALU : ADC×8, SBC×8, AND×8, ORA×8, EOR×8, CMP×8, CPX×3, CPY×3, BIT×2
+  - Décalages/rotations : ASL×5, LSR×5, ROL×5, ROR×5
+  - Incréments mémoire : INC×4, DEC×4
+  - Sauts/branches : JMP abs, JMP (ind) avec bug de page du 6502 original, JSR, RTS, RTI, BCC BCS BEQ BNE BMI BPL BVC BVS
+- Pénalité de cycle sur franchissement de page (+1 lecture, fixe pour écritures)
+- Conditions : `cpu-break`, `cpu-illegal-opcode`, `cpu-step-limit`
+- `run-cpu` boucle jusqu'à BRK ou `max-steps`, retourne `(values cpu :brk|:step-limit)`
+
+### Tests
+
+| Suite | 0.5.0 | 0.6.0 |
+|---|---|---|
+| sim-6502 (nouveau) | — | 294 |
+| **TOTAL** | **1627** | **1921** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.5.0] — 2026-03-22
 
 ### Ajouté
