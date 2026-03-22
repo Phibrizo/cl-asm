@@ -923,6 +923,166 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Tests : sauts et branches (JMP JSR RTS RTI Bcc)
+;;; --------------------------------------------------------------------------
+
+(deftest test/jumps
+
+  ;; --- JMP abs ---
+  (let ((cpu (make-cpu)))
+    ;; JMP $0300 ; (à $0300 : BRK)
+    (load-program cpu #(#x4C #x00 #x03) :origin 0)
+    (mem-write cpu #x0300 #x00)
+    (step-cpu cpu)
+    (check "JMP abs : PC = $0300"    (= #x0300 (cpu-pc cpu)))
+    (check "JMP abs : cycles = 3"    (= 3 (cpu-cycles cpu))))
+
+  ;; --- JMP (ind) --- vecteur à $0200 → $0400
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x0200 #x00)
+    (mem-write cpu #x0201 #x04)
+    (load-program cpu #(#x6C #x00 #x02) :origin 0)
+    (step-cpu cpu)
+    (check "JMP (ind) : PC = $0400"  (= #x0400 (cpu-pc cpu)))
+    (check "JMP (ind) : cycles = 5"  (= 5 (cpu-cycles cpu))))
+
+  ;; --- JMP (ind) bug de page --- vecteur à $01FF/$0100
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x01FF #x34)   ; lo lu ici
+    (mem-write cpu #x0100 #x12)   ; hi lu à $0100 (bug), pas $0200
+    (mem-write cpu #x0200 #xFF)   ; serait lu sans bug — doit être ignoré
+    (load-program cpu #(#x6C #xFF #x01) :origin 0)
+    (step-cpu cpu)
+    (check "JMP (ind) bug page : PC = $1234" (= #x1234 (cpu-pc cpu))))
+
+  ;; --- JSR + RTS ---
+  (let ((cpu (make-cpu)))
+    ;; $0000: JSR $0010   ($20 $10 $00)
+    ;; $0010: RTS          ($60)
+    (load-program cpu #(#x20 #x10 #x00) :origin 0)
+    (mem-write cpu #x0010 #x60)
+    (step-cpu cpu)              ; JSR
+    (check "JSR : PC = $0010"       (= #x0010 (cpu-pc cpu)))
+    (check "JSR : SP décrémenté×2"  (= #xFD (cpu-sp cpu)))
+    (check "JSR : cycles = 6"       (= 6 (cpu-cycles cpu)))
+    (step-cpu cpu)              ; RTS
+    (check "RTS : PC = $0003"       (= #x0003 (cpu-pc cpu)))
+    (check "RTS : SP restauré"      (= #xFF (cpu-sp cpu)))
+    (check "RTS : cycles = 12"      (= 12 (cpu-cycles cpu))))
+
+  ;; --- JSR empile la bonne adresse de retour ---
+  (let ((cpu (make-cpu)))
+    (load-program cpu #(#x20 #x50 #x00) :origin #x0200)  ; JSR $0050
+    (step-cpu cpu)
+    ;; adresse retour empilée = $0202 (dernier octet de JSR)
+    (let ((hi (mem-read cpu #x01FF))
+          (lo (mem-read cpu #x01FE)))
+      (check "JSR : retour empilé = $0202"
+             (= #x0202 (logior lo (ash hi 8))))))
+
+  ;; --- RTI ---
+  (let ((cpu (make-cpu)))
+    ;; Préparer la pile : empiler manuellement PC et P
+    (stack-push cpu #x03)        ; PC hi
+    (stack-push cpu #x00)        ; PC lo
+    (stack-push cpu #b11001111)  ; P (N V _ B D I Z C)
+    (load-program cpu #(#x40 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "RTI : PC restauré"       (= #x0300 (cpu-pc cpu)))
+    (check "RTI : P restauré bit5=1" (= (logior #x20 #b11001111) (cpu-p cpu)))
+    (check "RTI : cycles = 6"        (= 6 (cpu-cycles cpu))))
+
+  ;; --- Branches ---
+  ;; BEQ pris (Z=1), offset positif
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logior (cpu-p cpu) +flag-z+))   ; Z=1
+    (load-program cpu #(#xF0 #x04) :origin #x0100)     ; BEQ +4
+    (step-cpu cpu)
+    (check "BEQ pris : PC = $0106"   (= #x0106 (cpu-pc cpu)))
+    (check "BEQ pris : cycles = 3"   (= 3 (cpu-cycles cpu))))
+
+  ;; BEQ non pris (Z=0)
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logand (cpu-p cpu) (lognot +flag-z+)))
+    (load-program cpu #(#xF0 #x04) :origin #x0100)
+    (step-cpu cpu)
+    (check "BEQ non pris : PC = $0102" (= #x0102 (cpu-pc cpu)))
+    (check "BEQ non pris : cycles = 2"  (= 2 (cpu-cycles cpu))))
+
+  ;; BNE pris (Z=0), offset négatif (retour en arrière)
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logand (cpu-p cpu) (lognot +flag-z+)))
+    (load-program cpu #(#xD0 #xFC) :origin #x0200)     ; BNE -4 → $01FE
+    (step-cpu cpu)
+    (check "BNE négatif : PC = $01FE" (= #x01FE (cpu-pc cpu))))
+
+  ;; BCC pris avec franchissement de page (+1 cycle)
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logand (cpu-p cpu) (lognot +flag-c+)))  ; C=0
+    (load-program cpu #(#x90 #x7F) :origin #x00F0)    ; BCC +127 → $0171
+    (step-cpu cpu)
+    (check "BCC cross-page : PC = $0171"   (= #x0171 (cpu-pc cpu)))
+    (check "BCC cross-page : cycles = 4"   (= 4 (cpu-cycles cpu))))
+
+  ;; BCS non pris (C=0)
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logand (cpu-p cpu) (lognot +flag-c+)))
+    (load-program cpu #(#xB0 #x10) :origin 0)
+    (step-cpu cpu)
+    (check "BCS non pris : PC = $0002"  (= #x0002 (cpu-pc cpu))))
+
+  ;; BMI pris (N=1)
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logior (cpu-p cpu) +flag-n+))
+    (load-program cpu #(#x30 #x02) :origin 0)
+    (step-cpu cpu)
+    (check "BMI pris : PC = $0004"   (= #x0004 (cpu-pc cpu))))
+
+  ;; BPL non pris (N=1)
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logior (cpu-p cpu) +flag-n+))
+    (load-program cpu #(#x10 #x02) :origin 0)
+    (step-cpu cpu)
+    (check "BPL non pris : PC = $0002" (= #x0002 (cpu-pc cpu))))
+
+  ;; BVC pris (V=0)
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logand (cpu-p cpu) (lognot +flag-v+)))
+    (load-program cpu #(#x50 #x05) :origin 0)
+    (step-cpu cpu)
+    (check "BVC pris : PC = $0007"   (= #x0007 (cpu-pc cpu))))
+
+  ;; BVS pris (V=1)
+  (let ((cpu (make-cpu)))
+    (setf (cpu-p cpu) (logior (cpu-p cpu) +flag-v+))
+    (load-program cpu #(#x70 #x03) :origin 0)
+    (step-cpu cpu)
+    (check "BVS pris : PC = $0005"   (= #x0005 (cpu-pc cpu))))
+
+  ;; --- Programme complet : compte à rebours avec BNE ---
+  ;; LDA #$03 ; boucle: TAX ; DEX ; BNE boucle ; BRK
+  ;; Résultat : A=$03, X=$00, Z=1
+  (let ((cpu (make-cpu)))
+    (load-program cpu #(#xA9 #x03            ; LDA #$03
+                        #xAA                  ; TAX    ($0002)
+                        #xCA                  ; DEX    ($0003)
+                        #xD0 #xFD             ; BNE -3 → $0002  ($0004)
+                        #x00)                 ; BRK    ($0006)
+                  :origin 0)
+    (run-cpu cpu)
+    (check "boucle BNE : A = $03"  (= #x03 (cpu-a cpu)))
+    (check "boucle BNE : X = $00"  (= #x00 (cpu-x cpu)))
+    (check "boucle BNE : Z mis"    (flag-z cpu)))
+
+  ;; --- run-cpu avec JMP (boucle infinie) → step-limit ---
+  (let ((cpu (make-cpu)))
+    (load-program cpu #(#x4C #x00 #x00) :origin 0)  ; JMP $0000
+    (multiple-value-bind (_ reason) (run-cpu cpu :max-steps 10)
+      (declare (ignore _))
+      (check "JMP boucle : step-limit" (eq :step-limit reason)))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Point d'entrée
 ;;; --------------------------------------------------------------------------
 
@@ -943,6 +1103,7 @@
   (test/load-store)
   (test/alu)
   (test/shifts)
+  (test/jumps)
   (format t "~&~%=== sim-6502     : ~D OK, ~D KO sur ~D tests~%"
           *pass* *fail* (+ *pass* *fail*))
   (when *failures*

@@ -1,22 +1,25 @@
 ; -*- coding: utf-8 -*-
 ;;; src/simulator/6502.lisp
 ;;;
-;;; Simulateur MOS 6502 — Étape 1 : infrastructure + instructions implicites.
+;;; Simulateur MOS 6502 — jeu d'instructions complet.
 ;;;
 ;;; Périmètre :
 ;;;   - Struct CPU : A X Y PC SP P + mémoire 64 KB
 ;;;   - make-cpu / reset-cpu / load-program
 ;;;   - mem-read / mem-write / mem-read16
-;;;   - Helpers flags (lecture + écriture)
-;;;   - stack-push / stack-pull
-;;;   - step-cpu  (NOP BRK + 21 instructions implicites)
-;;;   - run-cpu
-;;;
-;;; Étapes suivantes :
-;;;   - Modes d'adressage + load/store (LDA LDX LDY STA STX STY)
-;;;   - ALU (ADC SBC AND ORA EOR CMP CPX CPY BIT)
-;;;   - Décalages / rotations (ASL LSR ROL ROR INC DEC)
-;;;   - Sauts et branches (JMP JSR RTS RTI Bcc)
+;;;   - Helpers flags (lecture + écriture), pile, fetch/fetch16
+;;;   - Modes d'adressage : imm, zp, zp+X/Y, abs, abs+X/Y, (ind,X), (ind),Y
+;;;   - Instructions implicites : NOP BRK TAX TXA TAY TYA TSX TXS
+;;;                               PHA PLA PHP PLP INX INY DEX DEY
+;;;                               CLC SEC CLI SEI CLV CLD SED
+;;;   - Load/store : LDA LDX LDY STA STX STY
+;;;   - ALU : ADC SBC AND ORA EOR CMP CPX CPY BIT
+;;;   - Décalages/rotations : ASL LSR ROL ROR (accumulateur + mémoire)
+;;;   - Incréments mémoire : INC DEC
+;;;   - Sauts : JMP abs, JMP (ind) avec bug de page, JSR, RTS, RTI
+;;;   - Branches : BCC BCS BEQ BNE BMI BPL BVC BVS
+;;;               (avec cycle +1/+2 selon prise et franchissement de page)
+;;;   - step-cpu / run-cpu
 
 (defpackage #:cl-asm/simulator.6502
   (:use #:cl)
@@ -925,6 +928,126 @@
          (mem-write cpu addr val)
          (update-nz cpu val))
        (incf (cpu-cycles cpu) 7))
+
+      ;; --- JMP ---
+      (#x4C  ; JMP abs
+       (setf (cpu-pc cpu) (fetch16 cpu))
+       (incf (cpu-cycles cpu) 3))
+
+      (#x6C  ; JMP (ind) — avec bug de page du 6502 original :
+             ; si ptr bas = $FF, l'octet haut est lu à ptr & $FF00 (pas ptr+1)
+       (let* ((ptr (fetch16 cpu))
+              (lo  (mem-read cpu ptr))
+              (hi  (mem-read cpu (logior (logand ptr #xFF00)
+                                         (logand (1+ (logand ptr #xFF)) #xFF)))))
+         (setf (cpu-pc cpu) (logior lo (ash hi 8))))
+       (incf (cpu-cycles cpu) 5))
+
+      ;; --- JSR / RTS ---
+      (#x20  ; JSR abs — empile PC-1 (hi puis lo), saute à l'adresse
+       (let ((target (fetch16 cpu)))
+         (let ((ret (logand (1- (cpu-pc cpu)) #xFFFF)))
+           (stack-push cpu (ash ret -8))
+           (stack-push cpu (logand ret #xFF)))
+         (setf (cpu-pc cpu) target))
+       (incf (cpu-cycles cpu) 6))
+
+      (#x60  ; RTS — dépile lo puis hi, PC ← val+1
+       (let* ((lo  (stack-pull cpu))
+              (hi  (stack-pull cpu)))
+         (setf (cpu-pc cpu) (logand (1+ (logior lo (ash hi 8))) #xFFFF)))
+       (incf (cpu-cycles cpu) 6))
+
+      ;; --- RTI ---
+      (#x40  ; RTI — dépile P, puis PC (lo hi), bit5 toujours 1
+       (setf (cpu-p cpu) (logior +flag-5+ (stack-pull cpu)))
+       (let* ((lo (stack-pull cpu))
+              (hi (stack-pull cpu)))
+         (setf (cpu-pc cpu) (logior lo (ash hi 8))))
+       (incf (cpu-cycles cpu) 6))
+
+      ;; --- Branches conditionnelles ---
+      ;; Offset relatif signé. Cycles : 2 si non pris, 3 si pris même page,
+      ;; 4 si pris et franchissement de page.
+      (#x90  ; BCC — branch if C=0
+       (let ((offset (fetch cpu)))
+         (incf (cpu-cycles cpu) 2)
+         (when (not (flag-c cpu))
+           (let* ((off (if (logbitp 7 offset) (- offset 256) offset))
+                  (new-pc (logand (+ (cpu-pc cpu) off) #xFFFF)))
+             (incf (cpu-cycles cpu)
+                   (if (/= (logand (cpu-pc cpu) #xFF00) (logand new-pc #xFF00)) 2 1))
+             (setf (cpu-pc cpu) new-pc)))))
+
+      (#xB0  ; BCS — branch if C=1
+       (let ((offset (fetch cpu)))
+         (incf (cpu-cycles cpu) 2)
+         (when (flag-c cpu)
+           (let* ((off (if (logbitp 7 offset) (- offset 256) offset))
+                  (new-pc (logand (+ (cpu-pc cpu) off) #xFFFF)))
+             (incf (cpu-cycles cpu)
+                   (if (/= (logand (cpu-pc cpu) #xFF00) (logand new-pc #xFF00)) 2 1))
+             (setf (cpu-pc cpu) new-pc)))))
+
+      (#xF0  ; BEQ — branch if Z=1
+       (let ((offset (fetch cpu)))
+         (incf (cpu-cycles cpu) 2)
+         (when (flag-z cpu)
+           (let* ((off (if (logbitp 7 offset) (- offset 256) offset))
+                  (new-pc (logand (+ (cpu-pc cpu) off) #xFFFF)))
+             (incf (cpu-cycles cpu)
+                   (if (/= (logand (cpu-pc cpu) #xFF00) (logand new-pc #xFF00)) 2 1))
+             (setf (cpu-pc cpu) new-pc)))))
+
+      (#xD0  ; BNE — branch if Z=0
+       (let ((offset (fetch cpu)))
+         (incf (cpu-cycles cpu) 2)
+         (when (not (flag-z cpu))
+           (let* ((off (if (logbitp 7 offset) (- offset 256) offset))
+                  (new-pc (logand (+ (cpu-pc cpu) off) #xFFFF)))
+             (incf (cpu-cycles cpu)
+                   (if (/= (logand (cpu-pc cpu) #xFF00) (logand new-pc #xFF00)) 2 1))
+             (setf (cpu-pc cpu) new-pc)))))
+
+      (#x30  ; BMI — branch if N=1
+       (let ((offset (fetch cpu)))
+         (incf (cpu-cycles cpu) 2)
+         (when (flag-n cpu)
+           (let* ((off (if (logbitp 7 offset) (- offset 256) offset))
+                  (new-pc (logand (+ (cpu-pc cpu) off) #xFFFF)))
+             (incf (cpu-cycles cpu)
+                   (if (/= (logand (cpu-pc cpu) #xFF00) (logand new-pc #xFF00)) 2 1))
+             (setf (cpu-pc cpu) new-pc)))))
+
+      (#x10  ; BPL — branch if N=0
+       (let ((offset (fetch cpu)))
+         (incf (cpu-cycles cpu) 2)
+         (when (not (flag-n cpu))
+           (let* ((off (if (logbitp 7 offset) (- offset 256) offset))
+                  (new-pc (logand (+ (cpu-pc cpu) off) #xFFFF)))
+             (incf (cpu-cycles cpu)
+                   (if (/= (logand (cpu-pc cpu) #xFF00) (logand new-pc #xFF00)) 2 1))
+             (setf (cpu-pc cpu) new-pc)))))
+
+      (#x50  ; BVC — branch if V=0
+       (let ((offset (fetch cpu)))
+         (incf (cpu-cycles cpu) 2)
+         (when (not (flag-v cpu))
+           (let* ((off (if (logbitp 7 offset) (- offset 256) offset))
+                  (new-pc (logand (+ (cpu-pc cpu) off) #xFFFF)))
+             (incf (cpu-cycles cpu)
+                   (if (/= (logand (cpu-pc cpu) #xFF00) (logand new-pc #xFF00)) 2 1))
+             (setf (cpu-pc cpu) new-pc)))))
+
+      (#x70  ; BVS — branch if V=1
+       (let ((offset (fetch cpu)))
+         (incf (cpu-cycles cpu) 2)
+         (when (flag-v cpu)
+           (let* ((off (if (logbitp 7 offset) (- offset 256) offset))
+                  (new-pc (logand (+ (cpu-pc cpu) off) #xFFFF)))
+             (incf (cpu-cycles cpu)
+                   (if (/= (logand (cpu-pc cpu) #xFF00) (logand new-pc #xFF00)) 2 1))
+             (setf (cpu-pc cpu) new-pc)))))
 
       ;; --- Opcode inconnu ---
       (t
