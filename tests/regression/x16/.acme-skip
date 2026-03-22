@@ -1,0 +1,16 @@
+# Fichiers à ignorer lors de la génération des références ACME.
+# Ces fichiers utilisent la syntaxe ca65 (.org, .byte, .word, etc.)
+# incompatible avec ACME sans conversion préalable via acme2clasm.
+
+# Syntaxe ca65 : .org, .byte, .word, .fill, .align
+01-basic-65c02
+02-branches
+03-x16-program
+04-directives-65c02
+05-x16-subroutines
+
+# Opérateur ^ (bank byte ca65) et labels locaux @ : pas d'équivalent ACME direct
+06-bank-byte-operator
+
+# Anonymous labels (:, :-, :+) et @-labels scopés : syntaxe ca65 uniquement
+07-anon-scoped-labels
