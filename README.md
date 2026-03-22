@@ -573,11 +573,20 @@ Target is auto-detected from the first lines of the source file:
 
 `.lasm` files are valid Common Lisp executed in a context where each
 mnemonic is a function. The full power of CL is available: `let`,
-`dotimes`, `loop`, `defun`, etc.
+`dotimes`, `loop`, `defun`, `defmacro`, etc.
+
+**Supported targets:** `:6502` (default) and `:45gs02` (Mega65).
+Support for `:65c02`, `:r65c02`, `:65816`, `:z80`, and `:m68k` is
+planned.
+
+> **Note on shadowed symbols:** the following CL standard names are
+> redefined as assembly instructions inside `.lasm` files: `fill`,
+> `bit`, `sec`, `and`, `map`. Use `cl:fill`, `cl:and`, etc. if you
+> need the original CL function.
 
 ### Usage
 
-```
+```lisp
 (ql:quickload "cl-asm")
 
 ;; Assemble from a string
@@ -607,21 +616,66 @@ Without keyword — mode inferred from value:
 
 With keyword — explicit mode:
 
+| Keyword | Mode | Example |
+|---------|------|---------|
+| `:imm` | Immediate | `(lda :imm #xFF)` → `LDA #$FF` |
+| `:x` | Indexed X | `(lda :x #x10)` → `LDA $10,X` |
+| `:y` | Indexed Y | `(lda :y #x1234)` → `LDA $1234,Y` |
+| `:z` | Indexed Z (45GS02) | `(lda :z #x10)` → `LDA $10,Z` |
+| `:ind` | Indirect | `(jmp :ind #xFFFC)` → `JMP ($FFFC)` |
+| `:ix` | Pre-indexed X | `(lda :ix #x00)` → `LDA ($00,X)` |
+| `:iy` | Post-indexed Y | `(lda :iy #xB0)` → `LDA ($B0),Y` |
+| `:iz` | Post-indexed Z (45GS02) | `(lda :iz #xB0)` → `LDA ($B0),Z` |
+| `:abs` | Forced absolute | `(lda :abs #x10)` → `LDA $0010` |
+| `:zp` | Forced zero-page | `(lda :zp #x100)` → `LDA $00` |
+| `:a` | Accumulator | `(lsr :a)` → `LSR A` |
+
+### Available directives
+
+| Directive | Description |
+|-----------|-------------|
+| `(org n)` | Set assembly origin |
+| `(label 'name)` | Place a local label |
+| `(global-label 'name)` | Place a global (exported) label |
+| `(equ 'name value)` | Define a constant: `(equ 'cols 40)` → `COLS = 40` |
+| `(db v …)` | Emit bytes (`.byte`) |
+| `(dw v …)` | Emit 16-bit words, little-endian (`.word`) |
+| `(dd v …)` | Emit 32-bit words, little-endian (`.dword`) |
+| `(text "str")` | Emit ASCII string without null terminator |
+| `(fill n [v])` | Emit `n` bytes of value `v` (default 0) |
+| `(align n [v])` | Align PC to boundary `n`, pad with `v` |
+| `(section :name)` | Switch to named section |
+| `(target :arch)` | Architecture hint for CLI (no-op at runtime) |
+
+### Helper macros
+
+| Macro | Description |
+|-------|-------------|
+| `(genlabel)` | Generate a unique anonymous label keyword |
+| `(with-label name &body)` | Place label `name`, then execute body |
+| `(lasm-if cond-fn t-label f-label &body)` | Emit a conditional if/else structure |
+
+`lasm-if` example:
+```lisp
+; Branch to generated end label if BEQ condition met
+(lasm-if (lambda (l) (beq l)) 'done 'skip
+  (lda :imm 0)
+  (sta #xD020))
 ```
-(lda :imm #xFF)   ; LDA #$FF  (immediate)
-(lda :x   #x10)   ; LDA $10,X (indexed X)
-(lda :y   #x1234) ; LDA $1234,Y (indexed Y)
-(lda :ind #xFFFC) ; JMP ($FFFC) (indirect)
-(lda :ix  #x00)   ; LDA ($00,X) (pre-indexed X)
-(lda :iy  #xB0)   ; LDA ($B0),Y (post-indexed Y)
-(lda :abs #x10)   ; LDA $0010  (forced absolute)
-(lda :zp  #x10)   ; LDA $10    (forced zero-page)
-(lsr :a)          ; LSR A      (accumulator)
-```
+
+### 45GS02-specific instructions
+
+When using `:target :45gs02`, additional mnemonics are available:
+
+- **Z register:** `ldz  stz  inz  dez  phz  plz  taz  tza`
+- **B register:** `tab  tba  tsy  tys`
+- **Q register (32-bit):** `ldq  stq  adcq  sbcq  andq  oraq  eorq  aslq  lsrq  rolq  rorq  asrq  bitq  cmpq`
+- **Long branches:** `lbcc  lbcs  lbeq  lbne  lbmi  lbpl  lbvc  lbvs`
+- **Misc:** `map  eom  neg  asr  inw  dew`
 
 ### Native Lisp examples
 
-```
+```lisp
 ; Local constant
 (let ((black 0))
   (lda :imm black)
@@ -632,13 +686,19 @@ With keyword — explicit mode:
   (lda :imm i)
   (sta (+ #xD800 i)))
 
-; Reusable function
+; Reusable subroutine
 (defun set-border (col)
   (lda :imm col)
   (sta #xD020))
 
 (set-border 0)
 (set-border 14)
+
+; Loop with anonymous label
+(let ((loop-lbl (genlabel)))
+  (label loop-lbl)
+  (dex)
+  (bne loop-lbl))
 ```
 
 ---

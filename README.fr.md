@@ -530,7 +530,20 @@ La cible est détectée automatiquement depuis les premières lignes du source :
 
 ## Frontend .lasm — syntaxe Lisp native
 
-```
+Les fichiers `.lasm` sont du Common Lisp valide exécuté dans un
+contexte où chaque mnémonique est une fonction. Toute la puissance de
+CL est accessible : `let`, `dotimes`, `loop`, `defun`, `defmacro`, etc.
+
+**Cibles supportées :** `:6502` (défaut) et `:45gs02` (Mega65).
+Le support de `:65c02`, `:r65c02`, `:65816`, `:z80` et `:m68k` est
+prévu.
+
+> **Symboles CL redéfinis :** les noms CL standard suivants sont
+> remplacés par des instructions assembleur dans les fichiers `.lasm` :
+> `fill`, `bit`, `sec`, `and`, `map`. Utilisez `cl:fill`, `cl:and`,
+> etc. si vous avez besoin de la fonction CL d'origine.
+
+```lisp
 (ql:quickload "cl-asm")
 
 (cl-asm/lasm:assemble-lasm-string
@@ -551,32 +564,93 @@ Sans keyword — mode déduit de la valeur :
 ```
 (lda #x10)        ; LDA $10   (zero-page, valeur ≤ 255)
 (lda #x1234)      ; LDA $1234 (absolu, valeur > 255)
-(lda 'screen)     ; LDA SCREEN (symbole)
+(lda 'screen)     ; LDA SCREEN (symbole, résolu à l'assemblage)
 ```
 
 Avec keyword — mode explicite :
 
+| Keyword | Mode | Exemple |
+|---------|------|---------|
+| `:imm` | Immédiat | `(lda :imm #xFF)` → `LDA #$FF` |
+| `:x` | Indexé X | `(lda :x #x10)` → `LDA $10,X` |
+| `:y` | Indexé Y | `(lda :y #x1234)` → `LDA $1234,Y` |
+| `:z` | Indexé Z (45GS02) | `(lda :z #x10)` → `LDA $10,Z` |
+| `:ind` | Indirect | `(jmp :ind #xFFFC)` → `JMP ($FFFC)` |
+| `:ix` | Pré-indexé X | `(lda :ix #x00)` → `LDA ($00,X)` |
+| `:iy` | Post-indexé Y | `(lda :iy #xB0)` → `LDA ($B0),Y` |
+| `:iz` | Post-indexé Z (45GS02) | `(lda :iz #xB0)` → `LDA ($B0),Z` |
+| `:abs` | Absolu forcé | `(lda :abs #x10)` → `LDA $0010` |
+| `:zp` | Zero-page forcée | `(lda :zp #x100)` → `LDA $00` |
+| `:a` | Accumulateur | `(lsr :a)` → `LSR A` |
+
+### Directives disponibles
+
+| Directive | Description |
+|-----------|-------------|
+| `(org n)` | Définit l'adresse d'origine |
+| `(label 'nom)` | Place un label local |
+| `(global-label 'nom)` | Place un label global (exporté) |
+| `(equ 'nom val)` | Définit une constante : `(equ 'cols 40)` → `COLS = 40` |
+| `(db v …)` | Émet des octets (`.byte`) |
+| `(dw v …)` | Émet des mots 16 bits, little-endian (`.word`) |
+| `(dd v …)` | Émet des mots 32 bits, little-endian (`.dword`) |
+| `(text "str")` | Émet une chaîne ASCII sans octet nul final |
+| `(fill n [v])` | Émet `n` octets de valeur `v` (défaut 0) |
+| `(align n [v])` | Aligne le PC sur `n`, rembourrage avec `v` |
+| `(section :nom)` | Change de section |
+| `(target :arch)` | Indication d'architecture pour le CLI (no-op à l'exécution) |
+
+### Macros d'aide
+
+| Macro | Description |
+|-------|-------------|
+| `(genlabel)` | Génère un keyword de label unique anonyme |
+| `(with-label nom &body)` | Place le label `nom`, puis exécute le corps |
+| `(lasm-if cond-fn t-lbl f-lbl &body)` | Émet une structure if/else conditionnelle |
+
+Exemple `lasm-if` :
+```lisp
+(lasm-if (lambda (l) (beq l)) 'done 'skip
+  (lda :imm 0)
+  (sta #xD020))
 ```
-(lda :imm #xFF)   ; LDA #$FF  (immédiat)
-(lda :x   #x10)   ; LDA $10,X (indexé X)
-(lda :ind #xFFFC) ; JMP ($FFFC) (indirect)
-(lda :ix  #x00)   ; LDA ($00,X)
-(lda :iy  #xB0)   ; LDA ($B0),Y
-(lda :abs #x10)   ; LDA $0010 (absolu forcé)
-(lda :zp  #x10)   ; LDA $10   (zero-page forcée)
-(lsr :a)          ; LSR A     (accumulateur)
-```
+
+### Instructions spécifiques 45GS02
+
+Avec `:target :45gs02`, les mnémoniques suivants sont disponibles :
+
+- **Registre Z :** `ldz  stz  inz  dez  phz  plz  taz  tza`
+- **Registre B :** `tab  tba  tsy  tys`
+- **Registre Q (32 bits) :** `ldq  stq  adcq  sbcq  andq  oraq  eorq  aslq  lsrq  rolq  rorq  asrq  bitq  cmpq`
+- **Branches longues :** `lbcc  lbcs  lbeq  lbne  lbmi  lbpl  lbvc  lbvs`
+- **Divers :** `map  eom  neg  asr  inw  dew`
 
 ### Exemples avec Lisp natif
 
-```
+```lisp
+; Constante locale
+(let ((black 0))
+  (lda :imm black)
+  (sta #xD020))
+
+; Génération de code avec dotimes
 (dotimes (i 8)
   (lda :imm i)
   (sta (+ #xD800 i)))
 
+; Sous-routine réutilisable
 (defun set-border (col)
   (lda :imm col)
   (sta #xD020))
+
+(set-border 0)
+(set-border 14)
+
+; Boucle avec label anonyme
+(let ((loop-lbl (genlabel)))
+  (label loop-lbl)
+  (dex)
+  (bne loop-lbl))
 ```
 
 ---

@@ -536,7 +536,15 @@ All extension words (immediates, displacements, addresses) follow the opcode wor
 ## Module `cl-asm/lasm`
 
 Native Lisp frontend. `.lasm` files are valid Common Lisp where each
-mnemonic is a function.
+mnemonic is a function and the full CL environment is available
+(`defun`, `defmacro`, `let`, `dotimes`, `loop`, etc.).
+
+**Supported targets:** `:6502` (default) and `:45gs02`. Support for
+`:65c02`, `:r65c02`, `:65816`, `:z80`, and `:m68k` is planned.
+
+**Shadowed CL symbols:** `fill`, `bit`, `sec`, `and`, `map` are
+redefined as assembly instructions inside the `cl-asm/lasm` package.
+Use `cl:fill`, `cl:and`, etc. to access the original CL definitions.
 
 ### Interface
 
@@ -549,23 +557,50 @@ mnemonic is a function.
 
 ### Addressing mode keywords
 
-| Keyword | Mode |
-|---|---|
-| `:imm` | Immediate |
-| `:x` `:y` `:z` | Indexed X/Y/Z |
-| `:ind` | Indirect |
-| `:ix` `:iy` `:iz` | Pre/post-indexed |
-| `:abs` | Forced absolute |
-| `:zp` | Forced zero-page |
-| `:a` | Accumulator |
+| Keyword | Mode | Notes |
+|---------|------|-------|
+| `:imm` | Immediate | |
+| `:x` | Indexed X | |
+| `:y` | Indexed Y | |
+| `:z` | Indexed Z | 45GS02 only |
+| `:ind` | Indirect | |
+| `:ix` | Pre-indexed X | |
+| `:iy` | Post-indexed Y | |
+| `:iz` | Post-indexed Z | 45GS02 only |
+| `:abs` | Forced absolute | |
+| `:zp` | Forced zero-page | |
+| `:a` | Accumulator | |
+
+Without keyword: value ≤ 255 → zero-page; > 255 or symbol → absolute.
 
 ### Available directives
 
 ```lisp
-(org n) (label 'x) (global-label 'x) (equ 'x n)
-(db ...) (dw n) (dd n) (fill n v) (text "...") (align n)
-(section :name) (target :45gs02)
+(org n)               ; set origin
+(label 'x)            ; local label
+(global-label 'x)     ; global (exported) label
+(equ 'x n)            ; constant definition
+(db v …)              ; emit bytes
+(dw v …)              ; emit 16-bit words (little-endian)
+(dd v …)              ; emit 32-bit words (little-endian)
+(text "str")          ; emit ASCII string (no null terminator)
+(fill n [v])          ; emit n bytes of value v (default 0)
+(align n [v])         ; align PC to boundary n
+(section :name)       ; switch section
+(target :arch)        ; CLI hint, no-op at runtime
 ```
+
+### Helper macros
+
+```lisp
+(genlabel)                              ; → unique anonymous label keyword
+(with-label name &body)                 ; place label, then emit body
+(lasm-if cond-fn t-label f-label &body) ; conditional if/else structure
+```
+
+`(target :arch)` is detected by the `cl-asm` script via `grep` before
+loading the file; it is a no-op at runtime and does not affect
+assembly.
 
 ---
 

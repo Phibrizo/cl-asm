@@ -540,6 +540,14 @@ qui s'exécute dans un contexte où chaque mnémonique est une fonction.
 Toute la puissance de CL est disponible : `let`, `dotimes`, `loop`,
 `defun`, `defmacro`, etc.
 
+**Cibles supportées :** `:6502` (défaut) et `:45gs02`. Le support de
+`:65c02`, `:r65c02`, `:65816`, `:z80` et `:m68k` est prévu.
+
+**Symboles CL redéfinis :** `fill`, `bit`, `sec`, `and`, `map` sont
+masqués par des instructions assembleur dans le package `cl-asm/lasm`.
+Utilisez `cl:fill`, `cl:and`, etc. pour accéder aux fonctions CL
+d'origine si nécessaire.
+
 ### Interface
 
 ```lisp
@@ -603,6 +611,19 @@ dans un REPL.
 (align 256)           ; .align
 (section :data)       ; .section
 ```
+
+### Macros d'aide
+
+```lisp
+(genlabel)                               ; → keyword de label anonyme unique
+(with-label nom &body)                   ; place le label nom, puis émet le corps
+(lasm-if cond-fn t-lbl f-lbl &body)     ; structure if/else conditionnelle
+```
+
+`(lasm-if cond-fn ...)` émet un label de fin généré automatiquement et
+appelle `cond-fn` avec ce label pour émettre la branche conditionnelle.
+`t-label` et `f-label` sont des paramètres de documentation, non utilisés
+à l'exécution dans la version actuelle.
 
 ### Mécanisme d'exécution
 
