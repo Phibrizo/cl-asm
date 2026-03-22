@@ -13,7 +13,7 @@
 ;;   - auto-operand : label comme opérande de branchement
 ;;   - génération de tables par Lisp pur (zéro instruction 68000 pour les données)
 ;;
-;; Assemblage : ./cl-asm examples/m68k-tables.lasm --target m68k
+;; Assemblage : ./cl-asm examples/m68k-tables.lasm
 ;; Cible      : Amiga / Atari ST / Mac 68k (bare metal)
 
 ;; --------------------------------------------------------------------------

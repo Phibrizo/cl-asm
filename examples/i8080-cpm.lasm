@@ -13,7 +13,7 @@
 ;;   - génération de chaînes CP/M par Lisp (format, map, append)
 ;;   - format nil pour créer du texte dynamique à l'assemblage
 ;;
-;; Assemblage : ./cl-asm examples/i8080-cpm.lasm --target i8080
+;; Assemblage : ./cl-asm examples/i8080-cpm.lasm
 ;; Exécution  : sous CP/M (emulateur ou vrai système)
 
 ;; --------------------------------------------------------------------------

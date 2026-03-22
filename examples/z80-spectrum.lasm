@@ -14,7 +14,7 @@
 ;;   - loop Lisp → instructions déroulées dans le binaire
 ;;   - DJNZ : boucle Z80 avec registre B comme compteur
 ;;
-;; Assemblage : ./cl-asm examples/z80-spectrum.lasm --target z80
+;; Assemblage : ./cl-asm examples/z80-spectrum.lasm
 ;; Chargement : LOAD "" CODE 32768 : RANDOMIZE USR 32768
 
 ;; --------------------------------------------------------------------------

@@ -7,6 +7,10 @@ Les fichiers `.lasm` utilisent la syntaxe Lisp native ; les `.asm` la syntaxe cl
 
 ## Fichiers `.lasm` — syntaxe Lisp native
 
+> **Assemblage simplifié :** chaque fichier `.lasm` commence par `(target :xyz)`.
+> Le script `cl-asm` lit les 10 premières lignes et détecte la cible automatiquement.
+> La commande `./cl-asm examples/fichier.lasm` suffit — `--target` est facultatif.
+
 ### `c64-hello.lasm` — Hello World Commodore 64 (6502)
 
 Affiche "HELLO, WORLD!" centré sur l'écran avec un arc-en-ciel de couleurs.
@@ -73,7 +77,7 @@ Affiche plusieurs lignes via RST $10 (PRINT_CHAR ROM), avec une table de sinus.
 - `sine-table` — table de sinus calculée à l'assemblage
 
 ```bash
-./cl-asm examples/z80-spectrum.lasm --target z80
+./cl-asm examples/z80-spectrum.lasm
 ```
 
 ---
@@ -92,7 +96,7 @@ Génère des tables mathématiques par Lisp, puis les traite avec une boucle 680
 - Tables de parité et nibble calculées en Lisp pur
 
 ```bash
-./cl-asm examples/m68k-tables.lasm --target m68k
+./cl-asm examples/m68k-tables.lasm
 ```
 
 ---
@@ -109,7 +113,7 @@ Appels BDOS 9 (print string) avec texte généré par `format` à l'assemblage.
 - `format nil` pour inclure des valeurs calculées dans les chaînes de données
 
 ```bash
-./cl-asm examples/i8080-cpm.lasm --target i8080
+./cl-asm examples/i8080-cpm.lasm
 ```
 
 ---
