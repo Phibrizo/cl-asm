@@ -350,6 +350,247 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Tests : load/store (LDA LDX LDY STA STX STY)
+;;; --------------------------------------------------------------------------
+
+;;; Helper : construit un CPU avec quelques octets pré-écrits en mémoire,
+;;; exécute un programme depuis l'origine et retourne le CPU.
+(defun run-with-mem (prog &key (origin #x0200) (mem-inits '()))
+  "Exécute PROG (vecteur) depuis ORIGIN dans un CPU frais.
+   MEM-INITS est une liste de (addr . val) pré-écrits avant l'exécution."
+  (let ((cpu (make-cpu)))
+    (dolist (m mem-inits)
+      (mem-write cpu (car m) (cdr m)))
+    (load-program cpu (concatenate 'vector prog #(#x00)) :origin origin)
+    (run-cpu cpu)
+    cpu))
+
+(deftest test/load-store
+  ;; --- LDA ---
+  (let ((cpu (make-cpu)))
+    (load-program cpu #(#xA9 #x42 #x00) :origin 0)  ; LDA #$42
+    (step-cpu cpu)
+    (check "LDA imm : A = $42"    (= #x42 (cpu-a cpu)))
+    (check "LDA imm : cycles = 2" (= 2    (cpu-cycles cpu))))
+  (let ((cpu (make-cpu)))
+    (load-program cpu #(#xA9 #x00 #x00) :origin 0)  ; LDA #$00
+    (step-cpu cpu)
+    (check "LDA imm : Z mis si 0" (flag-z cpu))
+    (check "LDA imm : N = 0"      (not (flag-n cpu))))
+  (let ((cpu (make-cpu)))
+    (load-program cpu #(#xA9 #x80 #x00) :origin 0)  ; LDA #$80
+    (step-cpu cpu)
+    (check "LDA imm : N mis si $80" (flag-n cpu)))
+
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x10 #xBE)
+    (load-program cpu #(#xA5 #x10 #x00) :origin 0)  ; LDA $10
+    (step-cpu cpu)
+    (check "LDA zp : A = $BE"    (= #xBE (cpu-a cpu)))
+    (check "LDA zp : cycles = 3" (= 3    (cpu-cycles cpu))))
+  ;; LDA zp,X — test direct avec step-cpu
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x12 #xCD)
+    (setf (cpu-x cpu) 2)
+    (load-program cpu #(#xB5 #x10 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "LDA zp,X : A = $CD"    (= #xCD (cpu-a cpu)))
+    (check "LDA zp,X : cycles = 4" (= 4    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))                          ; LDA $0300
+    (mem-write cpu #x0300 #x55)
+    (load-program cpu #(#xAD #x00 #x03 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "LDA abs : A = $55"    (= #x55 (cpu-a cpu)))
+    (check "LDA abs : cycles = 4" (= 4    (cpu-cycles cpu))))
+
+  ;; LDA abs,X — même page (4 cycles)
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x0302 #x77)
+    (setf (cpu-x cpu) 2)
+    (load-program cpu #(#xBD #x00 #x03 #x00) :origin 0)  ; LDA $0300,X
+    (step-cpu cpu)
+    (check "LDA abs,X même page : A = $77"    (= #x77 (cpu-a cpu)))
+    (check "LDA abs,X même page : cycles = 4" (= 4    (cpu-cycles cpu))))
+
+  ;; LDA abs,X — franchissement de page (5 cycles)
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x0100 #x99)
+    (setf (cpu-x cpu) #x01)
+    (load-program cpu #(#xBD #xFF #x00 #x00) :origin 0)  ; LDA $00FF,X → $0100
+    (step-cpu cpu)
+    (check "LDA abs,X cross-page : A = $99"    (= #x99 (cpu-a cpu)))
+    (check "LDA abs,X cross-page : cycles = 5" (= 5    (cpu-cycles cpu))))
+
+  ;; LDA abs,Y
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x0305 #xAA)
+    (setf (cpu-y cpu) 5)
+    (load-program cpu #(#xB9 #x00 #x03 #x00) :origin 0)  ; LDA $0300,Y
+    (step-cpu cpu)
+    (check "LDA abs,Y : A = $AA" (= #xAA (cpu-a cpu))))
+
+  ;; LDA (ind,X)
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x24 #x00)  ; vecteur à $24/$25 = $0300
+    (mem-write cpu #x25 #x03)
+    (mem-write cpu #x0300 #xDE)
+    (setf (cpu-x cpu) 4)
+    (load-program cpu #(#xA1 #x20 #x00) :origin 0)  ; LDA ($20,X)
+    (step-cpu cpu)
+    (check "LDA (ind,X) : A = $DE"    (= #xDE (cpu-a cpu)))
+    (check "LDA (ind,X) : cycles = 6" (= 6    (cpu-cycles cpu))))
+
+  ;; LDA (ind),Y
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x30 #x00)  ; vecteur à $30/$31 = $0400
+    (mem-write cpu #x31 #x04)
+    (mem-write cpu #x0403 #xEF)
+    (setf (cpu-y cpu) 3)
+    (load-program cpu #(#xB1 #x30 #x00) :origin 0)  ; LDA ($30),Y
+    (step-cpu cpu)
+    (check "LDA (ind),Y : A = $EF"    (= #xEF (cpu-a cpu)))
+    (check "LDA (ind),Y : cycles = 5" (= 5    (cpu-cycles cpu))))
+
+  ;; --- LDX ---
+  (let ((cpu (make-cpu)))
+    (load-program cpu #(#xA2 #x37 #x00) :origin 0)  ; LDX #$37
+    (step-cpu cpu)
+    (check "LDX imm : X = $37"    (= #x37 (cpu-x cpu)))
+    (check "LDX imm : cycles = 2" (= 2    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x20 #x11)
+    (load-program cpu #(#xA6 #x20 #x00) :origin 0)  ; LDX $20
+    (step-cpu cpu)
+    (check "LDX zp : X = $11"    (= #x11 (cpu-x cpu)))
+    (check "LDX zp : cycles = 3" (= 3    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x22 #x33)
+    (setf (cpu-y cpu) 2)
+    (load-program cpu #(#xB6 #x20 #x00) :origin 0)  ; LDX $20,Y
+    (step-cpu cpu)
+    (check "LDX zp,Y : X = $33"    (= #x33 (cpu-x cpu)))
+    (check "LDX zp,Y : cycles = 4" (= 4    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x0400 #x66)
+    (load-program cpu #(#xAE #x00 #x04 #x00) :origin 0)  ; LDX $0400
+    (step-cpu cpu)
+    (check "LDX abs : X = $66" (= #x66 (cpu-x cpu))))
+
+  ;; --- LDY ---
+  (let ((cpu (make-cpu)))
+    (load-program cpu #(#xA0 #x0A #x00) :origin 0)  ; LDY #$0A
+    (step-cpu cpu)
+    (check "LDY imm : Y = $0A"    (= #x0A (cpu-y cpu)))
+    (check "LDY imm : cycles = 2" (= 2    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x50 #x7F)
+    (load-program cpu #(#xA4 #x50 #x00) :origin 0)  ; LDY $50
+    (step-cpu cpu)
+    (check "LDY zp : Y = $7F" (= #x7F (cpu-y cpu))))
+
+  ;; --- STA ---
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #xAB)
+    (load-program cpu #(#x85 #x40 #x00) :origin 0)  ; STA $40
+    (step-cpu cpu)
+    (check "STA zp : mem[$40] = $AB" (= #xAB (mem-read cpu #x40)))
+    (check "STA zp : cycles = 3"     (= 3    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #xCD (cpu-x cpu) 1)
+    (load-program cpu #(#x95 #x40 #x00) :origin 0)  ; STA $40,X
+    (step-cpu cpu)
+    (check "STA zp,X : mem[$41] = $CD" (= #xCD (mem-read cpu #x41)))
+    (check "STA zp,X : cycles = 4"     (= 4    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #xEF)
+    (load-program cpu #(#x8D #x00 #x05 #x00) :origin 0)  ; STA $0500
+    (step-cpu cpu)
+    (check "STA abs : mem[$0500] = $EF" (= #xEF (mem-read cpu #x0500)))
+    (check "STA abs : cycles = 4"       (= 4    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #x12 (cpu-x cpu) 3)
+    (load-program cpu #(#x9D #x00 #x05 #x00) :origin 0)  ; STA $0500,X
+    (step-cpu cpu)
+    (check "STA abs,X : mem[$0503] = $12" (= #x12 (mem-read cpu #x0503)))
+    (check "STA abs,X : cycles = 5"       (= 5    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #x34 (cpu-y cpu) 2)
+    (load-program cpu #(#x99 #x00 #x05 #x00) :origin 0)  ; STA $0500,Y
+    (step-cpu cpu)
+    (check "STA abs,Y : mem[$0502] = $34" (= #x34 (mem-read cpu #x0502)))
+    (check "STA abs,Y : cycles = 5"       (= 5    (cpu-cycles cpu))))
+
+  ;; STA (ind,X)
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x44 #x00)  ; vecteur $44/$45 = $0600
+    (mem-write cpu #x45 #x06)
+    (setf (cpu-a cpu) #x56 (cpu-x cpu) 4)
+    (load-program cpu #(#x81 #x40 #x00) :origin 0)  ; STA ($40,X)
+    (step-cpu cpu)
+    (check "STA (ind,X) : mem[$0600] = $56" (= #x56 (mem-read cpu #x0600)))
+    (check "STA (ind,X) : cycles = 6"       (= 6    (cpu-cycles cpu))))
+
+  ;; STA (ind),Y
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x60 #x00)  ; vecteur $60/$61 = $0700
+    (mem-write cpu #x61 #x07)
+    (setf (cpu-a cpu) #x78 (cpu-y cpu) 5)
+    (load-program cpu #(#x91 #x60 #x00) :origin 0)  ; STA ($60),Y
+    (step-cpu cpu)
+    (check "STA (ind),Y : mem[$0705] = $78" (= #x78 (mem-read cpu #x0705)))
+    (check "STA (ind),Y : cycles = 6"       (= 6    (cpu-cycles cpu))))
+
+  ;; --- STX ---
+  (let ((cpu (make-cpu)))
+    (setf (cpu-x cpu) #x9A)
+    (load-program cpu #(#x86 #x70 #x00) :origin 0)  ; STX $70
+    (step-cpu cpu)
+    (check "STX zp : mem[$70] = $9A" (= #x9A (mem-read cpu #x70)))
+    (check "STX zp : cycles = 3"     (= 3    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (setf (cpu-x cpu) #xBC (cpu-y cpu) 2)
+    (load-program cpu #(#x96 #x70 #x00) :origin 0)  ; STX $70,Y
+    (step-cpu cpu)
+    (check "STX zp,Y : mem[$72] = $BC" (= #xBC (mem-read cpu #x72))))
+
+  (let ((cpu (make-cpu)))
+    (setf (cpu-x cpu) #xDE)
+    (load-program cpu #(#x8E #x00 #x08 #x00) :origin 0)  ; STX $0800
+    (step-cpu cpu)
+    (check "STX abs : mem[$0800] = $DE" (= #xDE (mem-read cpu #x0800))))
+
+  ;; --- STY ---
+  (let ((cpu (make-cpu)))
+    (setf (cpu-y cpu) #xF0)
+    (load-program cpu #(#x84 #x80 #x00) :origin 0)  ; STY $80
+    (step-cpu cpu)
+    (check "STY zp : mem[$80] = $F0" (= #xF0 (mem-read cpu #x80)))
+    (check "STY zp : cycles = 3"     (= 3    (cpu-cycles cpu))))
+
+  (let ((cpu (make-cpu)))
+    (setf (cpu-y cpu) #x0F (cpu-x cpu) 1)
+    (load-program cpu #(#x94 #x80 #x00) :origin 0)  ; STY $80,X
+    (step-cpu cpu)
+    (check "STY zp,X : mem[$81] = $0F" (= #x0F (mem-read cpu #x81))))
+
+  (let ((cpu (make-cpu)))
+    (setf (cpu-y cpu) #x1E)
+    (load-program cpu #(#x8C #x00 #x09 #x00) :origin 0)  ; STY $0900
+    (step-cpu cpu)
+    (check "STY abs : mem[$0900] = $1E" (= #x1E (mem-read cpu #x0900)))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Point d'entrée
 ;;; --------------------------------------------------------------------------
 
@@ -367,6 +608,7 @@
   (test/inc-dec)
   (test/flag-instructions)
   (test/run-cpu)
+  (test/load-store)
   (format t "~&~%=== sim-6502     : ~D OK, ~D KO sur ~D tests~%"
           *pass* *fail* (+ *pass* *fail*))
   (when *failures*

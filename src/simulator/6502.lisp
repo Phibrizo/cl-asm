@@ -246,6 +246,78 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Fetch — lecture d'opérandes au PC courant
+;;; --------------------------------------------------------------------------
+
+(declaim (inline fetch fetch16))
+
+(defun fetch (cpu)
+  "Lit l'octet au PC courant et avance PC d'un."
+  (let ((b (mem-read cpu (cpu-pc cpu))))
+    (setf (cpu-pc cpu) (logand (1+ (cpu-pc cpu)) #xFFFF))
+    b))
+
+(defun fetch16 (cpu)
+  "Lit un mot 16 bits little-endian au PC courant et avance PC de deux."
+  (let ((lo (fetch cpu))
+        (hi (fetch cpu)))
+    (logior lo (ash hi 8))))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Modes d'adressage — calcul d'adresse effective
+;;;
+;;;  Les fonctions *-cross renvoient (values addr crossed-p) pour que
+;;;  step-cpu puisse appliquer le cycle +1 sur franchissement de page.
+;;; --------------------------------------------------------------------------
+
+(declaim (inline addr-zp addr-zpx addr-zpy addr-abs
+                 addr-absx* addr-absy* addr-indx addr-indy*))
+
+(defun addr-zp (cpu)
+  "Zéro-page : $nn"
+  (fetch cpu))
+
+(defun addr-zpx (cpu)
+  "Zéro-page indexé X : ($nn + X) mod 256"
+  (logand (+ (fetch cpu) (cpu-x cpu)) #xFF))
+
+(defun addr-zpy (cpu)
+  "Zéro-page indexé Y : ($nn + Y) mod 256"
+  (logand (+ (fetch cpu) (cpu-y cpu)) #xFF))
+
+(defun addr-abs (cpu)
+  "Absolu : $nnnn"
+  (fetch16 cpu))
+
+(defun addr-absx* (cpu)
+  "Absolu indexé X. Retourne (values addr page-crossed-p)."
+  (let* ((base (fetch16 cpu))
+         (addr (logand (+ base (cpu-x cpu)) #xFFFF)))
+    (values addr (/= (logand base #xFF00) (logand addr #xFF00)))))
+
+(defun addr-absy* (cpu)
+  "Absolu indexé Y. Retourne (values addr page-crossed-p)."
+  (let* ((base (fetch16 cpu))
+         (addr (logand (+ base (cpu-y cpu)) #xFFFF)))
+    (values addr (/= (logand base #xFF00) (logand addr #xFF00)))))
+
+(defun addr-indx (cpu)
+  "Indirect indexé X : ($nn + X) — lit l'adresse en zéro-page."
+  (let ((zp (logand (+ (fetch cpu) (cpu-x cpu)) #xFF)))
+    (logior (mem-read cpu zp)
+            (ash (mem-read cpu (logand (1+ zp) #xFF)) 8))))
+
+(defun addr-indy* (cpu)
+  "Indirect indexé Y : ($nn),Y. Retourne (values addr page-crossed-p)."
+  (let* ((zp   (fetch cpu))
+         (base (logior (mem-read cpu zp)
+                       (ash (mem-read cpu (logand (1+ zp) #xFF)) 8)))
+         (addr (logand (+ base (cpu-y cpu)) #xFFFF)))
+    (values addr (/= (logand base #xFF00) (logand addr #xFF00)))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Exécution — step-cpu
 ;;;
 ;;;  Étape 1 : instructions implicites uniquement (1 octet, sans opérande).
@@ -372,6 +444,159 @@
       (#xB8 (set-flag cpu +flag-v+ nil) (incf (cpu-cycles cpu) 2))  ; CLV
       (#xD8 (set-flag cpu +flag-d+ nil) (incf (cpu-cycles cpu) 2))  ; CLD
       (#xF8 (set-flag cpu +flag-d+ t)   (incf (cpu-cycles cpu) 2))  ; SED
+
+      ;; --- LDA ---
+      (#xA9  ; LDA imm
+       (setf (cpu-a cpu) (fetch cpu))
+       (update-nz cpu (cpu-a cpu))
+       (incf (cpu-cycles cpu) 2))
+
+      (#xA5  ; LDA zp
+       (setf (cpu-a cpu) (mem-read cpu (addr-zp cpu)))
+       (update-nz cpu (cpu-a cpu))
+       (incf (cpu-cycles cpu) 3))
+
+      (#xB5  ; LDA zp,X
+       (setf (cpu-a cpu) (mem-read cpu (addr-zpx cpu)))
+       (update-nz cpu (cpu-a cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#xAD  ; LDA abs
+       (setf (cpu-a cpu) (mem-read cpu (addr-abs cpu)))
+       (update-nz cpu (cpu-a cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#xBD  ; LDA abs,X
+       (multiple-value-bind (addr cross) (addr-absx* cpu)
+         (setf (cpu-a cpu) (mem-read cpu addr))
+         (update-nz cpu (cpu-a cpu))
+         (incf (cpu-cycles cpu) (if cross 5 4))))
+
+      (#xB9  ; LDA abs,Y
+       (multiple-value-bind (addr cross) (addr-absy* cpu)
+         (setf (cpu-a cpu) (mem-read cpu addr))
+         (update-nz cpu (cpu-a cpu))
+         (incf (cpu-cycles cpu) (if cross 5 4))))
+
+      (#xA1  ; LDA (ind,X)
+       (setf (cpu-a cpu) (mem-read cpu (addr-indx cpu)))
+       (update-nz cpu (cpu-a cpu))
+       (incf (cpu-cycles cpu) 6))
+
+      (#xB1  ; LDA (ind),Y
+       (multiple-value-bind (addr cross) (addr-indy* cpu)
+         (setf (cpu-a cpu) (mem-read cpu addr))
+         (update-nz cpu (cpu-a cpu))
+         (incf (cpu-cycles cpu) (if cross 6 5))))
+
+      ;; --- LDX ---
+      (#xA2  ; LDX imm
+       (setf (cpu-x cpu) (fetch cpu))
+       (update-nz cpu (cpu-x cpu))
+       (incf (cpu-cycles cpu) 2))
+
+      (#xA6  ; LDX zp
+       (setf (cpu-x cpu) (mem-read cpu (addr-zp cpu)))
+       (update-nz cpu (cpu-x cpu))
+       (incf (cpu-cycles cpu) 3))
+
+      (#xB6  ; LDX zp,Y
+       (setf (cpu-x cpu) (mem-read cpu (addr-zpy cpu)))
+       (update-nz cpu (cpu-x cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#xAE  ; LDX abs
+       (setf (cpu-x cpu) (mem-read cpu (addr-abs cpu)))
+       (update-nz cpu (cpu-x cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#xBE  ; LDX abs,Y
+       (multiple-value-bind (addr cross) (addr-absy* cpu)
+         (setf (cpu-x cpu) (mem-read cpu addr))
+         (update-nz cpu (cpu-x cpu))
+         (incf (cpu-cycles cpu) (if cross 5 4))))
+
+      ;; --- LDY ---
+      (#xA0  ; LDY imm
+       (setf (cpu-y cpu) (fetch cpu))
+       (update-nz cpu (cpu-y cpu))
+       (incf (cpu-cycles cpu) 2))
+
+      (#xA4  ; LDY zp
+       (setf (cpu-y cpu) (mem-read cpu (addr-zp cpu)))
+       (update-nz cpu (cpu-y cpu))
+       (incf (cpu-cycles cpu) 3))
+
+      (#xB4  ; LDY zp,X
+       (setf (cpu-y cpu) (mem-read cpu (addr-zpx cpu)))
+       (update-nz cpu (cpu-y cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#xAC  ; LDY abs
+       (setf (cpu-y cpu) (mem-read cpu (addr-abs cpu)))
+       (update-nz cpu (cpu-y cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#xBC  ; LDY abs,X
+       (multiple-value-bind (addr cross) (addr-absx* cpu)
+         (setf (cpu-y cpu) (mem-read cpu addr))
+         (update-nz cpu (cpu-y cpu))
+         (incf (cpu-cycles cpu) (if cross 5 4))))
+
+      ;; --- STA ---
+      (#x85  ; STA zp
+       (mem-write cpu (addr-zp cpu) (cpu-a cpu))
+       (incf (cpu-cycles cpu) 3))
+
+      (#x95  ; STA zp,X
+       (mem-write cpu (addr-zpx cpu) (cpu-a cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#x8D  ; STA abs
+       (mem-write cpu (addr-abs cpu) (cpu-a cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#x9D  ; STA abs,X  (toujours 5 cycles — pas de bonus page)
+       (mem-write cpu (nth-value 0 (addr-absx* cpu)) (cpu-a cpu))
+       (incf (cpu-cycles cpu) 5))
+
+      (#x99  ; STA abs,Y  (toujours 5 cycles)
+       (mem-write cpu (nth-value 0 (addr-absy* cpu)) (cpu-a cpu))
+       (incf (cpu-cycles cpu) 5))
+
+      (#x81  ; STA (ind,X)
+       (mem-write cpu (addr-indx cpu) (cpu-a cpu))
+       (incf (cpu-cycles cpu) 6))
+
+      (#x91  ; STA (ind),Y  (toujours 6 cycles)
+       (mem-write cpu (nth-value 0 (addr-indy* cpu)) (cpu-a cpu))
+       (incf (cpu-cycles cpu) 6))
+
+      ;; --- STX ---
+      (#x86  ; STX zp
+       (mem-write cpu (addr-zp cpu) (cpu-x cpu))
+       (incf (cpu-cycles cpu) 3))
+
+      (#x96  ; STX zp,Y
+       (mem-write cpu (addr-zpy cpu) (cpu-x cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#x8E  ; STX abs
+       (mem-write cpu (addr-abs cpu) (cpu-x cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      ;; --- STY ---
+      (#x84  ; STY zp
+       (mem-write cpu (addr-zp cpu) (cpu-y cpu))
+       (incf (cpu-cycles cpu) 3))
+
+      (#x94  ; STY zp,X
+       (mem-write cpu (addr-zpx cpu) (cpu-y cpu))
+       (incf (cpu-cycles cpu) 4))
+
+      (#x8C  ; STY abs
+       (mem-write cpu (addr-abs cpu) (cpu-y cpu))
+       (incf (cpu-cycles cpu) 4))
 
       ;; --- Opcode inconnu ---
       (t
