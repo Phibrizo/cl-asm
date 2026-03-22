@@ -505,6 +505,17 @@
              (lc-advance ctx)
              (lc-emit ctx :percent nil loc))
 
+            ;; Directives ACME style : !to !cpu !byte !pet !text !fill !word ...
+            ;; Le '!' est inclus dans le nom pour distinguer de '.byte' etc.
+            ((char= ch #\!)
+             (lc-advance ctx)
+             (let ((buf (make-array 16 :element-type 'character
+                                       :fill-pointer 0 :adjustable t)))
+               (vector-push-extend #\! buf)
+               (loop while (ident-cont-p (lc-current ctx))
+                     do (vector-push-extend (lc-advance ctx) buf))
+               (lc-emit ctx :identifier (coerce buf 'string) loc)))
+
             ;; Caractère inconnu
             (t
              (lexer-error loc "Caractère inattendu : ~S (code ~D)"

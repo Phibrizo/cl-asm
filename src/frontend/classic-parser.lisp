@@ -461,17 +461,21 @@
               :test #'string=)))
 
 (defun directive-p (name)
-  "Vrai si NAME (string) est une directive (style .xxx ou synonyme Motorola)."
+  "Vrai si NAME (string) est une directive (style .xxx, synonyme Motorola, ou ACME !xxx)."
   (or (member (string-downcase name) *directive-names* :test #'string=)
-      (motorola-directive-alias name)))
+      (motorola-directive-alias name)
+      ;; ACME : !byte !pet !text !fill !word !to !cpu ...
+      (and (> (length name) 1) (char= (char name 0) #\!))))
 
 (defparameter *directive-aliases*
   '((:res . :fill))
   "Alias de directives : :res → :fill, etc.")
 
 (defun directive-keyword (name)
-  "Convertit \".byte\" -> :byte, \"DC.B\" -> :byte, \".res\" -> :fill, etc."
+  "Convertit \".byte\" -> :byte, \"DC.B\" -> :byte, \".res\" -> :fill,
+   \"!byte\" -> :byte, \"!pet\" -> :byte, \"!to\" -> :to, etc."
   (let* ((alias  (motorola-directive-alias name))
+         ;; Strip le premier caractère ('.' ou '!')
          (kw     (or alias (intern (string-upcase (subseq name 1)) :keyword)))
          (mapped (cdr (assoc kw *directive-aliases*))))
     (or mapped kw)))
@@ -897,6 +901,12 @@
            ;; Directive : .byte .word .org ... ou .macro / .if
            ((directive-p name)
             (cond
+              ;; Directives ACME ignorées (consomment toute la ligne)
+              ;; !to "file",cbm — nom de fichier de sortie (ignoré)
+              ;; !cpu 65c02     — sélection de CPU (ignoré, cible fixée par cl-asm)
+              ((or (string-equal name "!to") (string-equal name "!cpu"))
+               (skip-to-newline ctx)
+               (return-from parse-line t))
               ;; .macro — définition de macro
               ((string-equal name ".macro")
                (let ((mname (if (eq (pc-kind ctx) :identifier)
@@ -1000,6 +1010,19 @@
        (unless (member (pc-kind ctx) '(:newline :eof))
          (parse-line ctx)
          (return-from parse-line t)))
+
+      ;; ACME org : *=ADDR (compteur de position)
+      ((eq (pc-kind ctx) :star)
+       (pc-advance ctx)
+       (if (eq (pc-kind ctx) :equals)
+           (progn
+             (pc-advance ctx)
+             (emit-node ctx
+                        (cl-asm/ir:make-ir-directive
+                         :name :org
+                         :args (list (parse-expr ctx))
+                         :loc loc)))
+           (parser-error ctx "Signe '=' attendu après '*' (directive org ACME)")))
 
       ;; Token inattendu
       (t

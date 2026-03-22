@@ -493,7 +493,7 @@
              (cl-asm/symbol-table:define-constant
               symtable sym-name val)))
          pc))
-      (:byte
+      ((:byte :pet)
        (+ pc (reduce #'+ args
                      :key (lambda (a) (if (stringp a) (length a) 1))
                      :initial-value 0)))
@@ -518,6 +518,21 @@
              pc
              (+ pc (- val (mod pc val))))))
       (otherwise pc))))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Conversion ASCII → PETSCII (pour la directive ACME !PET)
+;;; --------------------------------------------------------------------------
+
+(defun ascii-to-petscii (code)
+  "Convertit un code ASCII en PETSCII, comme ACME !PET :
+   a-z (0x61-0x7A) → A-Z PETSCII (0x41-0x5A, soustrait 0x20)
+   A-Z (0x41-0x5A) → shifted PETSCII (0xC1-0xDA, ajoute 0x80)
+   Tout autre code → inchangé."
+  (cond
+    ((and (>= code #x61) (<= code #x7A)) (- code #x20))
+    ((and (>= code #x41) (<= code #x5A)) (+ code #x80))
+    (t code)))
 
 
 ;;; --------------------------------------------------------------------------
@@ -580,6 +595,18 @@
                (if ok
                    (vector-push-extend (logand val #xFF) result)
                    (vector-push-extend 0 result))
+               (incf pc))))
+       pc)
+      ;; !PET (ACME) : comme .byte mais avec conversion ASCII→PETSCII pour les chaînes
+      (:pet
+       (dolist (arg args)
+         (if (stringp arg)
+             (loop for c across arg
+                   do (vector-push-extend (ascii-to-petscii (char-code c)) result)
+                      (incf pc))
+             (multiple-value-bind (val ok)
+                 (cl-asm/expression:eval-expr arg env)
+               (vector-push-extend (logand (if ok val 0) #xFF) result)
                (incf pc))))
        pc)
       (:word

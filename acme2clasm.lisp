@@ -175,27 +175,50 @@
 ;;; Conversion PETSCII
 ;;; --------------------------------------------------------------------------
 
-(defun pet-string-to-bytes (s)
-  "Convertit le contenu d'un !pet \"...\" en liste d'octets décimaux."
+(defun ascii-to-petscii (code)
+  "Conversion ASCII → PETSCII (identique à celle du backend cl-asm) :
+   a-z (0x61-0x7A) → 0x41-0x5A (majuscules PETSCII, soustrait 0x20)
+   A-Z (0x41-0x5A) → 0xC1-0xDA (shifted PETSCII, ajoute 0x80)
+   Autres codes    → inchangés."
+  (cond
+    ((and (>= code #x61) (<= code #x7A)) (- code #x20))
+    ((and (>= code #x41) (<= code #x5A)) (+ code #x80))
+    (t code)))
+
+(defun parse-pet-args (rest)
+  "Parse une liste d'arguments !PET (strings PETSCII + valeurs numériques).
+   Gère les formes mixtes : \"str\",13,0  ou  147,\"str\",13,0
+   Retourne une liste de strings représentant les valeurs ($XX ou expression)."
   (let ((result '())
         (i 0)
-        (len (length s)))
+        (len (length rest)))
     (loop while (< i len) do
-      (let ((ch (char s i)))
+      (let ((ch (char rest i)))
         (cond
-          ((and (char= ch #\\) (< (1+ i) len))
-           (let ((nxt (char s (1+ i))))
-             (cond
-               ((char= nxt #\n)  (push #x0D result) (incf i 2))
-               ((char= nxt #\t)  (push #x09 result) (incf i 2))
-               ((char= nxt #\\) (push (char-code #\\) result) (incf i 2))
-               ((char= nxt #\") (push (char-code #\") result) (incf i 2))
-               ((and (char= nxt #\x) (< (+ i 3) len))
-                (push (parse-integer s :start (+ i 2) :end (+ i 4) :radix 16)
-                      result)
-                (incf i 4))
-               (t (push (char-code ch) result) (incf i)))))
-          (t (push (char-code ch) result) (incf i)))))
+          ;; Commentaire → stop
+          ((char= ch #\;) (return))
+          ;; Chaîne entre guillemets → conversion PETSCII char par char
+          ((char= ch #\")
+           (incf i)
+           (loop while (and (< i len) (not (char= (char rest i) #\"))) do
+             (push (format nil "$~2,'0X"
+                           (ascii-to-petscii (char-code (char rest i))))
+                   result)
+             (incf i))
+           (when (< i len) (incf i)))        ; skip guillemet fermant
+          ;; Virgule ou espace → séparateur, ignorer
+          ((or (char= ch #\,) (member ch '(#\Space #\Tab)))
+           (incf i))
+          ;; Valeur numérique ou expression → conserver telle quelle
+          (t
+           (let ((end (loop for j from i below len
+                            when (member (char rest j) '(#\, #\; #\"))
+                            return j
+                            finally (return len))))
+             (let ((token (trim (subseq rest i end))))
+               (unless (string= token "")
+                 (push token result)))
+             (setf i end))))))
     (nreverse result)))
 
 ;;; --------------------------------------------------------------------------
@@ -344,26 +367,17 @@
     ;; ------------------------------------------------------------------
     (when (match-directive (string-upcase stripped) "!PET")
       (let* ((rest (after-directive stripped "!pet"))
-             (q1 (position #\" rest))
-             (q2 (and q1 (position #\" rest :start (1+ q1)))))
-        (if (and q1 q2)
-            (let* ((content (subseq rest (1+ q1) q2))
-                   (codes (handler-case (pet-string-to-bytes content)
-                            (error () nil))))
-              (if codes
-                  (return-from convert-line
-                    (format nil "~A.byte ~A ; [acme2clasm] !pet \"~A\""
-                            indent
-                            (format nil "~{$~2,'0X~^, ~}" codes)
-                            content))
-                  (progn
-                    (conv-warn conv lineno
-                               (format nil (msg "!pet : conversion impossible de \"~A\""
-                                                "!pet: cannot convert \"~A\"") content))
-                    (return-from convert-line
-                      (format nil "~A; TODO !pet \"~A\"" indent content)))))
+             (args (parse-pet-args rest)))
+        (if args
             (return-from convert-line
-              (format nil "~A; TODO [acme2clasm] !pet ~A" indent rest)))))
+              (format nil "~A.byte ~A" indent
+                      (format nil "~{~A~^, ~}" args)))
+            (progn
+              (conv-warn conv lineno
+                         (msg "!pet : aucun argument reconnu"
+                              "!pet: no arguments recognized"))
+              (return-from convert-line
+                (format nil "~A; TODO [acme2clasm] !pet ~A" indent rest))))))
 
     ;; ------------------------------------------------------------------
     ;; !fill

@@ -217,6 +217,51 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Test : syntaxe ACME (!to ignoré, !cpu ignoré, *=addr, !BYTE, !PET)
+;;; --------------------------------------------------------------------------
+
+(deftest test/acme-syntax
+  (let* ((src "!to \"out.prg\",cbm
+               !cpu 65c02
+               *=$0801
+               !BYTE $0B,$08,$0A,$00,$9E,$32,$30,$36,$31,$00,$00,$00
+               start:
+               LDA #$00
+               STA $9F20
+               RTS
+               raw_data:
+               !BYTE $61,$62,$63,0
+               pet_lower:
+               !PET \"abc\",13,0
+               pet_upper:
+               !PET \"ABC\",0")
+         (bytes (asm src :origin #x0801)))
+    ;; Taille totale : 31 octets bruts
+    (check "taille totale 31"          (= (length bytes) 31))
+    ;; *=$0801 → .org reconnu, stub BASIC en tête
+    (check "stub[0] = $0B"             (= #x0B (aref bytes 0)))
+    ;; LDA #$00 à l'offset 12
+    (check "LDA #$00 opcode"           (= #xA9 (aref bytes 12)))
+    (check "LDA #$00 operande"         (= #x00 (aref bytes 13)))
+    ;; !BYTE $61,$62,$63,0 → valeurs brutes (offset 18-21)
+    (check "!BYTE $61 = 61"            (= #x61 (aref bytes 18)))
+    (check "!BYTE $62 = 62"            (= #x62 (aref bytes 19)))
+    (check "!BYTE $63 = 63"            (= #x63 (aref bytes 20)))
+    (check "!BYTE 0   = 00"            (= #x00 (aref bytes 21)))
+    ;; !PET "abc",13,0 → PETSCII : a→$41 b→$42 c→$43 CR $0D null (offset 22-26)
+    (check "!PET a → $41 (PETSCII A)"  (= #x41 (aref bytes 22)))
+    (check "!PET b → $42 (PETSCII B)"  (= #x42 (aref bytes 23)))
+    (check "!PET c → $43 (PETSCII C)"  (= #x43 (aref bytes 24)))
+    (check "!PET 13 → $0D (CR)"        (= #x0D (aref bytes 25)))
+    (check "!PET 0  → $00"             (= #x00 (aref bytes 26)))
+    ;; !PET "ABC",0 → PETSCII shifted : A→$C1 B→$C2 C→$C3 (offset 27-30)
+    (check "!PET A → $C1 (shifted)"    (= #xC1 (aref bytes 27)))
+    (check "!PET B → $C2 (shifted)"    (= #xC2 (aref bytes 28)))
+    (check "!PET C → $C3 (shifted)"    (= #xC3 (aref bytes 29)))
+    (check "!PET 0 → $00"              (= #x00 (aref bytes 30)))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Lanceur
 ;;; --------------------------------------------------------------------------
 
@@ -235,6 +280,7 @@
   (test/jmp-indirect-x)
   (test/x16-hello)
   (test/anon-scoped-labels)
+  (test/acme-syntax)
   (when *failures*
     (format t "~&Echecs 65c02 :~%")
     (dolist (f (reverse *failures*))
