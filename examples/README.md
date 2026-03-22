@@ -142,24 +142,34 @@ Exemples variés en syntaxe classique pour le Commander X16.
 
 ## Assemblage via le REPL
 
+Depuis un REPL (SBCL, SLIME, SLY…), `assemble-lasm` ne fait pas l'auto-détection
+de cible : il faut passer `:target` explicitement.
+
+`write-prg` ajoute un en-tête 2 octets (adresse de chargement C64/X16) ;
+utiliser `write-bin` pour un binaire brut (Z80, M68K, 8080).
+
 ```lisp
 (ql:quickload "cl-asm")
 
-;; C64 (6502)
-(let ((bytes (cl-asm/lasm:assemble-lasm "examples/c64-hello.lasm")))
-  (cl-asm/emit:write-prg bytes "examples/c64-hello.prg"))
+;; C64 (6502) — format PRG avec en-tête $0801
+(let ((bytes (cl-asm/lasm:assemble-lasm "examples/c64-hello.lasm" :target :6502)))
+  (cl-asm/emit:write-prg bytes "examples/c64-hello.prg" :load-address #x0801))
 
-;; ZX Spectrum (Z80)
+;; Commander X16 (65C02) — format PRG avec en-tête $0801
+(let ((bytes (cl-asm/lasm:assemble-lasm "examples/x16-hello.lasm" :target :x16)))
+  (cl-asm/emit:write-prg bytes "examples/x16-hello.prg" :load-address #x0801))
+
+;; ZX Spectrum (Z80) — binaire brut à $8000
 (let ((bytes (cl-asm/lasm:assemble-lasm "examples/z80-spectrum.lasm" :target :z80)))
-  (cl-asm/emit:write-prg bytes "examples/z80-spectrum.prg"))
+  (cl-asm/emit:write-bin bytes "examples/z80-spectrum.bin"))
 
-;; CP/M (Intel 8080)
+;; CP/M (Intel 8080) — binaire brut à $0100
 (let ((bytes (cl-asm/lasm:assemble-lasm "examples/i8080-cpm.lasm" :target :i8080)))
-  (cl-asm/emit:write-prg bytes "examples/i8080-cpm.prg"))
+  (cl-asm/emit:write-bin bytes "examples/i8080-cpm.com"))
 
-;; Amiga/Atari ST (M68K)
+;; Amiga/Atari ST (M68K) — binaire brut à $0000
 (let ((bytes (cl-asm/lasm:assemble-lasm "examples/m68k-tables.lasm" :target :m68k)))
-  (cl-asm/emit:write-prg bytes "examples/m68k-tables.prg"))
+  (cl-asm/emit:write-bin bytes "examples/m68k-tables.bin"))
 ```
 
 ---
