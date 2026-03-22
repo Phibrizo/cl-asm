@@ -537,7 +537,12 @@
               ;; Label (avec ou sans ':' dans le source)
               (return-from convert-line
                 (if (> (length rest) 0)
-                    (format nil "~A~A:~%        ~A" indent name (convert-expression rest))
+                    ;; Directive ou instruction après le label sur la même ligne :
+                    ;; traiter le reste comme une ligne indentée pour convertir
+                    ;; les directives ACME (!byte, !word, * = addr, etc.)
+                    (let* ((indented-rest (concatenate 'string "        " rest))
+                           (converted-rest (convert-line conv lineno indented-rest)))
+                      (format nil "~A~A:~%~A" indent name converted-rest))
                     (format nil "~A~A:" indent name))))))))
 
     ;; Ligne d'instruction normale
@@ -680,4 +685,5 @@
           (when (or show-report warnings)
             (format t "~A~%" (format-report warnings))))))))
 
-(main)
+(unless (boundp '*acme2clasm-skip-main*)
+  (main))

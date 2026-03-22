@@ -10,14 +10,14 @@ sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.4.3**
+**Version courante : 0.4.4**
 
 ```
-cl-asm/version:+version+         ; → "0.4.3"
+cl-asm/version:+version+         ; → "0.4.4"
 cl-asm/version:+version-major+   ; → 0
 cl-asm/version:+version-minor+   ; → 4
-cl-asm/version:+version-patch+   ; → 3
-(cl-asm/version:version-string)  ; → "0.4.3"
+cl-asm/version:+version-patch+   ; → 4
+(cl-asm/version:version-string)  ; → "0.4.4"
 ```
 
 ---
@@ -43,8 +43,9 @@ cl-asm/version:+version-patch+   ; → 3
 | Macros textuelles | ✓ | 27 |
 | Assemblage conditionnel | ✓ | 27 |
 | Frontend .lasm (Lisp natif) | ✓ | 97 |
+| Convertisseur acme2clasm | ✓ | 20 |
 
-**Total : 1463 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 1483 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -192,8 +193,10 @@ Résultat attendu :
 --- Parsers architectures ---
 === m68k-parser  :  85 OK, 0 KO
 === m68k         : 144 OK, 0 KO
+--- Outils ---
+=== acme2clasm   :  20 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1463 OK, 0 KO sur 1463 tests
+=== TOTAL        : 1483 OK, 0 KO sur 1483 tests
 ```
 
 ---

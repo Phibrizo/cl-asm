@@ -12,9 +12,9 @@
       de référence. *(fichiers de test créés, validés avec ACME et ca65)*
 - [x] Backend M68K : bug `EOR.W #imm, Dn` — crash "N is not a string designator".
       Corrigé : EOR #imm → EORI, AND/OR #imm → AND/OR avec EA=imm (comme vasm).
-- [ ] Conversion clasm→acme/ca65 : gérer les lignes `label: .directive`
+- [x] Conversion clasm→acme/ca65 : gérer les lignes `label: .directive`
       (label et directive sur la même ligne). Implémenter en bash ou en Lisp,
-      sans dépendances externes (pas Python).
+      sans dépendances externes (pas Python). *(v0.4.4)*
 
 ## Outils de développement
 

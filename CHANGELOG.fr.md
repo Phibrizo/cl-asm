@@ -5,6 +5,27 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.4.4] — 2026-03-22
+
+### Corrigé
+
+**Convertisseur `acme2clasm` — lignes `label: !directive`** — les lignes combinant
+un label et une directive ACME sur la même ligne (ex. `my_data: !byte $01, $02`)
+étaient précédemment émises avec le texte brut de la directive au lieu d'être
+converties. La partie directive est maintenant re-convertie récursivement en
+syntaxe `.asm`.
+
+### Tests
+
+| Suite | 0.4.3 | 0.4.4 |
+|---|---|---|
+| acme2clasm | — | 20 |
+| **TOTAL** | **1463** | **1483** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.4.3] — 2026-03-22
 
 ### Ajouté

@@ -9,14 +9,14 @@ to accommodate additional backends without modifying the core.
 
 ## Version
 
-**Current version: 0.4.3**
+**Current version: 0.4.4**
 
 ```
-cl-asm/version:+version+         ; → "0.4.3"
+cl-asm/version:+version+         ; → "0.4.4"
 cl-asm/version:+version-major+   ; → 0
 cl-asm/version:+version-minor+   ; → 4
-cl-asm/version:+version-patch+   ; → 3
-(cl-asm/version:version-string)  ; → "0.4.3"
+cl-asm/version:+version-patch+   ; → 4
+(cl-asm/version:version-string)  ; → "0.4.4"
 ```
 
 ---
@@ -42,8 +42,9 @@ cl-asm/version:+version-patch+   ; → 3
 | Text macros | ✓ | 27 |
 | Conditional assembly | ✓ | 27 |
 | .lasm frontend (native Lisp) | ✓ | 97 |
+| acme2clasm converter | ✓ | 20 |
 
-**Total: 1463 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 1483 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -198,8 +199,10 @@ Expected output (all methods):
 --- Architecture parsers ---
 === m68k-parser  :  85 OK, 0 KO
 === m68k         : 144 OK, 0 KO
+--- Tools ---
+=== acme2clasm   :  20 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1463 OK, 0 KO out of 1463 tests
+=== TOTAL        : 1483 OK, 0 KO out of 1483 tests
 ```
 
 ---

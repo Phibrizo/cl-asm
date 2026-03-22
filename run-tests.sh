@@ -33,6 +33,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-z80.lisp \
      --load tests/test-m68k-parser.lisp \
      --load tests/test-m68k.lisp \
+     --load tests/test-acme2clasm.lisp \
      --load tests/run-tests.lisp \
      --eval "(cl-asm/test:run-all-tests)" \
      --quit
