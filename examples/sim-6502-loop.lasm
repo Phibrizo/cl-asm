@@ -1,0 +1,67 @@
+; -*- coding: utf-8 -*-
+(target :6502)
+
+;; sim-6502-loop.lasm
+;;
+;; Programme 6502 qui calcule la somme d'une table de puissances de 2.
+;; La table est entièrement générée par Lisp à l'assemblage : aucune
+;; valeur n'est écrite à la main dans la source.
+;;
+;; Table  : [1, 2, 4, 8, 16, 32, 64, 128]  (2^0 … 2^7)
+;; Somme  : 1+2+4+8+16+32+64+128 = 255 = $FF
+;; Résultat stocké en page zéro ($00).
+;;
+;; ── Assemblage ──────────────────────────────────────────────────────────────
+;;   ./cl-asm examples/sim-6502-loop.lasm -o /tmp/loop.bin --format bin
+;;
+;; ── Simulation depuis le REPL ───────────────────────────────────────────────
+;;   (load "bootstrap.lisp")
+;;
+;;   (let* ((bytes (cl-asm/lasm:assemble-lasm "examples/sim-6502-loop.lasm"
+;;                                            :target :6502))
+;;          (cpu   (cl-asm/simulator.6502:make-cpu))
+;;          (cpu   (cl-asm/simulator.6502:load-program cpu bytes :origin #x0300))
+;;          (final (nth-value 0 (cl-asm/simulator.6502:run-cpu cpu))))
+;;     (format t "A=~D  mem[$00]=~D  cycles=~D~%"
+;;             (cl-asm/simulator.6502:cpu-a      final)
+;;             (cl-asm/simulator.6502:mem-read   final 0)
+;;             (cl-asm/simulator.6502:cpu-cycles final)))
+;;
+;;   Sortie attendue : A=255  mem[$00]=255  cycles=...
+
+;; --------------------------------------------------------------------------
+;;  Paramètre Lisp : taille de la table (modifiable librement)
+;; --------------------------------------------------------------------------
+
+(defparameter *n* 8)   ; nombre d'entrées  (2^0 … 2^(n-1))
+
+;; --------------------------------------------------------------------------
+;;  Programme principal
+;; --------------------------------------------------------------------------
+
+(org #x0300)
+
+(label 'main)
+(lda :imm 0)               ; A = 0 (accumulateur de la somme)
+(ldx :imm (1- *n*))        ; X = n-1 (parcours décroissant : n-1 → 0)
+
+(label 'sum-loop)
+(clc)
+(adc :x 'table)            ; A += table[X]   (ADC abs,X)
+(dex)
+(bpl 'sum-loop)            ; tant que X >= 0 (BPL = branch on plus)
+
+(sta :zp #x00)             ; stocker le résultat en page zéro $00
+(brk)                      ; fin — signale cpu-break au simulateur
+
+;; --------------------------------------------------------------------------
+;;  Table générée par Lisp à l'assemblage
+;;
+;;  dotimes émet *n* octets consécutifs : 1 2 4 8 16 32 64 128
+;;  Aucune valeur n'est codée en dur — changer *n* suffit à étendre la table
+;;  (attention : la somme doit rester ≤ 255 pour ne pas déborder sur 8 bits).
+;; --------------------------------------------------------------------------
+
+(label 'table)
+(dotimes (i *n*)
+  (db (expt 2 i)))         ; byte 2^i pour i = 0, 1, …, n-1
