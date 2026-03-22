@@ -5,6 +5,41 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.5.0] — 2026-03-22
+
+### Added
+
+**Intel 8080 backend** (`src/backend/i8080.lisp`) — new architecture:
+- Full Intel 8080 instruction set (~78 mnemonics): MOV, MVI, LXI, LDA, STA, LHLD, SHLD, LDAX, STAX, INR, DCR, INX, DCX, DAD, ADD, ADC, SUB, SBB, ANA, XRA, ORA, CMP, ADI/ACI/SUI/SBI/ANI/XRI/ORI/CPI, JMP, CALL, RET, Jcc, Ccc, Rcc, PUSH, POP, IN, OUT, RST, NOP, HLT, XCHG, XTHL, PCHL, SPHL, DI, EI, RLC, RRC, RAL, RAR, DAA, CMA, STC, CMC
+- All directives inherited from Z80 pattern: `.org`, `.byte`, `.word`, `.dword`, `.fill`, `.padto`, `.assertpc`, `assert-size`, `.incbin`, `.defstruct`, `.defenum`, `.asciiz`, `.pascalstr`, `.petscii`
+- Two-pass assembly, symbol table, forward references
+- `*i8080-mode*` variable in `cl-asm/parser` (same pattern as `*z80-mode*`) — avoids mnemonic conflicts with 6502 parser
+- `assemble-i8080`, `assemble-string-i8080`, `assemble-file-i8080` API
+- Backend aliases: `"i8080"`, `"8080"`, `"cpm"`, `"altair"`, `"intel8080"`
+
+**`.lasm` frontend helpers for Intel 8080:**
+- `(i8080r "A")` — register 8-bit operand (B C D E H L M A)
+- `(i8080rp "H")` — register pair operand (B D H SP PSW)
+- `(i8080 "MOV" op1 op2)` — emit generic 8080 instruction
+- Target dispatch: `(assemble-lasm-string src :target :i8080)`
+
+**`cl-asm/parser` additions:**
+- `*i8080-mode*` defvar (NIL by default)
+- `*i8080-mnemonics*` list
+- `i8080-mnemonic-p` predicate
+- Comma-separated operand parsing reuses Z80 parser when `*i8080-mode* = T`
+
+### Tests
+
+| Suite | 0.4.4 | 0.5.0 |
+|---|---|---|
+| i8080 (new) | — | 144 |
+| **TOTAL** | **1483** | **1627** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.4.4] — 2026-03-22
 
 ### Fixed

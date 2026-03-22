@@ -65,6 +65,7 @@
 (load-filtered "src/backend/65816.lisp")
 (load-filtered "src/backend/z80.lisp")
 (load-filtered "src/backend/m68k.lisp")
+(load-filtered "src/backend/i8080.lisp")
 (load-filtered "src/frontend/lasm.lisp")
 (load-filtered "tests/test-65c02.lisp")
 (load-filtered "tests/test-r65c02.lisp")
@@ -81,6 +82,7 @@
 (load-filtered "tests/test-z80.lisp")
 (load-filtered "tests/test-m68k-parser.lisp")
 (load-filtered "tests/test-m68k.lisp")
+(load-filtered "tests/test-8080.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 

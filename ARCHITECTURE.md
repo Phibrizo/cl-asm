@@ -18,8 +18,8 @@ cl-asm is structured in three independent layers:
                │ consumed by
                ▼
 ┌─────────────────────────────────────────────┐
-│  Backends (target architectures)                        │
-│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K   │
+│  Backends (target architectures)                                  │
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K · Intel 8080│
 └──────────────┬──────────────────────────────┘
                │ produces a byte vector
                ▼
@@ -49,6 +49,7 @@ cl-asm is structured in three independent layers:
 | `cl-asm/backend.65816` | `src/backend/65816.lisp` | WDC 65816 backend (SNES/Apple IIgs) |
 | `cl-asm/backend.z80` | `src/backend/z80.lisp` | Z80 backend (ZX Spectrum, MSX, CPC, ZX81) |
 | `cl-asm/backend.m68k` | `src/backend/m68k.lisp` | M68K backend (Amiga, Atari ST, Mac 68k) |
+| `cl-asm/backend.i8080` | `src/backend/i8080.lisp` | Intel 8080 backend (CP/M, Altair) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Native Lisp frontend |
 | `cl-asm/emit` | `src/emit/output.lisp` | File emitters |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Test suites |
@@ -218,6 +219,18 @@ before parsing. This prevents shared mnemonics (`INC`, `DEC`, `AND`,
 
 Z80 operands use `:direct "A"` for registers (not `:register`),
 `:indirect "HL"` for `(HL)`, and `:indirect (:+ "IX" d)` for `(IX+d)`.
+
+### Intel 8080 mode
+
+The same mechanism is used for Intel 8080:
+
+```lisp
+cl-asm/parser:*i8080-mode*   ; NIL by default (6502 mode)
+```
+
+`assemble-string-i8080` and `assemble-file-i8080` bind `*i8080-mode*` to T
+before parsing. Operand parsing for comma-separated registers reuses the Z80
+parser path when `*i8080-mode*` is T.
 
 ---
 
@@ -533,6 +546,54 @@ All extension words (immediates, displacements, addresses) follow the opcode wor
 
 ---
 
+## Module `cl-asm/backend.i8080`
+
+Full Intel 8080 backend (CP/M, Altair). Default origin: `$0100`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.i8080:assemble-i8080        PROGRAM &key origin)
+(cl-asm/backend.i8080:assemble-string-i8080 SOURCE  &key origin)
+(cl-asm/backend.i8080:assemble-file-i8080   PATH    &key origin)
+```
+
+### Register encoding
+
+| 8-bit register | Code | Pair | Code |
+|---|---|---|---|
+| B | 0 | BC (B) | 0 |
+| C | 1 | DE (D) | 1 |
+| D | 2 | HL (H) | 2 |
+| E | 3 | SP | 3 |
+| H | 4 | PSW (PUSH/POP only) | 3 |
+| L | 5 | | |
+| M (HL indirect) | 6 | | |
+| A | 7 | | |
+
+### Key instruction encodings
+
+| Instruction | Encoding |
+|---|---|
+| `MOV d, s` | `$40 \| (d << 3) \| s` |
+| `MVI r, n` | `$06 \| (r << 3)` + imm8 |
+| `LXI rp, nn` | `$01 \| (rp << 4)` + imm16-LE |
+| `INR r` | `$04 \| (r << 3)` |
+| `DCR r` | `$05 \| (r << 3)` |
+| `ADD/ADC/SUB/SBB/ANA/XRA/ORA/CMP r` | base + r |
+| `JMP/CALL/Jcc/Ccc nn` | opcode + addr16-LE |
+| `RST n` | `$C7 \| (n << 3)` |
+
+### Instruction sizes
+
+| Size | Mnemonics |
+|---|---|
+| 3 bytes | LXI, LDA, STA, LHLD, SHLD, JMP, CALL, JNZ, JZ, JNC, JC, JPO, JPE, JP, JM, CNZ, CZ, CNC, CC, CPO, CPE, CP, CM |
+| 2 bytes | MVI, ADI, ACI, SUI, SBI, ANI, XRI, ORI, CPI, IN, OUT |
+| 1 byte | all others |
+
+---
+
 ## Module `cl-asm/lasm`
 
 Native Lisp frontend. `.lasm` files are valid Common Lisp where each
@@ -542,7 +603,7 @@ mnemonic is a function and the full CL environment is available
 **Supported targets:** all architectures — `:6502` (default),
 `:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`,
 `:65816`/`:snes`/`:apple2gs`, `:z80`/`:spectrum`/`:msx`/`:cpc`,
-`:m68k`/`:amiga`/`:atari`.
+`:m68k`/`:amiga`/`:atari`, `:i8080`/`:8080`/`:cpm`/`:altair`.
 
 **Shadowed CL symbols:** `fill`, `bit`, `sec`, `and`, `map` are
 redefined as assembly instructions inside the `cl-asm/lasm` package.

@@ -18,8 +18,8 @@ cl-asm est structuré en trois couches indépendantes :
                │ consommé par
                ▼
 ┌─────────────────────────────────────────────┐
-│  Backends (architectures cibles)                        │
-│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K   │
+│  Backends (architectures cibles)                                   │
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K · Intel 8080│
 └──────────────┬──────────────────────────────┘
                │ produit un vecteur d'octets
                ▼
@@ -49,6 +49,7 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/backend.65816` | `src/backend/65816.lisp` | Backend WDC 65816 (SNES/Apple IIgs) |
 | `cl-asm/backend.z80` | `src/backend/z80.lisp` | Backend Z80 (ZX Spectrum, MSX, CPC, ZX81) |
 | `cl-asm/backend.m68k` | `src/backend/m68k.lisp` | Backend M68K (Amiga, Atari ST, Mac 68k) |
+| `cl-asm/backend.i8080` | `src/backend/i8080.lisp` | Backend Intel 8080 (CP/M, Altair) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Frontend Lisp natif (.lasm) |
 | `cl-asm/emit` | `src/emit/output.lisp` | Émetteurs de fichiers |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Suites de tests |
@@ -239,6 +240,18 @@ avant de parser. Cela évite que les mnémoniques communs (`INC`, `DEC`,
 
 Les opérandes Z80 utilisent `:direct "A"` pour les registres (pas `:register`),
 `:indirect "HL"` pour `(HL)`, et `:indirect (:+ "IX" d)` pour `(IX+d)`.
+
+### Mode Intel 8080
+
+Le même mécanisme s'applique à l'Intel 8080 :
+
+```lisp
+cl-asm/parser:*i8080-mode*   ; NIL par défaut (mode 6502)
+```
+
+`assemble-string-i8080` et `assemble-file-i8080` lient `*i8080-mode*` à T
+avant de parser. Le parsing des opérandes séparés par virgule réutilise
+le chemin Z80 quand `*i8080-mode*` est T.
 
 ---
 
@@ -533,6 +546,54 @@ Tous les mots d'extension (immédiats, déplacements, adresses) suivent le mot o
 
 ---
 
+## Module `cl-asm/backend.i8080`
+
+Backend Intel 8080 complet (CP/M, Altair). Origine par défaut : `$0100`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.i8080:assemble-i8080        PROGRAM &key origin)
+(cl-asm/backend.i8080:assemble-string-i8080 SOURCE  &key origin)
+(cl-asm/backend.i8080:assemble-file-i8080   PATH    &key origin)
+```
+
+### Encodage des registres
+
+| Registre 8 bits | Code | Paire | Code |
+|---|---|---|---|
+| B | 0 | BC (B) | 0 |
+| C | 1 | DE (D) | 1 |
+| D | 2 | HL (H) | 2 |
+| E | 3 | SP | 3 |
+| H | 4 | PSW (PUSH/POP seulement) | 3 |
+| L | 5 | | |
+| M (indirect HL) | 6 | | |
+| A | 7 | | |
+
+### Encodages clés
+
+| Instruction | Encodage |
+|---|---|
+| `MOV d, s` | `$40 \| (d << 3) \| s` |
+| `MVI r, n` | `$06 \| (r << 3)` + imm8 |
+| `LXI rp, nn` | `$01 \| (rp << 4)` + imm16-LE |
+| `INR r` | `$04 \| (r << 3)` |
+| `DCR r` | `$05 \| (r << 3)` |
+| `ADD/ADC/SUB/SBB/ANA/XRA/ORA/CMP r` | base + r |
+| `JMP/CALL/Jcc/Ccc nn` | opcode + addr16-LE |
+| `RST n` | `$C7 \| (n << 3)` |
+
+### Tailles d'instruction
+
+| Taille | Mnémoniques |
+|---|---|
+| 3 octets | LXI, LDA, STA, LHLD, SHLD, JMP, CALL, JNZ, JZ, JNC, JC, JPO, JPE, JP, JM, CNZ, CZ, CNC, CC, CPO, CPE, CP, CM |
+| 2 octets | MVI, ADI, ACI, SUI, SBI, ANI, XRI, ORI, CPI, IN, OUT |
+| 1 octet | tous les autres |
+
+---
+
 ## Module `cl-asm/lasm`
 
 Frontend Lisp natif. Les fichiers `.lasm` sont du Common Lisp valide
@@ -543,7 +604,7 @@ Toute la puissance de CL est disponible : `let`, `dotimes`, `loop`,
 **Cibles supportées :** toutes les architectures — `:6502` (défaut),
 `:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`,
 `:65816`/`:snes`/`:apple2gs`, `:z80`/`:spectrum`/`:msx`/`:cpc`,
-`:m68k`/`:amiga`/`:atari`.
+`:m68k`/`:amiga`/`:atari`, `:i8080`/`:8080`/`:cpm`/`:altair`.
 
 **Symboles CL redéfinis :** `fill`, `bit`, `sec`, `and`, `map` sont
 masqués par des instructions assembleur dans le package `cl-asm/lasm`.
@@ -561,7 +622,7 @@ d'origine si nécessaire.
 
 `target` : `:6502` (défaut), `:45gs02`/`:mega65`, `:65c02`/`:x16`,
 `:r65c02`, `:65816`/`:snes`, `:z80`/`:spectrum`/`:msx`/`:cpc`,
-`:m68k`/`:amiga`/`:atari`.
+`:m68k`/`:amiga`/`:atari`, `:i8080`/`:8080`/`:cpm`/`:altair`.
 
 ### Directive de cible
 

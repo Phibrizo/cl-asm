@@ -13,7 +13,10 @@
    #:*z80-mode*
    ;; Helpers pour le backend M68K
    #:m68k-mnemonic-p
-   #:*m68k-mode*))
+   #:*m68k-mode*
+   ;; Helpers pour le backend Intel 8080
+   #:i8080-mnemonic-p
+   #:*i8080-mode*))
 ;;; src/frontend/classic-parser.lisp
 ;;;
 ;;; Parser pour syntaxe assembleur classique (ca65-like).
@@ -57,6 +60,8 @@
 (declaim (ftype (function (t string &rest t) t) parser-error))
 ;; Z80 helpers (définis en fin de fichier)
 (declaim (ftype (function (t) t) z80-mnemonic-p parse-z80-operands))
+;; 8080 helpers (définis en fin de fichier)
+(declaim (ftype (function (t) t) i8080-mnemonic-p))
 ;; M68K helpers (définis en fin de fichier)
 (declaim (ftype (function (t) t) m68k-mnemonic-p parse-m68k-operands
                                  m68k-base-mnemonic m68k-size-from-mnemonic))
@@ -1061,6 +1066,9 @@
                       ;; Z80 : opérandes séparées par virgules
                       ((z80-mnemonic-p mnem-up)
                        (parse-z80-operands ctx))
+                      ;; 8080 : opérandes séparées par virgules (même parser que Z80)
+                      ((i8080-mnemonic-p mnem-up)
+                       (parse-z80-operands ctx))
                       ;; M68K : opérandes séparées par virgules, modes d'adressage étendus
                       ((m68k-mnemonic-p mnem-up)
                        (parse-m68k-operands ctx))
@@ -1505,6 +1513,54 @@
             (list op1 (parse-z80-operand-raw ctx))))))
       ;; Pas de virgule — opérande unique
       (t (list op1)))))
+
+
+;;; --------------------------------------------------------------------------
+;;;  Helpers pour les instructions Intel 8080
+;;; --------------------------------------------------------------------------
+
+(defvar *i8080-mode* nil
+  "T si on est en train d'assembler du code Intel 8080.
+   Quand NIL, les mnémoniques partagés avec 6502 (NOP, CMP, ADC…) sont
+   traités par le parser 6502 standard.")
+
+(defparameter *i8080-mnemonics*
+  '(;; Transferts registre
+    "MOV" "MVI"
+    ;; Paires de registres
+    "LXI" "INX" "DCX" "DAD"
+    ;; Mémoire
+    "LDA" "STA" "LHLD" "SHLD" "LDAX" "STAX"
+    ;; Incréments/décréments
+    "INR" "DCR"
+    ;; ALU registre
+    "ADD" "ADC" "SUB" "SBB" "ANA" "XRA" "ORA" "CMP"
+    ;; ALU immédiat
+    "ADI" "ACI" "SUI" "SBI" "ANI" "XRI" "ORI" "CPI"
+    ;; Rotations/divers
+    "RLC" "RRC" "RAL" "RAR" "DAA" "CMA" "STC" "CMC"
+    ;; Contrôle
+    "NOP" "HLT" "DI" "EI"
+    ;; Pile
+    "PUSH" "POP"
+    ;; Sauts / appels / retours
+    "JMP" "JNZ" "JZ" "JNC" "JC" "JPO" "JPE" "JP" "JM"
+    "CALL" "CNZ" "CZ" "CNC" "CC" "CPO" "CPE" "CP" "CM"
+    "RET" "RNZ" "RZ" "RNC" "RC" "RPO" "RPE" "RP" "RM"
+    ;; Échange / transfert
+    "XCHG" "XTHL" "PCHL" "SPHL"
+    ;; I/O
+    "IN" "OUT"
+    ;; RST
+    "RST")
+  "Liste des mnémoniques Intel 8080 (en majuscules).")
+
+(defun i8080-mnemonic-p (name)
+  "Retourne T si NAME (chaîne majuscules) est un mnémonique 8080 ET que le
+   mode 8080 est actif (*i8080-mode* = T)."
+  (and *i8080-mode*
+       (member name *i8080-mnemonics* :test #'string=)
+       t))
 
 
 ;;; ==========================================================================

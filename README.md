@@ -4,19 +4,19 @@ A modular assembler written in Common Lisp. Current targets: **6502**
 (Commodore 64, Apple II…), **45GS02** (Mega65), **65C02**
 (Commander X16), **R65C02** (Rockwell), **WDC 65816**
 (SNES, Apple IIgs), **Z80** (ZX Spectrum, MSX, CPC, ZX81),
-and **M68K** (Amiga, Atari ST, Mac 68k). The architecture is designed
-to accommodate additional backends without modifying the core.
+**M68K** (Amiga, Atari ST, Mac 68k), and **Intel 8080** (CP/M, Altair).
+The architecture is designed to accommodate additional backends without modifying the core.
 
 ## Version
 
-**Current version: 0.4.4**
+**Current version: 0.5.0**
 
 ```
-cl-asm/version:+version+         ; → "0.4.4"
+cl-asm/version:+version+         ; → "0.5.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 4
-cl-asm/version:+version-patch+   ; → 4
-(cl-asm/version:version-string)  ; → "0.4.4"
+cl-asm/version:+version-minor+   ; → 5
+cl-asm/version:+version-patch+   ; → 0
+(cl-asm/version:version-string)  ; → "0.5.0"
 ```
 
 ---
@@ -38,13 +38,14 @@ cl-asm/version:+version-patch+   ; → 4
 | Z80 backend (ZX Spectrum, MSX, CPC, ZX81) | ✓ | 191 |
 | M68K parser | ✓ | 85 |
 | M68K backend (Amiga, Atari ST, Mac 68k) | ✓ | 144 |
+| Intel 8080 backend (CP/M, Altair) | ✓ | 144 |
 | BIN / PRG / listing emitters | ✓ | — |
 | Text macros | ✓ | 27 |
 | Conditional assembly | ✓ | 27 |
 | .lasm frontend (native Lisp) | ✓ | 97 |
 | acme2clasm converter | ✓ | 20 |
 
-**Total: 1483 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 1627 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -104,7 +105,8 @@ cl-asm/
 │   │   ├── r65c02.lisp         R65C02 encoder (65C02 + Rockwell bit ops)
 │   │   ├── 65816.lisp          WDC 65816 encoder (SNES/Apple IIgs, 24-bit)
 │   │   ├── z80.lisp            Z80 encoder (ZX Spectrum, MSX, CPC, ZX81)
-│   │   └── m68k.lisp           M68K encoder (Amiga, Atari ST, Mac 68k)
+│   │   ├── m68k.lisp           M68K encoder (Amiga, Atari ST, Mac 68k)
+│   │   └── i8080.lisp          Intel 8080 encoder (CP/M, Altair)
 │   └── emit/
 │       └── output.lisp         BIN, PRG, listing emitters
 ├── tests/
@@ -123,7 +125,9 @@ cl-asm/
 │   ├── test-65816.lisp
 │   ├── test-z80.lisp
 │   ├── test-m68k-parser.lisp
-│   └── test-m68k.lisp
+│   ├── test-m68k.lisp
+│   ├── test-8080.lisp
+│   └── test-acme2clasm.lisp
 └── examples/
     ├── c64-raster.asm          C64 raster bar (classic syntax)
     ├── mega65-hello.lasm       Mega65 hello world (.lasm syntax)
@@ -199,10 +203,12 @@ Expected output (all methods):
 --- Architecture parsers ---
 === m68k-parser  :  85 OK, 0 KO
 === m68k         : 144 OK, 0 KO
+--- Intel 8080 ---
+=== i8080        : 144 OK, 0 KO
 --- Tools ---
 === acme2clasm   :  20 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1483 OK, 0 KO out of 1483 tests
+=== TOTAL        : 1627 OK, 0 KO out of 1627 tests
 ```
 
 ---
@@ -553,6 +559,9 @@ The `cl-asm` script assembles a file directly from the terminal.
 # Z80 / ZX Spectrum / MSX target
 ./cl-asm prog.asm --target z80
 
+# Intel 8080 / CP/M target
+./cl-asm prog.asm --target 8080
+
 # Assemble an ACME source file directly (no conversion needed)
 ./cl-asm terminal.asm --target x16
 
@@ -567,7 +576,7 @@ The `cl-asm` script assembles a file directly from the terminal.
 | `-o FILE` | Output file | same name, .prg extension |
 | `-f FORMAT` | `prg` or `bin` | `prg` |
 | `--origin ADDR` | Origin address (e.g. `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502` (also `mos6502`, `c64`), `45gs02` (also `mega65`), `x16` (also `65c02`, `commander-x16`), `r65c02` (also `rockwell`), `65816` (also `wdc65816`, `snes`, `apple2gs`), `z80` (also `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`) | `6502` |
+| `-t TARGET` | `6502` (also `mos6502`, `c64`), `45gs02` (also `mega65`), `x16` (also `65c02`, `commander-x16`), `r65c02` (also `rockwell`), `65816` (also `wdc65816`, `snes`, `apple2gs`), `z80` (also `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`), `i8080` (also `8080`, `cpm`, `altair`, `intel8080`) | `6502` |
 | `-v` | Verbose mode | — |
 
 Target is auto-detected from the first lines of the source file:
@@ -585,7 +594,8 @@ mnemonic is a function. The full power of CL is available: `let`,
 
 **Supported targets:** all architectures — `:6502` (default),
 `:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`, `:65816`/`:snes`/`:apple2gs`,
-`:z80`/`:spectrum`/`:msx`/`:cpc`, `:m68k`/`:amiga`/`:atari`.
+`:z80`/`:spectrum`/`:msx`/`:cpc`, `:m68k`/`:amiga`/`:atari`,
+`:i8080`/`:8080`/`:cpm`/`:altair`.
 
 > **Note for Z80 and M68K:** use `:origin 0` (the default `#x0801` is for 6502).
 > Architecture-specific instructions use `zi`/`mi` helpers (see below).

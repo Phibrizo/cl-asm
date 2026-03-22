@@ -69,6 +69,9 @@
     (run-suite cl-asm/test.m68k-parser)
     (run-suite cl-asm/test.m68k)
 
+    ;; --- Intel 8080 ---
+    (run-suite cl-asm/test.i8080)
+
     ;; --- Outils ---
     (run-suite cl-asm/test.acme2clasm)
 
@@ -124,6 +127,10 @@
     (format t "=== m68k         : ~3D OK, ~D KO~%"
             cl-asm/test.m68k:*pass*
             cl-asm/test.m68k:*fail*)
+    (format t "--- ~A ---~%" (%msg "Intel 8080" "Intel 8080"))
+    (format t "=== i8080        : ~3D OK, ~D KO~%"
+            cl-asm/test.i8080:*pass*
+            cl-asm/test.i8080:*fail*)
     (format t "--- ~A ---~%" (%msg "Outils" "Tools"))
     (format t "=== acme2clasm   : ~3D OK, ~D KO~%"
             cl-asm/test.acme2clasm:*pass*

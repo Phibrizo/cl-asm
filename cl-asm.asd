@@ -50,6 +50,12 @@
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/frontend/classic-parser"))
+   (:file "src/backend/i8080"
+    :depends-on ("src/core/ir"
+                 "src/core/backends"
+                 "src/core/expression"
+                 "src/core/symbol-table"
+                 "src/frontend/classic-parser"))
    (:file "src/frontend/lasm"
     :depends-on ("src/core/ir"
                  "src/core/expression"
@@ -60,7 +66,8 @@
                  "src/backend/r65c02"
                  "src/backend/65816"
                  "src/backend/z80"
-                 "src/backend/m68k"))
+                 "src/backend/m68k"
+                 "src/backend/i8080"))
    (:file "src/emit/output"
     :depends-on ("src/core/ir"
                  "src/backend/6502"))))
@@ -95,6 +102,8 @@
     :depends-on ("tests/test-6502"))
    (:file "tests/test-z80"
     :depends-on ())
+   (:file "tests/test-8080"
+    :depends-on ())
    (:file "tests/test-m68k-parser"
     :depends-on ())
    (:file "tests/test-m68k"
@@ -113,6 +122,7 @@
                  "tests/test-r65c02"
                  "tests/test-65816"
                  "tests/test-z80"
+                 "tests/test-8080"
                  "tests/test-m68k-parser"
                  "tests/test-m68k")))
   :perform (test-op (o c)

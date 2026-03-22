@@ -62,7 +62,11 @@
    #:assert-size
    #:sine-table
    #:cosine-table
-   #:linear-ramp))
+   #:linear-ramp
+   ;; Helpers Intel 8080
+   #:i8080r
+   #:i8080rp
+   #:i8080))
 
 (in-package #:cl-asm/lasm)
 
@@ -697,6 +701,43 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Helpers Intel 8080 et emission generique
+;;; --------------------------------------------------------------------------
+;;;
+;;;  L'IR 8080 encode les registres comme :direct "A", :direct "B", etc.
+;;;  Les paires sont :direct "B" (= BC), :direct "D" (= DE), :direct "H" (= HL),
+;;;  :direct "SP", :direct "PSW".
+;;;
+;;;  Fonctions helper :
+;;;    (i8080r "A")          — operande registre 8 bits (B C D E H L M A)
+;;;    (i8080rp "H")         — operande paire de registres (B D H SP PSW)
+;;;    (i8080 "MOV" op1 op2) — emission d'une instruction 8080 generique
+;;;
+;;;  Exemple :
+;;;    (i8080 "MOV" (i8080r "A") (i8080r "B"))       ; MOV A, B
+;;;    (i8080 "MVI" (i8080r "A") (make-imm 42))       ; MVI A, 42
+;;;    (i8080 "LXI" (i8080rp "H") (make-imm #x1234))  ; LXI H, $1234
+;;;    (i8080 "JMP" (make-dir 'start))                ; JMP start
+
+(defun i8080r (name)
+  "Operande registre 8 bits Intel 8080 : (i8080r \"A\") → :direct \"A\""
+  (cl-asm/ir:make-ir-operand :kind :direct
+                              :value (string-upcase (string name))))
+
+(defun i8080rp (name)
+  "Operande paire de registres Intel 8080 : (i8080rp \"H\") → :direct \"H\""
+  (cl-asm/ir:make-ir-operand :kind :direct
+                              :value (string-upcase (string name))))
+
+(defun i8080 (mnemonic &rest operands)
+  "Emet une instruction Intel 8080 generique avec des operandes IR arbitraires.
+   Ex : (i8080 \"MOV\" (i8080r \"A\") (i8080r \"B\"))"
+  (emit (cl-asm/ir:make-ir-instruction
+         :mnemonic (string-upcase (string mnemonic))
+         :operands operands)))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Helpers M68K et emission generique
 ;;; --------------------------------------------------------------------------
 ;;;
@@ -825,7 +866,9 @@
     ((:z80 :zx80 :zx81 :spectrum :msx :cpc)
      (cl-asm/backend.z80:assemble-z80 program :origin origin))
     ((:m68k :68000 :amiga :atari :mac68k)
-     (cl-asm/backend.m68k:assemble-m68k program :origin origin))))
+     (cl-asm/backend.m68k:assemble-m68k program :origin origin))
+    ((:i8080 :8080 :cpm :altair :intel8080)
+     (cl-asm/backend.i8080:assemble-i8080 program :origin origin))))
 
 (defun assemble-lasm-string (source &key (origin #x0801) (target :6502))
   "Raccourci : charge SOURCE en .lasm, assemble, retourne les octets.

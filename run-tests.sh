@@ -17,6 +17,7 @@ sbcl --load src/core/version.lisp \
      --load src/backend/65816.lisp \
      --load src/backend/z80.lisp \
      --load src/backend/m68k.lisp \
+     --load src/backend/i8080.lisp \
      --load src/frontend/lasm.lisp \
      --load tests/test-65c02.lisp \
      --load tests/test-r65c02.lisp \
@@ -33,6 +34,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-z80.lisp \
      --load tests/test-m68k-parser.lisp \
      --load tests/test-m68k.lisp \
+     --load tests/test-8080.lisp \
      --load tests/test-acme2clasm.lisp \
      --load tests/run-tests.lisp \
      --eval "(cl-asm/test:run-all-tests)" \
