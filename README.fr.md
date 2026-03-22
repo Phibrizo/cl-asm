@@ -28,23 +28,23 @@ cl-asm/version:+version-patch+   ; → 0
 | --- | --- | --- |
 | IR (Représentation intermédiaire) | ✓ | — |
 | Évaluateur d'expressions | ✓ | 129 |
-| Table des symboles | ✓ | 59 |
+| Table des symboles | ✓ | 65 |
 | Lexer classique | ✓ | 119 |
 | Parser classique (ca65-like) | ✓ | 84 |
-| Backend 6502 | ✓ | 82 |
+| Backend 6502 | ✓ | 108 |
 | Backend 45GS02 | ✓ | 80 |
-| Backend 65C02 (X16) | ✓ | 41 |
+| Backend 65C02 (X16) | ✓ | 86 |
 | Backend R65C02 (Rockwell) | ✓ | 117 |
 | Backend WDC 65816 (SNES/Apple IIgs) | ✓ | 104 |
 | Backend Z80 (ZX Spectrum, MSX, CPC, ZX81) | ✓ | 191 |
 | Parser M68K | ✓ | 85 |
-| Backend M68K (Amiga, Atari ST, Mac 68k) | ✓ | 139 |
+| Backend M68K (Amiga, Atari ST, Mac 68k) | ✓ | 144 |
 | Émetteurs BIN / PRG / listing | ✓ | — |
 | Macros textuelles | ✓ | 27 |
 | Assemblage conditionnel | ✓ | 27 |
-| Frontend .lasm (Lisp natif) | ✓ | 58 |
+| Frontend .lasm (Lisp natif) | ✓ | 97 |
 
-**Total : 1348 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 1463 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -174,26 +174,26 @@ Résultat attendu :
 
 ```
 --- Core ---
-=== symbol-table :  59 OK, 0 KO
+=== symbol-table :  65 OK, 0 KO
 === expression   : 129 OK, 0 KO
 --- Frontend ---
 === lexer        : 119 OK, 0 KO
 === parser       :  84 OK, 0 KO
 === macros       :  27 OK, 0 KO
 === conditionnel :  27 OK, 0 KO
-=== lasm         :  58 OK, 0 KO
+=== lasm         :  97 OK, 0 KO
 --- Backends ---
-=== 6502         :  82 OK, 0 KO
-=== 65c02        :  41 OK, 0 KO
+=== 6502         : 108 OK, 0 KO
+=== 65c02        :  86 OK, 0 KO
 === r65c02       : 117 OK, 0 KO
 === 45gs02       :  80 OK, 0 KO
 === 65816        : 104 OK, 0 KO
 === z80          : 191 OK, 0 KO
 --- Parsers architectures ---
 === m68k-parser  :  85 OK, 0 KO
-=== m68k         : 139 OK, 0 KO
+=== m68k         : 144 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1348 OK, 0 KO sur 1348 tests
+=== TOTAL        : 1463 OK, 0 KO sur 1463 tests
 ```
 
 ---

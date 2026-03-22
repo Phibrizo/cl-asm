@@ -30,20 +30,20 @@ cl-asm/version:+version-patch+   ; → 0
 | Symbol table | ✓ | 65 |
 | Classic lexer | ✓ | 119 |
 | Classic parser (ca65-like) | ✓ | 84 |
-| 6502 backend | ✓ | 82 |
+| 6502 backend | ✓ | 108 |
 | 45GS02 backend | ✓ | 80 |
-| 65C02 backend (X16) | ✓ | 41 |
+| 65C02 backend (X16) | ✓ | 86 |
 | R65C02 backend (Rockwell) | ✓ | 117 |
 | WDC 65816 backend (SNES/Apple IIgs) | ✓ | 104 |
 | Z80 backend (ZX Spectrum, MSX, CPC, ZX81) | ✓ | 191 |
 | M68K parser | ✓ | 85 |
-| M68K backend (Amiga, Atari ST, Mac 68k) | ✓ | 139 |
+| M68K backend (Amiga, Atari ST, Mac 68k) | ✓ | 144 |
 | BIN / PRG / listing emitters | ✓ | — |
 | Text macros | ✓ | 27 |
 | Conditional assembly | ✓ | 27 |
-| .lasm frontend (native Lisp) | ✓ | 58 |
+| .lasm frontend (native Lisp) | ✓ | 97 |
 
-**Total: 1348 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 1463 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -180,26 +180,26 @@ Expected output (all methods):
 
 ```
 --- Core ---
-=== symbol-table :  59 OK, 0 KO
+=== symbol-table :  65 OK, 0 KO
 === expression   : 129 OK, 0 KO
 --- Frontend ---
 === lexer        : 119 OK, 0 KO
 === parser       :  84 OK, 0 KO
 === macros       :  27 OK, 0 KO
 === conditionnel :  27 OK, 0 KO
-=== lasm         :  58 OK, 0 KO
+=== lasm         :  97 OK, 0 KO
 --- Backends ---
-=== 6502         :  82 OK, 0 KO
-=== 65c02        :  41 OK, 0 KO
+=== 6502         : 108 OK, 0 KO
+=== 65c02        :  86 OK, 0 KO
 === r65c02       : 117 OK, 0 KO
 === 45gs02       :  80 OK, 0 KO
 === 65816        : 104 OK, 0 KO
 === z80          : 191 OK, 0 KO
 --- Architecture parsers ---
 === m68k-parser  :  85 OK, 0 KO
-=== m68k         : 139 OK, 0 KO
+=== m68k         : 144 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1348 OK, 0 KO out of 1348 tests
+=== TOTAL        : 1463 OK, 0 KO out of 1463 tests
 ```
 
 ---
