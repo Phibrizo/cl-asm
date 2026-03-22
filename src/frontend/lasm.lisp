@@ -556,7 +556,6 @@
                     (make-instr ,mn nil keyword)
                     (make-instr ,mn keyword val)))))
   (def-instr bra  "BRA")
-  (def-instr stz  "STZ")
   (def-instr trb  "TRB")
   (def-instr tsb  "TSB")
   (def-implied phx "PHX")
