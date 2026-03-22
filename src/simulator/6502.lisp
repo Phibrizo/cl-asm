@@ -366,6 +366,36 @@
   (set-flag cpu +flag-v+ (logbitp 6 val))
   (set-flag cpu +flag-z+ (zerop (logand (cpu-a cpu) val))))
 
+(defun do-asl (cpu val)
+  "Décale VAL d'un bit vers la gauche. C ← bit7. Retourne la nouvelle valeur."
+  (set-flag cpu +flag-c+ (logbitp 7 val))
+  (let ((result (logand (ash val 1) #xFF)))
+    (update-nz cpu result)
+    result))
+
+(defun do-lsr (cpu val)
+  "Décale VAL d'un bit vers la droite. C ← bit0. Retourne la nouvelle valeur."
+  (set-flag cpu +flag-c+ (logbitp 0 val))
+  (let ((result (ash val -1)))
+    (update-nz cpu result)
+    result))
+
+(defun do-rol (cpu val)
+  "Rotation gauche à travers C. Retourne la nouvelle valeur."
+  (let* ((old-c  (if (flag-c cpu) 1 0))
+         (result (logand (logior (ash val 1) old-c) #xFF)))
+    (set-flag cpu +flag-c+ (logbitp 7 val))
+    (update-nz cpu result)
+    result))
+
+(defun do-ror (cpu val)
+  "Rotation droite à travers C. Retourne la nouvelle valeur."
+  (let* ((old-c  (if (flag-c cpu) #x80 0))
+         (result (logior (ash val -1) old-c)))
+    (set-flag cpu +flag-c+ (logbitp 0 val))
+    (update-nz cpu result)
+    result))
+
 
 
 
@@ -759,6 +789,142 @@
       ;; --- BIT ---
       (#x24 (do-bit cpu (mem-read cpu (addr-zp cpu)))  (incf (cpu-cycles cpu) 3))
       (#x2C (do-bit cpu (mem-read cpu (addr-abs cpu))) (incf (cpu-cycles cpu) 4))
+
+      ;; --- ASL ---
+      (#x0A  ; ASL A
+       (setf (cpu-a cpu) (do-asl cpu (cpu-a cpu)))
+       (incf (cpu-cycles cpu) 2))
+      (#x06  ; ASL zp
+       (let ((addr (addr-zp cpu)))
+         (mem-write cpu addr (do-asl cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 5))
+      (#x16  ; ASL zp,X
+       (let ((addr (addr-zpx cpu)))
+         (mem-write cpu addr (do-asl cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 6))
+      (#x0E  ; ASL abs
+       (let ((addr (addr-abs cpu)))
+         (mem-write cpu addr (do-asl cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 6))
+      (#x1E  ; ASL abs,X
+       (let ((addr (nth-value 0 (addr-absx* cpu))))
+         (mem-write cpu addr (do-asl cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 7))
+
+      ;; --- LSR ---
+      (#x4A  ; LSR A
+       (setf (cpu-a cpu) (do-lsr cpu (cpu-a cpu)))
+       (incf (cpu-cycles cpu) 2))
+      (#x46  ; LSR zp
+       (let ((addr (addr-zp cpu)))
+         (mem-write cpu addr (do-lsr cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 5))
+      (#x56  ; LSR zp,X
+       (let ((addr (addr-zpx cpu)))
+         (mem-write cpu addr (do-lsr cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 6))
+      (#x4E  ; LSR abs
+       (let ((addr (addr-abs cpu)))
+         (mem-write cpu addr (do-lsr cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 6))
+      (#x5E  ; LSR abs,X
+       (let ((addr (nth-value 0 (addr-absx* cpu))))
+         (mem-write cpu addr (do-lsr cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 7))
+
+      ;; --- ROL ---
+      (#x2A  ; ROL A
+       (setf (cpu-a cpu) (do-rol cpu (cpu-a cpu)))
+       (incf (cpu-cycles cpu) 2))
+      (#x26  ; ROL zp
+       (let ((addr (addr-zp cpu)))
+         (mem-write cpu addr (do-rol cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 5))
+      (#x36  ; ROL zp,X
+       (let ((addr (addr-zpx cpu)))
+         (mem-write cpu addr (do-rol cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 6))
+      (#x2E  ; ROL abs
+       (let ((addr (addr-abs cpu)))
+         (mem-write cpu addr (do-rol cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 6))
+      (#x3E  ; ROL abs,X
+       (let ((addr (nth-value 0 (addr-absx* cpu))))
+         (mem-write cpu addr (do-rol cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 7))
+
+      ;; --- ROR ---
+      (#x6A  ; ROR A
+       (setf (cpu-a cpu) (do-ror cpu (cpu-a cpu)))
+       (incf (cpu-cycles cpu) 2))
+      (#x66  ; ROR zp
+       (let ((addr (addr-zp cpu)))
+         (mem-write cpu addr (do-ror cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 5))
+      (#x76  ; ROR zp,X
+       (let ((addr (addr-zpx cpu)))
+         (mem-write cpu addr (do-ror cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 6))
+      (#x6E  ; ROR abs
+       (let ((addr (addr-abs cpu)))
+         (mem-write cpu addr (do-ror cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 6))
+      (#x7E  ; ROR abs,X
+       (let ((addr (nth-value 0 (addr-absx* cpu))))
+         (mem-write cpu addr (do-ror cpu (mem-read cpu addr))))
+       (incf (cpu-cycles cpu) 7))
+
+      ;; --- INC ---
+      (#xE6  ; INC zp
+       (let* ((addr (addr-zp cpu))
+              (val  (logand (1+ (mem-read cpu addr)) #xFF)))
+         (mem-write cpu addr val)
+         (update-nz cpu val))
+       (incf (cpu-cycles cpu) 5))
+      (#xF6  ; INC zp,X
+       (let* ((addr (addr-zpx cpu))
+              (val  (logand (1+ (mem-read cpu addr)) #xFF)))
+         (mem-write cpu addr val)
+         (update-nz cpu val))
+       (incf (cpu-cycles cpu) 6))
+      (#xEE  ; INC abs
+       (let* ((addr (addr-abs cpu))
+              (val  (logand (1+ (mem-read cpu addr)) #xFF)))
+         (mem-write cpu addr val)
+         (update-nz cpu val))
+       (incf (cpu-cycles cpu) 6))
+      (#xFE  ; INC abs,X
+       (let* ((addr (nth-value 0 (addr-absx* cpu)))
+              (val  (logand (1+ (mem-read cpu addr)) #xFF)))
+         (mem-write cpu addr val)
+         (update-nz cpu val))
+       (incf (cpu-cycles cpu) 7))
+
+      ;; --- DEC ---
+      (#xC6  ; DEC zp
+       (let* ((addr (addr-zp cpu))
+              (val  (logand (1- (mem-read cpu addr)) #xFF)))
+         (mem-write cpu addr val)
+         (update-nz cpu val))
+       (incf (cpu-cycles cpu) 5))
+      (#xD6  ; DEC zp,X
+       (let* ((addr (addr-zpx cpu))
+              (val  (logand (1- (mem-read cpu addr)) #xFF)))
+         (mem-write cpu addr val)
+         (update-nz cpu val))
+       (incf (cpu-cycles cpu) 6))
+      (#xCE  ; DEC abs
+       (let* ((addr (addr-abs cpu))
+              (val  (logand (1- (mem-read cpu addr)) #xFF)))
+         (mem-write cpu addr val)
+         (update-nz cpu val))
+       (incf (cpu-cycles cpu) 6))
+      (#xDE  ; DEC abs,X
+       (let* ((addr (nth-value 0 (addr-absx* cpu)))
+              (val  (logand (1- (mem-read cpu addr)) #xFF)))
+         (mem-write cpu addr val)
+         (update-nz cpu val))
+       (incf (cpu-cycles cpu) 7))
 
       ;; --- Opcode inconnu ---
       (t

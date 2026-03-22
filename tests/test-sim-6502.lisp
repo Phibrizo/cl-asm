@@ -753,6 +753,176 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Tests : décalages/rotations (ASL LSR ROL ROR) + INC/DEC mémoire
+;;; --------------------------------------------------------------------------
+
+(deftest test/shifts
+  ;; --- ASL A ---
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #b01000001)        ; bit7=0, bit0=1
+    (load-program cpu #(#x0A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ASL A : résultat"       (= #b10000010 (cpu-a cpu)))
+    (check "ASL A : C = 0"          (not (flag-c cpu)))
+    (check "ASL A : N mis"          (flag-n cpu))
+    (check "ASL A : cycles = 2"     (= 2 (cpu-cycles cpu))))
+  ;; ASL A : carry out
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #b10000000)
+    (load-program cpu #(#x0A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ASL A : C ← bit7"      (flag-c cpu))
+    (check "ASL A : A = 0, Z mis"   (flag-z cpu)))
+  ;; ASL zp
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x30 #x12)
+    (load-program cpu #(#x06 #x30 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ASL zp : mem = $24"     (= #x24 (mem-read cpu #x30)))
+    (check "ASL zp : cycles = 5"    (= 5 (cpu-cycles cpu))))
+
+  ;; --- LSR A ---
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #b10000011)        ; bit0=1
+    (load-program cpu #(#x4A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "LSR A : résultat"       (= #b01000001 (cpu-a cpu)))
+    (check "LSR A : C ← bit0"      (flag-c cpu))
+    (check "LSR A : N = 0"          (not (flag-n cpu)))
+    (check "LSR A : cycles = 2"     (= 2 (cpu-cycles cpu))))
+  ;; LSR A : zero
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #x01)
+    (load-program cpu #(#x4A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "LSR A : 1 → 0, Z mis"   (flag-z cpu))
+    (check "LSR A : C = 1"          (flag-c cpu)))
+  ;; LSR zp
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x40 #xFE)
+    (load-program cpu #(#x46 #x40 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "LSR zp : mem = $7F"     (= #x7F (mem-read cpu #x40)))
+    (check "LSR zp : C = 0"         (not (flag-c cpu)))
+    (check "LSR zp : cycles = 5"    (= 5 (cpu-cycles cpu))))
+
+  ;; --- ROL A ---
+  ;; Sans carry entrant
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #b01000001 (cpu-p cpu) #x24)   ; C=0
+    (load-program cpu #(#x2A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ROL A : résultat (C=0)" (= #b10000010 (cpu-a cpu)))
+    (check "ROL A : C sortant = 0"  (not (flag-c cpu)))
+    (check "ROL A : cycles = 2"     (= 2 (cpu-cycles cpu))))
+  ;; Avec carry entrant
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #b00000000 (cpu-p cpu) #x25)   ; C=1
+    (load-program cpu #(#x2A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ROL A : bit0 ← C"       (= #x01 (cpu-a cpu))))
+  ;; Carry out depuis bit7
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #b10000000 (cpu-p cpu) #x24)
+    (load-program cpu #(#x2A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ROL A : C ← bit7"       (flag-c cpu))
+    (check "ROL A : A = 0, Z mis"    (flag-z cpu)))
+  ;; ROL zp
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x50 #x55)
+    (setf (cpu-p cpu) #x24)            ; C=0
+    (load-program cpu #(#x26 #x50 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ROL zp : mem = $AA"      (= #xAA (mem-read cpu #x50)))
+    (check "ROL zp : cycles = 5"     (= 5 (cpu-cycles cpu))))
+
+  ;; --- ROR A ---
+  ;; Sans carry entrant
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #b10000010 (cpu-p cpu) #x24)   ; C=0
+    (load-program cpu #(#x6A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ROR A : résultat (C=0)"  (= #b01000001 (cpu-a cpu)))
+    (check "ROR A : C sortant = 0"   (not (flag-c cpu)))
+    (check "ROR A : cycles = 2"      (= 2 (cpu-cycles cpu))))
+  ;; Avec carry entrant
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #x00 (cpu-p cpu) #x25)         ; C=1
+    (load-program cpu #(#x6A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ROR A : bit7 ← C"        (= #x80 (cpu-a cpu)))
+    (check "ROR A : N mis"            (flag-n cpu)))
+  ;; Carry out depuis bit0
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) #x01 (cpu-p cpu) #x24)
+    (load-program cpu #(#x6A #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ROR A : C ← bit0"        (flag-c cpu))
+    (check "ROR A : A = 0, Z mis"     (flag-z cpu)))
+  ;; ROR zp
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x60 #xAA)
+    (setf (cpu-p cpu) #x24)
+    (load-program cpu #(#x66 #x60 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ROR zp : mem = $55"       (= #x55 (mem-read cpu #x60)))
+    (check "ROR zp : cycles = 5"      (= 5 (cpu-cycles cpu))))
+
+  ;; --- INC mémoire ---
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x70 #x09)
+    (load-program cpu #(#xE6 #x70 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "INC zp : mem = $0A"       (= #x0A (mem-read cpu #x70)))
+    (check "INC zp : Z = 0"           (not (flag-z cpu)))
+    (check "INC zp : cycles = 5"      (= 5 (cpu-cycles cpu))))
+  ;; INC wrap $FF → $00
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x70 #xFF)
+    (load-program cpu #(#xE6 #x70 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "INC zp : $FF → $00"       (= 0 (mem-read cpu #x70)))
+    (check "INC zp : Z mis"           (flag-z cpu)))
+  ;; INC abs
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x0200 #x7F)
+    (load-program cpu #(#xEE #x00 #x02 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "INC abs : mem = $80"      (= #x80 (mem-read cpu #x0200)))
+    (check "INC abs : N mis"          (flag-n cpu))
+    (check "INC abs : cycles = 6"     (= 6 (cpu-cycles cpu))))
+
+  ;; --- DEC mémoire ---
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x80 #x05)
+    (load-program cpu #(#xC6 #x80 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "DEC zp : mem = $04"       (= #x04 (mem-read cpu #x80)))
+    (check "DEC zp : cycles = 5"      (= 5 (cpu-cycles cpu))))
+  ;; DEC wrap $00 → $FF
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x80 #x00)
+    (load-program cpu #(#xC6 #x80 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "DEC zp : $00 → $FF"       (= #xFF (mem-read cpu #x80)))
+    (check "DEC zp : N mis"           (flag-n cpu)))
+  ;; DEC pour obtenir zéro
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x80 #x01)
+    (load-program cpu #(#xC6 #x80 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "DEC zp : 1 → 0, Z mis"   (flag-z cpu)))
+  ;; DEC abs
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x0300 #x10)
+    (load-program cpu #(#xCE #x00 #x03 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "DEC abs : mem = $0F"      (= #x0F (mem-read cpu #x0300)))
+    (check "DEC abs : cycles = 6"     (= 6 (cpu-cycles cpu)))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Point d'entrée
 ;;; --------------------------------------------------------------------------
 
@@ -772,6 +942,7 @@
   (test/run-cpu)
   (test/load-store)
   (test/alu)
+  (test/shifts)
   (format t "~&~%=== sim-6502     : ~D OK, ~D KO sur ~D tests~%"
           *pass* *fail* (+ *pass* *fail*))
   (when *failures*
