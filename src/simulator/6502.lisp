@@ -318,6 +318,58 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Helpers ALU
+;;; --------------------------------------------------------------------------
+
+(defun do-adc (cpu val)
+  "A ← A + VAL + C. Met à jour N V Z C."
+  (let* ((a      (cpu-a cpu))
+         (c      (if (flag-c cpu) 1 0))
+         (result (+ a val c)))
+    (set-flag cpu +flag-c+ (> result #xFF))
+    (set-flag cpu +flag-v+
+              (not (zerop (logand (lognot (logxor a val))
+                                  (logxor a result)
+                                  #x80))))
+    (setf (cpu-a cpu) (logand result #xFF))
+    (update-nz cpu (cpu-a cpu))))
+
+(defun do-sbc (cpu val)
+  "A ← A - VAL - (1-C). Implémenté comme ADC avec complément de VAL."
+  (do-adc cpu (logxor val #xFF)))
+
+(defun do-and (cpu val)
+  "A ← A & VAL. Met à jour N Z."
+  (setf (cpu-a cpu) (logand (cpu-a cpu) val))
+  (update-nz cpu (cpu-a cpu)))
+
+(defun do-ora (cpu val)
+  "A ← A | VAL. Met à jour N Z."
+  (setf (cpu-a cpu) (logior (cpu-a cpu) val))
+  (update-nz cpu (cpu-a cpu)))
+
+(defun do-eor (cpu val)
+  "A ← A ^ VAL. Met à jour N Z."
+  (setf (cpu-a cpu) (logxor (cpu-a cpu) val))
+  (update-nz cpu (cpu-a cpu)))
+
+(defun do-cmp (cpu reg val)
+  "Compare REG avec VAL. Met à jour N Z C (pas V)."
+  (let ((result (logand (- reg val) #xFF)))
+    (set-flag cpu +flag-c+ (>= reg val))
+    (set-flag cpu +flag-n+ (logbitp 7 result))
+    (set-flag cpu +flag-z+ (zerop result))))
+
+(defun do-bit (cpu val)
+  "BIT : N ← bit7(VAL), V ← bit6(VAL), Z ← (A & VAL) = 0."
+  (set-flag cpu +flag-n+ (logbitp 7 val))
+  (set-flag cpu +flag-v+ (logbitp 6 val))
+  (set-flag cpu +flag-z+ (zerop (logand (cpu-a cpu) val))))
+
+
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Exécution — step-cpu
 ;;;
 ;;;  Étape 1 : instructions implicites uniquement (1 octet, sans opérande).
@@ -597,6 +649,116 @@
       (#x8C  ; STY abs
        (mem-write cpu (addr-abs cpu) (cpu-y cpu))
        (incf (cpu-cycles cpu) 4))
+
+      ;; --- ADC ---
+      (#x69 (do-adc cpu (fetch cpu))                          (incf (cpu-cycles cpu) 2))
+      (#x65 (do-adc cpu (mem-read cpu (addr-zp cpu)))         (incf (cpu-cycles cpu) 3))
+      (#x75 (do-adc cpu (mem-read cpu (addr-zpx cpu)))        (incf (cpu-cycles cpu) 4))
+      (#x6D (do-adc cpu (mem-read cpu (addr-abs cpu)))        (incf (cpu-cycles cpu) 4))
+      (#x7D (multiple-value-bind (a cross) (addr-absx* cpu)
+              (do-adc cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#x79 (multiple-value-bind (a cross) (addr-absy* cpu)
+              (do-adc cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#x61 (do-adc cpu (mem-read cpu (addr-indx cpu)))       (incf (cpu-cycles cpu) 6))
+      (#x71 (multiple-value-bind (a cross) (addr-indy* cpu)
+              (do-adc cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 6 5))))
+
+      ;; --- SBC ---
+      (#xE9 (do-sbc cpu (fetch cpu))                          (incf (cpu-cycles cpu) 2))
+      (#xE5 (do-sbc cpu (mem-read cpu (addr-zp cpu)))         (incf (cpu-cycles cpu) 3))
+      (#xF5 (do-sbc cpu (mem-read cpu (addr-zpx cpu)))        (incf (cpu-cycles cpu) 4))
+      (#xED (do-sbc cpu (mem-read cpu (addr-abs cpu)))        (incf (cpu-cycles cpu) 4))
+      (#xFD (multiple-value-bind (a cross) (addr-absx* cpu)
+              (do-sbc cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#xF9 (multiple-value-bind (a cross) (addr-absy* cpu)
+              (do-sbc cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#xE1 (do-sbc cpu (mem-read cpu (addr-indx cpu)))       (incf (cpu-cycles cpu) 6))
+      (#xF1 (multiple-value-bind (a cross) (addr-indy* cpu)
+              (do-sbc cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 6 5))))
+
+      ;; --- AND ---
+      (#x29 (do-and cpu (fetch cpu))                          (incf (cpu-cycles cpu) 2))
+      (#x25 (do-and cpu (mem-read cpu (addr-zp cpu)))         (incf (cpu-cycles cpu) 3))
+      (#x35 (do-and cpu (mem-read cpu (addr-zpx cpu)))        (incf (cpu-cycles cpu) 4))
+      (#x2D (do-and cpu (mem-read cpu (addr-abs cpu)))        (incf (cpu-cycles cpu) 4))
+      (#x3D (multiple-value-bind (a cross) (addr-absx* cpu)
+              (do-and cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#x39 (multiple-value-bind (a cross) (addr-absy* cpu)
+              (do-and cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#x21 (do-and cpu (mem-read cpu (addr-indx cpu)))       (incf (cpu-cycles cpu) 6))
+      (#x31 (multiple-value-bind (a cross) (addr-indy* cpu)
+              (do-and cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 6 5))))
+
+      ;; --- ORA ---
+      (#x09 (do-ora cpu (fetch cpu))                          (incf (cpu-cycles cpu) 2))
+      (#x05 (do-ora cpu (mem-read cpu (addr-zp cpu)))         (incf (cpu-cycles cpu) 3))
+      (#x15 (do-ora cpu (mem-read cpu (addr-zpx cpu)))        (incf (cpu-cycles cpu) 4))
+      (#x0D (do-ora cpu (mem-read cpu (addr-abs cpu)))        (incf (cpu-cycles cpu) 4))
+      (#x1D (multiple-value-bind (a cross) (addr-absx* cpu)
+              (do-ora cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#x19 (multiple-value-bind (a cross) (addr-absy* cpu)
+              (do-ora cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#x01 (do-ora cpu (mem-read cpu (addr-indx cpu)))       (incf (cpu-cycles cpu) 6))
+      (#x11 (multiple-value-bind (a cross) (addr-indy* cpu)
+              (do-ora cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 6 5))))
+
+      ;; --- EOR ---
+      (#x49 (do-eor cpu (fetch cpu))                          (incf (cpu-cycles cpu) 2))
+      (#x45 (do-eor cpu (mem-read cpu (addr-zp cpu)))         (incf (cpu-cycles cpu) 3))
+      (#x55 (do-eor cpu (mem-read cpu (addr-zpx cpu)))        (incf (cpu-cycles cpu) 4))
+      (#x4D (do-eor cpu (mem-read cpu (addr-abs cpu)))        (incf (cpu-cycles cpu) 4))
+      (#x5D (multiple-value-bind (a cross) (addr-absx* cpu)
+              (do-eor cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#x59 (multiple-value-bind (a cross) (addr-absy* cpu)
+              (do-eor cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#x41 (do-eor cpu (mem-read cpu (addr-indx cpu)))       (incf (cpu-cycles cpu) 6))
+      (#x51 (multiple-value-bind (a cross) (addr-indy* cpu)
+              (do-eor cpu (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 6 5))))
+
+      ;; --- CMP ---
+      (#xC9 (do-cmp cpu (cpu-a cpu) (fetch cpu))                         (incf (cpu-cycles cpu) 2))
+      (#xC5 (do-cmp cpu (cpu-a cpu) (mem-read cpu (addr-zp cpu)))        (incf (cpu-cycles cpu) 3))
+      (#xD5 (do-cmp cpu (cpu-a cpu) (mem-read cpu (addr-zpx cpu)))       (incf (cpu-cycles cpu) 4))
+      (#xCD (do-cmp cpu (cpu-a cpu) (mem-read cpu (addr-abs cpu)))       (incf (cpu-cycles cpu) 4))
+      (#xDD (multiple-value-bind (a cross) (addr-absx* cpu)
+              (do-cmp cpu (cpu-a cpu) (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#xD9 (multiple-value-bind (a cross) (addr-absy* cpu)
+              (do-cmp cpu (cpu-a cpu) (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 5 4))))
+      (#xC1 (do-cmp cpu (cpu-a cpu) (mem-read cpu (addr-indx cpu)))      (incf (cpu-cycles cpu) 6))
+      (#xD1 (multiple-value-bind (a cross) (addr-indy* cpu)
+              (do-cmp cpu (cpu-a cpu) (mem-read cpu a))
+              (incf (cpu-cycles cpu) (if cross 6 5))))
+
+      ;; --- CPX ---
+      (#xE0 (do-cmp cpu (cpu-x cpu) (fetch cpu))                         (incf (cpu-cycles cpu) 2))
+      (#xE4 (do-cmp cpu (cpu-x cpu) (mem-read cpu (addr-zp cpu)))        (incf (cpu-cycles cpu) 3))
+      (#xEC (do-cmp cpu (cpu-x cpu) (mem-read cpu (addr-abs cpu)))       (incf (cpu-cycles cpu) 4))
+
+      ;; --- CPY ---
+      (#xC0 (do-cmp cpu (cpu-y cpu) (fetch cpu))                         (incf (cpu-cycles cpu) 2))
+      (#xC4 (do-cmp cpu (cpu-y cpu) (mem-read cpu (addr-zp cpu)))        (incf (cpu-cycles cpu) 3))
+      (#xCC (do-cmp cpu (cpu-y cpu) (mem-read cpu (addr-abs cpu)))       (incf (cpu-cycles cpu) 4))
+
+      ;; --- BIT ---
+      (#x24 (do-bit cpu (mem-read cpu (addr-zp cpu)))  (incf (cpu-cycles cpu) 3))
+      (#x2C (do-bit cpu (mem-read cpu (addr-abs cpu))) (incf (cpu-cycles cpu) 4))
 
       ;; --- Opcode inconnu ---
       (t

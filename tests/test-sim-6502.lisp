@@ -591,6 +591,168 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Tests : ALU (ADC SBC AND ORA EOR CMP CPX CPY BIT)
+;;; --------------------------------------------------------------------------
+
+;;; Helper : exécute un seul opcode suivi d'un octet opérande, retourne le CPU.
+(defun run-alu (opcode operand &key (a 0) (x 0) (y 0) (p #x24))
+  "Exécute OPCODE OPERAND dans un CPU frais avec les registres donnés."
+  (let ((cpu (make-cpu)))
+    (setf (cpu-a cpu) a (cpu-x cpu) x (cpu-y cpu) y (cpu-p cpu) p)
+    (load-program cpu (vector opcode operand #x00) :origin 0)
+    (step-cpu cpu)
+    cpu))
+
+(deftest test/alu
+
+  ;; --- ADC ---
+  ;; Addition simple
+  (let ((cpu (run-alu #x69 #x10 :a #x20)))           ; LDA #$20 ; ADC #$10
+    (check "ADC imm : A = $30"     (= #x30 (cpu-a cpu)))
+    (check "ADC imm : C = 0"       (not (flag-c cpu)))
+    (check "ADC imm : V = 0"       (not (flag-v cpu)))
+    (check "ADC imm : cycles = 2"  (= 2 (cpu-cycles cpu))))
+  ;; Carry out
+  (let ((cpu (run-alu #x69 #x01 :a #xFF)))
+    (check "ADC : carry out"       (flag-c cpu))
+    (check "ADC : A = $00"         (= 0 (cpu-a cpu)))
+    (check "ADC : Z mis"           (flag-z cpu)))
+  ;; Carry in
+  (let ((cpu (run-alu #x69 #x01 :a #x01 :p #x25)))   ; p=$25 → C=1
+    (check "ADC : carry in"        (= #x03 (cpu-a cpu))))
+  ;; Overflow positif→négatif
+  (let ((cpu (run-alu #x69 #x01 :a #x7F)))
+    (check "ADC : V overflow +"    (flag-v cpu))
+    (check "ADC : N mis"           (flag-n cpu)))
+  ;; Overflow négatif→positif
+  (let ((cpu (run-alu #x69 #x80 :a #x80)))
+    (check "ADC : V overflow -"    (flag-v cpu))
+    (check "ADC : C mis (wrap)"    (flag-c cpu)))
+  ;; Pas d'overflow : $80 + $7F = $FF (négatif, pas d'overflow)
+  (let ((cpu (run-alu #x69 #x7F :a #x80)))
+    (check "ADC : no overflow"     (not (flag-v cpu))))
+
+  ;; --- SBC ---
+  ;; Soustraction simple (C=1 = pas d'emprunt)
+  (let ((cpu (run-alu #xE9 #x10 :a #x30 :p #x25)))   ; C=1
+    (check "SBC imm : A = $20"     (= #x20 (cpu-a cpu)))
+    (check "SBC imm : C = 1 (ok)"  (flag-c cpu))
+    (check "SBC imm : V = 0"       (not (flag-v cpu)))
+    (check "SBC imm : cycles = 2"  (= 2 (cpu-cycles cpu))))
+  ;; Borrow (C=0 en entrée → soustrait 1 de plus)
+  (let ((cpu (run-alu #xE9 #x01 :a #x01 :p #x24)))   ; C=0
+    (check "SBC : borrow → A = $FF" (= #xFF (cpu-a cpu)))
+    (check "SBC : C = 0 (borrow)"   (not (flag-c cpu))))
+  ;; A = 0 - 1 avec C=1 → $FF, C=0
+  (let ((cpu (run-alu #xE9 #x01 :a #x00 :p #x25)))
+    (check "SBC : 0-1 = $FF"        (= #xFF (cpu-a cpu)))
+    (check "SBC : C = 0"            (not (flag-c cpu))))
+  ;; Overflow : $50 - $B0 = dépasse la plage signée
+  (let ((cpu (run-alu #xE9 #xB0 :a #x50 :p #x25)))
+    (check "SBC : V overflow"       (flag-v cpu)))
+
+  ;; --- AND ---
+  (let ((cpu (run-alu #x29 #x0F :a #xFF)))
+    (check "AND imm : A = $0F"      (= #x0F (cpu-a cpu)))
+    (check "AND imm : Z = 0"        (not (flag-z cpu)))
+    (check "AND imm : cycles = 2"   (= 2 (cpu-cycles cpu))))
+  (let ((cpu (run-alu #x29 #xF0 :a #x0F)))
+    (check "AND imm : A = 0, Z mis" (flag-z cpu)))
+  (let ((cpu (run-alu #x29 #xFF :a #x80)))
+    (check "AND imm : N mis"        (flag-n cpu)))
+
+  ;; --- ORA ---
+  (let ((cpu (run-alu #x09 #x0F :a #xF0)))
+    (check "ORA imm : A = $FF"      (= #xFF (cpu-a cpu)))
+    (check "ORA imm : N mis"        (flag-n cpu))
+    (check "ORA imm : cycles = 2"   (= 2 (cpu-cycles cpu))))
+  (let ((cpu (run-alu #x09 #x00 :a #x00)))
+    (check "ORA imm : 0|0 → Z mis"  (flag-z cpu)))
+
+  ;; --- EOR ---
+  (let ((cpu (run-alu #x49 #xFF :a #xFF)))
+    (check "EOR imm : A = 0, Z mis" (flag-z cpu))
+    (check "EOR imm : cycles = 2"   (= 2 (cpu-cycles cpu))))
+  (let ((cpu (run-alu #x49 #x0F :a #xF0)))
+    (check "EOR imm : A = $FF"      (= #xFF (cpu-a cpu)))
+    (check "EOR imm : N mis"        (flag-n cpu)))
+
+  ;; --- CMP ---
+  ;; Égal → Z=1, C=1, N=0
+  (let ((cpu (run-alu #xC9 #x42 :a #x42)))
+    (check "CMP = : Z mis"          (flag-z cpu))
+    (check "CMP = : C mis"          (flag-c cpu))
+    (check "CMP = : N = 0"          (not (flag-n cpu)))
+    (check "CMP = : cycles = 2"     (= 2 (cpu-cycles cpu))))
+  ;; A > val → C=1, Z=0
+  (let ((cpu (run-alu #xC9 #x10 :a #x20)))
+    (check "CMP > : C mis"          (flag-c cpu))
+    (check "CMP > : Z = 0"          (not (flag-z cpu))))
+  ;; A < val → C=0, N=1
+  (let ((cpu (run-alu #xC9 #x20 :a #x10)))
+    (check "CMP < : C = 0"          (not (flag-c cpu)))
+    (check "CMP < : N mis"          (flag-n cpu)))
+  ;; CMP ne modifie pas A
+  (let ((cpu (run-alu #xC9 #x10 :a #x42)))
+    (check "CMP : A inchangé"       (= #x42 (cpu-a cpu))))
+
+  ;; --- CPX ---
+  (let ((cpu (run-alu #xE0 #x05 :x #x05)))
+    (check "CPX = : Z mis"          (flag-z cpu))
+    (check "CPX = : cycles = 2"     (= 2 (cpu-cycles cpu))))
+  (let ((cpu (run-alu #xE0 #x10 :x #x20)))
+    (check "CPX > : C mis"          (flag-c cpu)))
+  (let ((cpu (run-alu #xE0 #x20 :x #x10)))
+    (check "CPX < : C = 0"          (not (flag-c cpu))))
+
+  ;; --- CPY ---
+  (let ((cpu (run-alu #xC0 #x07 :y #x07)))
+    (check "CPY = : Z mis"          (flag-z cpu))
+    (check "CPY = : cycles = 2"     (= 2 (cpu-cycles cpu))))
+  (let ((cpu (run-alu #xC0 #x01 :y #x02)))
+    (check "CPY > : C mis"          (flag-c cpu)))
+
+  ;; --- BIT (zp) ---
+  ;; N ← bit7, V ← bit6, Z ← (A & mem) = 0
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x50 #b11000000)   ; N=1, V=1
+    (setf (cpu-a cpu) #x3F)           ; A & $C0 = 0 → Z=1
+    (load-program cpu #(#x24 #x50 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "BIT zp : N mis"         (flag-n cpu))
+    (check "BIT zp : V mis"         (flag-v cpu))
+    (check "BIT zp : Z mis (A&m=0)" (flag-z cpu))
+    (check "BIT zp : A inchangé"    (= #x3F (cpu-a cpu)))
+    (check "BIT zp : cycles = 3"    (= 3 (cpu-cycles cpu))))
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x50 #b00111111)   ; N=0, V=0
+    (setf (cpu-a cpu) #x01)           ; A & $3F ≠ 0 → Z=0
+    (load-program cpu #(#x24 #x50 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "BIT zp : N = 0"         (not (flag-n cpu)))
+    (check "BIT zp : V = 0"         (not (flag-v cpu)))
+    (check "BIT zp : Z = 0"         (not (flag-z cpu))))
+
+  ;; --- Modes ALU non-imm : vérifier qu'ils accèdent bien à la mémoire ---
+  ;; ADC zp
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x20 #x05)
+    (setf (cpu-a cpu) #x03 (cpu-p cpu) #x24)   ; C=0
+    (load-program cpu #(#x65 #x20 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "ADC zp : A = $08"       (= #x08 (cpu-a cpu)))
+    (check "ADC zp : cycles = 3"    (= 3 (cpu-cycles cpu))))
+  ;; SBC abs (C=1 requis pour pas d'emprunt)
+  (let ((cpu (make-cpu)))
+    (mem-write cpu #x0300 #x04)
+    (setf (cpu-a cpu) #x0A (cpu-p cpu) #x25)   ; C=1
+    (load-program cpu #(#xED #x00 #x03 #x00) :origin 0)
+    (step-cpu cpu)
+    (check "SBC abs : A = $06"      (= #x06 (cpu-a cpu)))
+    (check "SBC abs : cycles = 4"   (= 4 (cpu-cycles cpu)))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Point d'entrée
 ;;; --------------------------------------------------------------------------
 
@@ -609,6 +771,7 @@
   (test/flag-instructions)
   (test/run-cpu)
   (test/load-store)
+  (test/alu)
   (format t "~&~%=== sim-6502     : ~D OK, ~D KO sur ~D tests~%"
           *pass* *fail* (+ *pass* *fail*))
   (when *failures*
