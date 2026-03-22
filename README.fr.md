@@ -10,14 +10,14 @@ sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.4.0**
+**Version courante : 0.4.3**
 
 ```
-cl-asm/version:+version+         ; → "0.4.0"
+cl-asm/version:+version+         ; → "0.4.3"
 cl-asm/version:+version-major+   ; → 0
 cl-asm/version:+version-minor+   ; → 4
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.4.0"
+(cl-asm/version:version-string)  ; → "0.4.3"
 ```
 
 ---
