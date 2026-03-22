@@ -1,0 +1,5 @@
+# Fichiers à ignorer lors de la génération des références ca65.
+
+# Syntaxe ACME pure (!to, !cpu, *=addr, !BYTE, !PET) :
+# incompatible avec ca65, référence générée par cl-asm directement.
+08-acme-directives
