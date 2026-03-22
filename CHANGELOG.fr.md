@@ -5,6 +5,71 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.4.1] — 2026-03-22
+
+### Ajouté
+
+**Support natif de la syntaxe ACME** — le frontend classique de cl-asm accepte désormais
+les fichiers source ACME directement sans conversion :
+- `*=ADDR` — org style ACME (équivalent à `.org ADDR`)
+- `!BYTE` / `!WORD` / `!FILL` — alias directs pour `.byte`/`.word`/`.fill`
+- `!PET "str",n,...` — émission PETSCII : a-z → 0x41-0x5A (−0x20), A-Z → 0xC1-0xDA (+0x80) ; args numériques passés tels quels ; formes mixtes supportées (`!PET 147,"str",13,0`)
+- `!to "file",cbm` — ignoré (nom de sortie géré par `--target`)
+- `!cpu 65c02` — ignoré (CPU fixé par `--target`)
+
+**Labels anonymes ca65** — `:` seul en début de ligne définit un label anonyme ;
+`:-` / `:--` / `:---` référencent les 1er/2e/3e précédents ; `:+` / `:++` référencent
+les 1er/2e suivants.
+
+**Labels `@`-scopés ca65** — `@nom:` définit un label local à l'espace du dernier label
+global ; `@nom` le référence. Deux routines peuvent chacune avoir leur propre `@loop:`
+sans conflit.
+
+**Directive `.res N`** — alias pour `.fill N` (réserve N octets, compatibilité ca65).
+
+**`tests/regression/x16/06-bank-byte-operator.asm`** — test de régression pour `^` (opérateur octet de banque).
+
+**`tests/regression/x16/07-anon-scoped-labels.asm`** — test de régression : labels anonymes, labels `@`-scopés, `.res`, `.byte "string"` inline, forward-ref immédiat.
+
+**`tests/regression/x16/08-acme-directives.asm`** — test de régression : `!to`, `!cpu`, `*=`, `!BYTE`, `!PET` (conversion PETSCII vérifiée contre la sortie de l'assembleur ACME).
+
+**Listes d'exclusion** — `tests/regression/x16/.ca65-skip` et `.acme-skip` pour gérer les fichiers spécifiques à une syntaxe.
+
+### Corrigé
+
+**Taille forward-ref immédiat en passe 1** — `ldx #<forward_label` estimait 3 octets (max pour LDX) au lieu de 2 en passe 1, décalant toutes les adresses suivantes. Désormais estime correctement 2 octets en mode immédiat quelle que soit la résolution.
+
+**`ASL`/`LSR`/`ROL`/`ROR` sans opérande** — `:implied` bascule maintenant vers `:accumulator` lorsqu'aucune clause `:implied` n'existe (ex. `ASL` seul = `ASL A`).
+
+**`.byte "string"` inline** — les arguments chaîne de `.byte` étaient incorrectement transmis à l'évaluateur d'expressions. Désormais traités séparément en passe 1 (estimation taille) et passe 2 (émission d'octets).
+
+**`acme2clasm` — conversion `!PET`** — les formes à arguments mixtes (`"str",13,0` et `147,"str",0`) sont désormais correctement gérées ; conversion PETSCII appliquée (a-z → A-Z, A-Z → shifted).
+
+### Tests
+
+| Suite | 0.4.0 | 0.4.1 |
+|---|---|---|
+| symbol-table | 65 | 65 |
+| expression | 129 | 129 |
+| lexer | 119 | 119 |
+| parser | 84 | 84 |
+| macros | 27 | 27 |
+| conditional | 27 | 27 |
+| lasm | 58 | 58 |
+| 6502 | 82 | 82 |
+| **65c02** | **41** | **86** |
+| r65c02 | 117 | 117 |
+| 45gs02 | 80 | 80 |
+| 65816 | 104 | 104 |
+| z80 | 191 | 191 |
+| m68k-parser | 85 | 85 |
+| m68k | 144 | 144 |
+| **TOTAL** | **1353** | **1398** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.4.0] — 2026-03-21
 
 ### Ajouté

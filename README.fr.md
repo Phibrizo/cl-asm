@@ -505,6 +505,8 @@ PLATFORM = 64
 ./cl-asm prog.asm --target r65c02
 ./cl-asm snes.asm --target 65816     # WDC 65816 / SNES
 ./cl-asm prog.asm --target z80       # Z80 / ZX Spectrum / MSX
+# Assembler un fichier source ACME directement (sans conversion)
+./cl-asm terminal.asm --target x16
 ./cl-asm programme.asm -v            # mode verbose
 ./cl-asm --help
 ```
@@ -592,10 +594,19 @@ qui est disponible sur votre système.
 ```
 
 Conversions : `!addr` → constante, `!byte`/`!8` → `.byte`,
-`!word`/`!16` → `.word`, `!pet` → `.byte` avec codes explicites,
+`!word`/`!16` → `.word`, `!pet` → `.byte` avec codes PETSCII explicites
+(a-z → majuscules A-Z −0x20, A-Z → shifted +0x80 ; formes mixtes supportées),
 `!fill` → `.fill`, `!macro`/`!if` → `.macro`/`.if`,
 `!cpu m65` → `; target: 45gs02`, `!cpu 65c02` → `; target: x16`.
 Les caractères non-ASCII des commentaires sont normalisés en ASCII.
+
+Les fichiers ACME simples utilisant `!byte`, `!pet`, `*=addr`, `!to`, `!cpu`
+peuvent aussi être assemblés directement sans conversion :
+
+    ./cl-asm source.s --target x16
+
+Utilisez `acme2clasm` pour les fichiers nécessitant `!source`, `!binary`,
+`!pseudopc`, macros, ou d'autres fonctionnalités ACME avancées.
 
 Le convertisseur se compose de deux fichiers :
 

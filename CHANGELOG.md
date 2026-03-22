@@ -5,6 +5,70 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.4.1] — 2026-03-22
+
+### Added
+
+**Native ACME syntax support** — cl-asm's classic frontend now accepts ACME source files
+directly without conversion:
+- `*=ADDR` — ACME-style org (equivalent to `.org ADDR`)
+- `!BYTE` / `!WORD` / `!FILL` — direct aliases for `.byte`/`.word`/`.fill`
+- `!PET "str",n,...` — PETSCII emission: a-z → 0x41-0x5A (−0x20), A-Z → 0xC1-0xDA (+0x80); numeric args passed as-is; mixed forms supported (`!PET 147,"str",13,0`)
+- `!to "file",cbm` — ignored (output name handled by `--target`)
+- `!cpu 65c02` — ignored (CPU fixed by `--target`)
+
+**ca65 anonymous labels** — `:` on its own line defines an anonymous label;
+`:-` / `:--` / `:---` reference the 1st/2nd/3rd previous; `:+` / `:++` reference
+the 1st/2nd following.
+
+**ca65 scoped `@`-labels** — `@name:` defines a label local to the enclosing global
+label; `@name` references it. Two routines can each have their own `@loop:` without conflict.
+
+**`.res N` directive** — alias for `.fill N` (reserve N bytes, ca65 compatibility).
+
+**`tests/regression/x16/06-bank-byte-operator.asm`** — regression test for `^` (bank byte operator).
+
+**`tests/regression/x16/07-anon-scoped-labels.asm`** — regression test: anonymous labels, scoped `@`-labels, `.res`, inline `.byte "string"`, immediate forward-ref.
+
+**`tests/regression/x16/08-acme-directives.asm`** — regression test: `!to`, `!cpu`, `*=`, `!BYTE`, `!PET` (PETSCII conversion verified against ACME assembler output).
+
+**Skip lists** — `tests/regression/x16/.ca65-skip` and `.acme-skip` to handle files that are specific to one syntax.
+
+### Fixed
+
+**Pass 1 immediate forward-ref size** — `ldx #<forward_label` previously estimated 3 bytes (max for LDX) instead of 2 in pass 1, causing all subsequent addresses to be off. Now correctly estimates 2 bytes for immediate mode regardless of resolution.
+
+**`ASL`/`LSR`/`ROL`/`ROR` without operand** — `:implied` now falls back to `:accumulator` when no `:implied` clause exists (e.g. `ASL` alone = `ASL A`).
+
+**`.byte "string"` inline** — string arguments to `.byte` were incorrectly passed to the expression evaluator. Now handled separately in both pass 1 (size estimation) and pass 2 (byte emission).
+
+**`acme2clasm` — `!PET` conversion** — mixed-argument forms (`"str",13,0` and `147,"str",0`) now correctly handled; PETSCII conversion applied (a-z → A-Z, A-Z → shifted).
+
+### Tests
+
+| Suite | 0.4.0 | 0.4.1 |
+|---|---|---|
+| symbol-table | 65 | 65 |
+| expression | 129 | 129 |
+| lexer | 119 | 119 |
+| parser | 84 | 84 |
+| macros | 27 | 27 |
+| conditional | 27 | 27 |
+| lasm | 58 | 58 |
+| 6502 | 82 | 82 |
+| **65c02** | **41** | **86** |
+| r65c02 | 117 | 117 |
+| 45gs02 | 80 | 80 |
+| 65816 | 104 | 104 |
+| z80 | 191 | 191 |
+| m68k-parser | 85 | 85 |
+| m68k | 144 | 144 |
+| **TOTAL** | **1353** | **1398** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.4.0] — 2026-03-21
 
 ### Added

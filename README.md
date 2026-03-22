@@ -545,6 +545,9 @@ The `cl-asm` script assembles a file directly from the terminal.
 # Z80 / ZX Spectrum / MSX target
 ./cl-asm prog.asm --target z80
 
+# Assemble an ACME source file directly (no conversion needed)
+./cl-asm terminal.asm --target x16
+
 # Verbose mode
 ./cl-asm programme.asm -v
 ```
@@ -653,10 +656,19 @@ on your system.
 ```
 
 Conversions performed: `!addr` → constant, `!byte`/`!8` → `.byte`,
-`!word`/`!16` → `.word`, `!pet` → `.byte` with explicit codes,
+`!word`/`!16` → `.word`, `!pet` → `.byte` with explicit PETSCII codes
+(a-z → A-Z uppercase −0x20, A-Z → shifted +0x80; mixed forms supported),
 `!fill` → `.fill`, `!macro`/`!if` → `.macro`/`.if`,
 `!cpu m65` → `; target: 45gs02`, `!cpu 65c02` → `; target: x16`.
 Non-ASCII characters in comments are normalized to ASCII.
+
+Simple ACME files (using `!byte`, `!pet`, `*=addr`, `!to`, `!cpu`) can also be
+assembled directly without conversion:
+
+    ./cl-asm source.s --target x16
+
+Use `acme2clasm` for files requiring `!source`, `!binary`, `!pseudopc`, macros,
+or other advanced ACME features not yet supported natively.
 
 The converter consists of two files:
 
