@@ -88,6 +88,7 @@
 (load-filtered "tests/test-m68k.lisp")
 (load-filtered "tests/test-8080.lisp")
 (load-filtered "tests/test-sim-6502.lisp")
+(load-filtered "tests/test-sim-programs.lisp")
 (load-filtered "tests/test-acme2clasm.lisp")
 (load-filtered "tests/run-tests.lisp")
 

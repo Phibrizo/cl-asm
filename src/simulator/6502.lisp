@@ -325,17 +325,30 @@
 ;;; --------------------------------------------------------------------------
 
 (defun do-adc (cpu val)
-  "A ← A + VAL + C. Met à jour N V Z C."
-  (let* ((a      (cpu-a cpu))
-         (c      (if (flag-c cpu) 1 0))
-         (result (+ a val c)))
-    (set-flag cpu +flag-c+ (> result #xFF))
-    (set-flag cpu +flag-v+
-              (not (zerop (logand (lognot (logxor a val))
-                                  (logxor a result)
-                                  #x80))))
-    (setf (cpu-a cpu) (logand result #xFF))
-    (update-nz cpu (cpu-a cpu))))
+  "A ← A + VAL + C. Met à jour N V Z C.
+En mode décimal (D=1) : addition BCD nibble par nibble."
+  (let* ((a (cpu-a cpu))
+         (c (if (flag-c cpu) 1 0)))
+    (if (flag-d cpu)
+        ;; --- Mode BCD ---
+        (let* ((lo     (+ (logand a #x0F) (logand val #x0F) c))
+               (lo-adj (if (> lo 9) (+ lo 6) lo))
+               (carry  (if (> lo-adj #x0F) 1 0))
+               (hi     (+ (ash (logand a #xF0) -4) (ash (logand val #xF0) -4) carry))
+               (hi-adj (if (> hi 9) (+ hi 6) hi))
+               (result (logior (logand lo-adj #x0F) (ash (logand hi-adj #x0F) 4))))
+          (set-flag cpu +flag-c+ (> hi-adj 15))
+          (setf (cpu-a cpu) (logand result #xFF))
+          (update-nz cpu (cpu-a cpu)))
+        ;; --- Mode binaire ---
+        (let* ((result (+ a val c)))
+          (set-flag cpu +flag-c+ (> result #xFF))
+          (set-flag cpu +flag-v+
+                    (not (zerop (logand (lognot (logxor a val))
+                                        (logxor a result)
+                                        #x80))))
+          (setf (cpu-a cpu) (logand result #xFF))
+          (update-nz cpu (cpu-a cpu))))))
 
 (defun do-sbc (cpu val)
   "A ← A - VAL - (1-C). Implémenté comme ADC avec complément de VAL."

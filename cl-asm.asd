@@ -108,6 +108,8 @@
     :depends-on ())
    (:file "tests/test-sim-6502"
     :depends-on ())
+   (:file "tests/test-sim-programs"
+    :depends-on ())
    (:file "tests/test-m68k-parser"
     :depends-on ())
    (:file "tests/test-m68k"
@@ -128,6 +130,7 @@
                  "tests/test-z80"
                  "tests/test-8080"
                  "tests/test-sim-6502"
+                 "tests/test-sim-programs"
                  "tests/test-m68k-parser"
                  "tests/test-m68k")))
   :perform (test-op (o c)
