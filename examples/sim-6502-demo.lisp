@@ -6,11 +6,12 @@
 ;;; Prérequis : système cl-asm chargé via ASDF/Quicklisp.
 ;;;
 ;;; Usage depuis la racine du projet :
+;;;   sbcl --load bootstrap.lisp --load examples/sim-6502-demo.lisp --quit
 ;;;   sbcl --eval '(asdf:load-system "cl-asm")' \
 ;;;        --load examples/sim-6502-demo.lisp --quit
 ;;;
 ;;; Ou depuis le REPL (SBCL, SLIME, SLY…) :
-;;;   (asdf:load-system "cl-asm")
+;;;   (load "bootstrap.lisp")   ; ou (asdf:load-system "cl-asm")
 ;;;   (load "examples/sim-6502-demo.lisp")
 
 (defpackage #:cl-asm/demo.sim6502
