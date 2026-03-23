@@ -20,6 +20,7 @@ sbcl --load src/core/version.lisp \
      --load src/backend/i8080.lisp \
      --load src/frontend/lasm.lisp \
      --load src/simulator/6502.lisp \
+     --load src/disassembler/6502.lisp \
      --load tests/test-65c02.lisp \
      --load tests/test-r65c02.lisp \
      --load tests/test-lasm.lisp \
@@ -39,6 +40,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-sim-6502.lisp \
      --load tests/test-sim-programs.lisp \
      --load tests/test-acme2clasm.lisp \
+     --load tests/test-disasm-6502.lisp \
      --load tests/run-tests.lisp \
      --eval "(cl-asm/test:run-all-tests)" \
      --quit

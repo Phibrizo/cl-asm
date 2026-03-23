@@ -72,6 +72,8 @@
     :depends-on ("src/core/ir"
                  "src/backend/6502"))
    (:file "src/simulator/6502"
+    :depends-on ())
+   (:file "src/disassembler/6502"
     :depends-on ())))
 
 (defsystem "cl-asm/tests"
@@ -112,6 +114,8 @@
     :depends-on ())
    (:file "tests/test-acme2clasm"
     :depends-on ())
+   (:file "tests/test-disasm-6502"
+    :depends-on ())
    (:file "tests/test-m68k-parser"
     :depends-on ())
    (:file "tests/test-m68k"
@@ -134,6 +138,7 @@
                  "tests/test-sim-6502"
                  "tests/test-sim-programs"
                  "tests/test-acme2clasm"
+                 "tests/test-disasm-6502"
                  "tests/test-m68k-parser"
                  "tests/test-m68k")))
   :perform (test-op (o c)

@@ -71,6 +71,7 @@
 (load-filtered "src/backend/i8080.lisp")
 (load-filtered "src/frontend/lasm.lisp")
 (load-filtered "src/simulator/6502.lisp")
+(load-filtered "src/disassembler/6502.lisp")
 (load-filtered "tests/test-65c02.lisp")
 (load-filtered "tests/test-r65c02.lisp")
 (load-filtered "tests/test-lasm.lisp")
@@ -90,6 +91,7 @@
 (load-filtered "tests/test-sim-6502.lisp")
 (load-filtered "tests/test-sim-programs.lisp")
 (load-filtered "tests/test-acme2clasm.lisp")
+(load-filtered "tests/test-disasm-6502.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 
