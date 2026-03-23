@@ -13,10 +13,13 @@
 ;;; Empêcher l'exécution de (main) lors du chargement
 (defvar *acme2clasm-skip-main* t)
 
-;;; Charger le convertisseur (fonctions disponibles dans le package CL-USER)
-(load (merge-pathnames "acme2clasm.lisp"
-                       (make-pathname :directory (butlast (pathname-directory
-                                                           *load-truename*)))))
+;;; Charger le convertisseur (fonctions disponibles dans le package CL-USER).
+;;; Le chemin est calculé à la lecture (#.) pour rester valide même lorsque
+;;; ASDF charge le fichier compilé (FASL) depuis son cache — dans ce cas,
+;;; *load-truename* pointerait vers le FASL, pas vers la source.
+(load #.(let ((src (or *compile-file-pathname* *load-pathname*)))
+          (merge-pathnames "acme2clasm.lisp"
+                           (make-pathname :directory (butlast (pathname-directory src))))))
 
 ;;; Infrastructure de tests (copiée du pattern des autres suites)
 (defvar *pass* 0)
