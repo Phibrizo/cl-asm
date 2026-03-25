@@ -5,6 +5,107 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.9.0] — 2026-03-25
+
+### Ajouté
+
+**Débogueur 6502 — affichage ligne source** (`src/debugger/6502.lisp`) :
+- `show-current` lit le fichier source réel quand `source-loc-file` est non-nil (rempli par `assemble-file`)
+- Affiche `; fichier:ligne | texte source` au-dessus de la ligne désassemblée
+- `source-cache` (hash filename → vecteur-de-lignes) dans la struct `debugger` — chaque fichier est lu une seule fois par session
+- Surcoût nul quand aucun fichier n'est disponible (chemin `parse-string` ou pas de debug-map)
+
+**Débogueur 6502 — breakpoints conditionnels dans le REPL** :
+- Commande REPL `b $ADDR <expr-lisp>` compile une condition via `eval` : `(lambda (cpu) <expr>)`
+- `cpu` est lié à la struct CPU ; utiliser le préfixe de package complet, ex. `(cl-asm/simulator.6502:cpu-a cpu)`
+- Exemple : `b $0210 (= (cl-asm/simulator.6502:cpu-a cpu) #xFF)`
+- Expression invalide : affiche un message d'erreur sans planter le REPL
+- `b $ADDR` sans condition reste inconditionnel (comportement inchangé)
+
+### Modifié
+
+- `src/backend/6502.lisp` — `assemble-file` accepte désormais `&key debug-map` et le transmet à `assemble`
+
+### Tests
+
+| Suite | 0.8.0 | 0.9.0 |
+|---|---|---|
+| debugger-6502 | 68 | 80 |
+| **TOTAL** | **2183** | **2195** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
+## [0.8.0] — 2026-03-25
+
+### Ajouté
+
+**Watchpoints** — surveillance mémoire dans le débogueur 6502 :
+- `set-watchpoint dbg addr &key kind` — `:read` | `:write` | `:rw` (défaut `:write`)
+- `clear-watchpoint dbg addr`, `list-watchpoints dbg`
+- Raccordés au simulateur via `cpu-watch-table` (hash-table addr → kind dans la struct `cpu`)
+- Condition `cpu-watchpoint` (adresse, kind) signalée par `mem-read`/`mem-write` quand une entrée correspond
+- `%step-one` capture `cpu-watchpoint` et retourne `:watchpoint` ; `debugger-last-watchpoint` stocke `(address kind)`
+- Toutes les fonctions d'exécution (`step`, `next`, `continue`) retournent/gèrent `:watchpoint`
+- Commandes REPL : `w $ADDR [read|write|rw]`, `dw $ADDR`, `lw`
+
+### Modifié
+
+- `src/simulator/6502.lisp` : struct `cpu` gagne un slot `watch-table` (nil par défaut — surcoût nul si non utilisé) ; `mem-read`/`mem-write` vérifient la table ; condition `cpu-watchpoint` définie
+- `src/debugger/6502.lisp` : watchpoints entièrement raccordés ; struct `debugger` gagne le slot `last-watchpoint` ; aide REPL mise à jour
+
+### Tests
+
+| Suite | 0.7.0 | 0.8.0 |
+|---|---|---|
+| debugger-6502 | 56 | 68 |
+| **TOTAL** | **2171** | **2183** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
+## [0.7.0] — 2026-03-25
+
+### Ajouté
+
+**Débogueur 6502 interactif** (`src/debugger/6502.lisp`) — nouveau module :
+- `make-debugger cpu &key debug-map` — créer une session débogueur
+- `debugger-repl dbg &key input output` — REPL interactif avec support des string-streams (testable)
+- `debugger-step` / `debugger-next` / `debugger-continue` — primitives d'exécution atomique
+  - `next` implémente le step-over : saute entièrement le corps des sous-routines JSR
+  - Retournent tous `:ok` | `:brk` | `:breakpoint` | `:illegal`
+- `set-breakpoint dbg addr &key condition` — breakpoints inconditionnels (v0.7.0) ou conditionnels
+  - Slot `condition` déjà présent pour les futurs `(lambda (cpu) → bool)`
+- `clear-breakpoint`, `list-breakpoints` — gestion des breakpoints
+- Struct `watchpoint` définie (raccordement simulateur : scope étendu)
+- Helpers d'affichage : `show-registers`, `show-current`, `show-memory`, `show-disasm`
+- `format-flags` — rendu du registre P sous la forme `NV-BDIZC` (majuscule = actif)
+- Commandes REPL : `s`/`step`, `n`/`next`, `c`/`continue`, `b`/`d`/`lb`, `r`/`regs`, `m`/`mem`, `x`/`disasm`, `h`/`help`, `q`/`quit`, ligne vide = répéter
+
+**Table adresse→source** (`src/core/debug-map.lisp`) — nouveau module :
+- Struct `debug-map` : vecteur de 65536 entrées (adresse → source-loc)
+- `make-debug-map`, `debug-map-get`, `debug-map-set`
+- Défini dans `cl-asm/debug-map` (couche core) pour éviter toute dépendance circulaire entre backend et débogueur
+
+### Modifié
+
+**`src/backend/6502.lisp`** — `assemble` et `pass-2` acceptent `&key debug-map` :
+- Si fournie, `pass-2` enregistre `adresse → source-loc` pour chaque instruction assemblée
+- Surcoût nul quand `debug-map` est `nil` (défaut)
+
+### Tests
+
+| Suite | 0.6.0 | 0.7.0 |
+|---|---|---|
+| debugger-6502 (nouveau) | — | 56 |
+| **TOTAL** | **2115** | **2171** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.6.0] — 2026-03-22
 
 ### Ajouté

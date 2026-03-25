@@ -11,14 +11,14 @@ sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.6.0**
+**Version courante : 0.9.0**
 
 ```
-cl-asm/version:+version+         ; → "0.6.0"
+cl-asm/version:+version+         ; → "0.9.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 6
+cl-asm/version:+version-minor+   ; → 9
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.6.0"
+(cl-asm/version:version-string)  ; → "0.9.0"
 ```
 
 ---
@@ -42,13 +42,16 @@ cl-asm/version:+version-patch+   ; → 0
 | Backend M68K (Amiga, Atari ST, Mac 68k) | ✓ | 144 |
 | Backend Intel 8080 (CP/M, Altair) | ✓ | 144 |
 | Simulateur 6502 | ✓ | 294 |
+| Programmes simulateur 6502 | ✓ | 73 |
+| Désassembleur 6502 | ✓ | 121 |
+| Débogueur 6502 (REPL interactif) | ✓ | 80 |
 | Émetteurs BIN / PRG / listing | ✓ | — |
 | Macros textuelles | ✓ | 27 |
 | Assemblage conditionnel | ✓ | 27 |
 | Frontend .lasm (Lisp natif) | ✓ | 97 |
 | Convertisseur acme2clasm | ✓ | 20 |
 
-**Total : 1921 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 2171 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -96,6 +99,7 @@ cl-asm/
 │   │   ├── backends.lisp       registre extensible de backends
 │   │   ├── ir.lisp             représentation intermédiaire
 │   │   ├── expression.lisp     évaluateur d'expressions
+│   │   ├── debug-map.lisp      table adresse→source-loc (pour le débogueur)
 │   │   └── symbol-table.lisp   table des symboles, 2 passes
 │   ├── frontend/
 │   │   ├── classic-lexer.lisp  tokeniseur (ca65-like)
@@ -112,6 +116,10 @@ cl-asm/
 │   │   └── i8080.lisp          encodeur Intel 8080 (CP/M, Altair)
 │   ├── simulator/
 │   │   └── 6502.lisp           simulateur CPU 6502 (152 opcodes, cycle-accurate)
+│   ├── disassembler/
+│   │   └── 6502.lisp           désassembleur 6502 (151 opcodes officiels)
+│   ├── debugger/
+│   │   └── 6502.lisp           débogueur 6502 interactif (REPL)
 │   └── emit/
 │       └── output.lisp         émetteurs BIN, PRG, listing
 ├── tests/
@@ -133,6 +141,9 @@ cl-asm/
 │   ├── test-m68k.lisp
 │   ├── test-8080.lisp
 │   ├── test-sim-6502.lisp
+│   ├── test-sim-programs.lisp
+│   ├── test-disasm-6502.lisp
+│   ├── test-debugger-6502.lisp
 │   └── test-acme2clasm.lisp
 └── examples/
     ├── c64-raster.asm          raster bar C64 (syntaxe classique)
@@ -428,6 +439,158 @@ Package `cl-asm/simulator.6502` — simulateur CPU 6502 cycle-accurate avec mém
 - **Sauts/branches :** JMP abs, JMP (ind) avec bug de page du 6502 original, JSR, RTS, RTI, BCC BCS BEQ BNE BMI BPL BVC BVS
 
 La pénalité de cycle sur franchissement de page est appliquée (+1 pour les lectures ; coût fixe pour les écritures). Les comptages de cycles correspondent au 6502 NMOS original.
+
+---
+
+## Désassembleur 6502
+
+Package `cl-asm/disassembler.6502` — désassemble du code machine 6502 en mnémoniques lisibles. 151 opcodes officiels, tous les modes d'adressage.
+
+```lisp
+(let ((mem (make-array 65536 :element-type '(unsigned-byte 8) :initial-element 0)))
+  (setf (aref mem #x0200) #xA9  ; LDA
+        (aref mem #x0201) #x42  ;   #$42
+        (aref mem #x0202) #x85  ; STA
+        (aref mem #x0203) #x00  ;   $00
+        (aref mem #x0204) #x00) ; BRK
+  (cl-asm/disassembler.6502:print-disasm mem #x0200 :count 3))
+;; $0200  A9 42     LDA #$42
+;; $0202  85 00     STA $00
+;; $0204  00        BRK
+```
+
+| Symbole | Description |
+| --- | --- |
+| `disasm-one mem addr` | Désassemble une instruction → `(values mnémonique opérande taille)` |
+| `disasm mem addr &key count` | Désassemble `count` instructions → liste de `(addr hex mnémonique opérande)` |
+| `disasm-string mem addr &key count` | Retourne un listing formaté sous forme de chaîne |
+| `print-disasm mem addr &key count stream` | Affiche le désassemblage sur `stream` |
+
+---
+
+## Débogueur 6502
+
+Package `cl-asm/debugger.6502` — débogueur interactif pas-à-pas construit sur le simulateur 6502.
+
+### Session interactive
+
+```lisp
+(ql:quickload "cl-asm")
+
+(let* ((prog  (cl-asm/parser:parse-string "
+.org $0200
+  LDA #$01
+  CLC
+  ADC #$02
+  BRK"))
+       (dm    (cl-asm/debug-map:make-debug-map))  ; optionnel : table ligne source
+       (bytes (cl-asm/backend.6502:assemble prog :origin #x0200 :debug-map dm))
+       (cpu   (cl-asm/simulator.6502:make-cpu))
+       (dbg   (cl-asm/debugger.6502:make-debugger cpu :debug-map dm)))
+  (cl-asm/simulator.6502:load-program cpu bytes :origin #x0200)
+  (cl-asm/debugger.6502:debugger-repl dbg))
+```
+
+Exemple de session :
+
+```
+=== Débogueur 6502 — cl-asm v0.9.0 ===
+Tapez 'h' pour l'aide.
+
+$0200  A9 01     LDA #$01  ; :3:3
+ A=$00 X=$00 Y=$00 SP=$FF P=nv-bdIzc  cyc=0
+
+dbg> s
+$0202  18        CLC  ; :4:3
+ A=$01 X=$00 Y=$00 SP=$FF P=nv-bdIzc  cyc=2
+
+dbg> b $0205
+Breakpoint posé à $0205
+
+dbg> c
+[BREAKPOINT] à $0205
+$0205  00        BRK  ; :6:3
+ A=$03 X=$00 Y=$00 SP=$FF P=nv-bdIzc  cyc=8
+
+dbg> m $00 8
+$0000  00 00 00 00 00 00 00 00
+
+dbg> q
+Au revoir.
+```
+
+Quand le programme est assemblé depuis un fichier, les localisations source s'affichent sous la forme `fichier.asm:ligne:col`.
+
+### Commandes REPL
+
+| Commande | Description |
+| --- | --- |
+| `s` / `step` | Exécuter une instruction |
+| `n` / `next` | Step-over : saute le corps d'un JSR |
+| `c` / `continue` | Continuer jusqu'au breakpoint, watchpoint ou BRK |
+| `b $ADDR [expr]` | Poser un breakpoint ; condition Lisp optionnelle `(lambda (cpu) expr)`, `cpu` lié à la struct CPU |
+| `d $ADDR` | Supprimer un breakpoint |
+| `lb` | Lister les breakpoints actifs |
+| `w $ADDR [read\|write\|rw]` | Poser un watchpoint mémoire (défaut `write`) |
+| `dw $ADDR` | Supprimer un watchpoint |
+| `lw` | Lister les watchpoints actifs |
+| `r` / `regs` | Afficher les registres et les flags (NV-BDIZC) |
+| `m $ADDR [N]` | Dump hex de N octets à partir de l'adresse (défaut 16) |
+| `x [$ADDR] [N]` | Désassembler N instructions (défaut 8, défaut = PC courant) |
+| `h` / `help` | Aide |
+| `q` / `quit` | Quitter le débogueur |
+| _(ligne vide)_ | Répéter la dernière commande |
+
+### API programmatique
+
+```lisp
+;; Créer une session
+(let* ((dm    (cl-asm/debug-map:make-debug-map))
+       (bytes (cl-asm/backend.6502:assemble prog :origin #x0200 :debug-map dm))
+       (cpu   (cl-asm/simulator.6502:make-cpu))
+       (dbg   (cl-asm/debugger.6502:make-debugger cpu :debug-map dm)))
+  (cl-asm/simulator.6502:load-program cpu bytes :origin #x0200)
+
+  ;; Breakpoints
+  (cl-asm/debugger.6502:set-breakpoint dbg #x0204)
+  (cl-asm/debugger.6502:set-breakpoint dbg #x0210
+    :condition (lambda (cpu) (= (cl-asm/simulator.6502:cpu-a cpu) 0)))
+
+  ;; Watchpoints
+  (cl-asm/debugger.6502:set-watchpoint dbg #x00F0 :kind :write)  ; arrêt sur écriture à $00F0
+  (cl-asm/debugger.6502:set-watchpoint dbg #x00F1 :kind :rw)     ; arrêt en lecture ET écriture
+  (cl-asm/debugger.6502:list-watchpoints dbg)
+  (cl-asm/debugger.6502:clear-watchpoint dbg #x00F0)
+
+  ;; Exécution
+  (cl-asm/debugger.6502:debugger-step dbg)      ; → :ok | :brk | :breakpoint | :watchpoint | :illegal
+  (cl-asm/debugger.6502:debugger-next dbg)      ; step-over JSR
+  (cl-asm/debugger.6502:debugger-continue dbg)  ; → :brk | :breakpoint | :watchpoint | :illegal
+
+  ;; Table source (nécessite :debug-map à l'assemblage)
+  (cl-asm/debug-map:debug-map-get dm #x0200))   ; → source-loc ou NIL
+```
+
+| Symbole | Description |
+| --- | --- |
+| `make-debugger cpu &key debug-map` | Créer une session débogueur |
+| `debugger-repl dbg &key input output` | Lancer le REPL interactif |
+| `debugger-step dbg [stream]` | Exécuter une instruction, afficher l'état |
+| `debugger-next dbg [stream]` | Step-over (saute les corps JSR) |
+| `debugger-continue dbg [stream]` | Exécuter jusqu'au breakpoint ou BRK |
+| `set-breakpoint dbg addr &key condition` | Poser un breakpoint ; `condition` = `nil` (inconditionnel) ou `(lambda (cpu) → bool)` |
+| `clear-breakpoint dbg addr` | Supprimer le breakpoint |
+| `list-breakpoints dbg` | Lister les breakpoints triés par adresse |
+| `set-watchpoint dbg addr &key kind` | Poser un watchpoint ; `kind` = `:read` \| `:write` \| `:rw` (défaut `:write`) |
+| `clear-watchpoint dbg addr` | Supprimer le watchpoint |
+| `list-watchpoints dbg` | Lister les watchpoints triés par adresse |
+| `debugger-last-watchpoint dbg` | `(adresse kind)` du dernier watchpoint déclenché |
+| `show-registers cpu [stream]` | Afficher les registres (`A=$XX … P=NV-BDIZC cyc=N`) |
+| `assemble-file path &key origin debug-map` | Parser et assembler un fichier (debug-map désormais supporté) |
+| `show-current dbg [stream]` | Afficher l'instruction courante + registres (avec source-loc si disponible) |
+| `show-memory cpu addr [count stream]` | Dump hexadécimal |
+| `show-disasm cpu addr [count stream]` | Désassembler depuis une adresse |
+| `make-debug-map` | Créer une table adresse→source-loc (package `cl-asm/debug-map`) |
 
 ---
 

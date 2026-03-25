@@ -18,9 +18,9 @@
 
 ## Outils de développement
 
-- [ ] **Simulateur CPU** : exécuter les instructions une par une dans un environnement
-      mémoire virtuel. Commencer par le 6502 (jeu d'instructions limité, bien documenté),
-      puis étendre aux autres architectures. Base nécessaire avant tout débogueur.
+- [x] **Simulateur CPU 6502** : struct `cpu`, `step-cpu` (152 opcodes, ISA 6502 complète),
+      cycle-accurate, page-crossing penalty, conditions d'erreur. *(v0.6.0)*
+- [x] **Désassembleur 6502** : 151 opcodes officiels, 121 tests. *(v0.6.0)*
 - [ ] **Débogueur** : breakpoints, step/next, affichage registres/mémoire, liaison
       adresse PC ↔ ligne source (via SOURCE-LOC déjà présent dans l'IR).
       Nécessite le simulateur.

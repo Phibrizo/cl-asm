@@ -605,9 +605,11 @@
 ;;;  Passe 2 : encodage definitif
 ;;; --------------------------------------------------------------------------
 
-(defun pass-2 (sections symtable origin)
+(defun pass-2 (sections symtable origin &key debug-map)
   "Encode toutes les instructions et directives.
-   Retourne un vecteur d'octets."
+   Retourne un vecteur d'octets.
+   DEBUG-MAP (optionnel) : cl-asm/debugger.6502:debug-map à remplir avec
+   la correspondance adresse → source-loc pour chaque instruction assemblée."
   (let ((result (make-array 0 :element-type '(unsigned-byte 8)
                               :adjustable t :fill-pointer 0))
         (pc origin))
@@ -626,6 +628,10 @@
           (cl-asm/ir:ir-instruction
            (multiple-value-bind (bytes nbytes)
                (encode-instruction node symtable pc 2)
+             ;; Enregistrer la correspondance adresse → source-loc si demandé
+             (when (and debug-map (cl-asm/ir:ir-instruction-loc node))
+               (cl-asm/debug-map:debug-map-set
+                debug-map pc (cl-asm/ir:ir-instruction-loc node)))
              (dolist (b bytes) (vector-push-extend b result))
              (incf pc nbytes)))
           (cl-asm/ir:ir-directive
@@ -831,10 +837,12 @@
 ;;;  Point d'entree public
 ;;; --------------------------------------------------------------------------
 
-(defun assemble (program &key (origin #x0801) (section :text))
+(defun assemble (program &key (origin #x0801) (section :text) debug-map)
   "Assemble PROGRAM (IR-PROGRAM) et retourne un vecteur d'octets.
-   ORIGIN : adresse de chargement par defaut ($0801 pour C64).
-   SECTION : section principale a assembler (:text par defaut)."
+   ORIGIN    : adresse de chargement par defaut ($0801 pour C64).
+   SECTION   : section principale a assembler (:text par defaut).
+   DEBUG-MAP : cl-asm/debugger.6502:debug-map a remplir (adresse → source-loc)
+               pour un usage avec le debogueur interactif."
   (let* ((symtable (cl-asm/symbol-table:make-symbol-table))
          ;; On assemble toutes les sections dans l'ordre, en commencant
          ;; par la section principale
@@ -852,21 +860,22 @@
     ;; Passe 1 : collecte des labels
     (pass-1 sections symtable origin)
 
-    ;; Passe 2 : encodage
+    ;; Passe 2 : encodage (+ remplissage de la debug-map si fournie)
     (cl-asm/symbol-table:begin-pass-2 symtable)
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
-    (pass-2 sections symtable origin)))
+    (pass-2 sections symtable origin :debug-map debug-map)))
 
 (defun assemble-string (source &key (origin #x0801))
   "Raccourci : parse SOURCE puis assemble. Retourne le vecteur d'octets."
   (let ((program (cl-asm/parser:parse-string source)))
     (assemble program :origin origin)))
 
-(defun assemble-file (path &key (origin #x0801))
+(defun assemble-file (path &key (origin #x0801) debug-map)
   "Raccourci : lit, parse et assemble le fichier a PATH.
-   Retourne le vecteur d'octets."
+   Retourne le vecteur d'octets.
+   DEBUG-MAP (optionnel) : debug-map a remplir (adresse → source-loc)."
   (let ((program (cl-asm/parser:parse-file path)))
-    (assemble program :origin origin)))
+    (assemble program :origin origin :debug-map debug-map)))
 
 (cl-asm/backends:register-backend
  :6502

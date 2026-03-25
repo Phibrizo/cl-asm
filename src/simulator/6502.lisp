@@ -75,7 +75,13 @@
    #:cpu-illegal-opcode-opcode
    #:cpu-step-limit
    #:cpu-step-limit-cpu
-   #:cpu-step-limit-steps))
+   #:cpu-step-limit-steps
+   #:cpu-watchpoint
+   #:cpu-watchpoint-cpu
+   #:cpu-watchpoint-address
+   #:cpu-watchpoint-kind
+   ;; Watchpoints (table dans le CPU)
+   #:cpu-watch-table))
 
 (in-package #:cl-asm/simulator.6502)
 
@@ -97,14 +103,16 @@
 ;;;  Valeur initiale P = #x24 = %00100100 : bit 5 à 1, I à 1.
 
 (defstruct (cpu (:constructor %make-cpu) (:predicate nil))
-  (a      0    :type (unsigned-byte 8))
-  (x      0    :type (unsigned-byte 8))
-  (y      0    :type (unsigned-byte 8))
-  (pc     0    :type (unsigned-byte 16))
-  (sp     #xFF :type (unsigned-byte 8))
-  (p      #x24 :type (unsigned-byte 8))
-  (mem    nil  :type (simple-array (unsigned-byte 8) (65536)))
-  (cycles 0    :type fixnum))
+  (a           0    :type (unsigned-byte 8))
+  (x           0    :type (unsigned-byte 8))
+  (y           0    :type (unsigned-byte 8))
+  (pc          0    :type (unsigned-byte 16))
+  (sp          #xFF :type (unsigned-byte 8))
+  (p           #x24 :type (unsigned-byte 8))
+  (mem         nil  :type (simple-array (unsigned-byte 8) (65536)))
+  (cycles      0    :type fixnum)
+  ;; Watchpoints : hash-table adresse → kind (:read | :write | :rw) ou NIL
+  (watch-table nil))
 
 (defun make-cpu ()
   "Crée un CPU 6502 avec mémoire 64 KB initialisée à zéro."
@@ -132,13 +140,24 @@
 (declaim (inline mem-read mem-write mem-read16))
 
 (defun mem-read (cpu addr)
-  "Lit un octet à l'adresse ADDR (modulo 64 KB)."
-  (aref (cpu-mem cpu) (logand addr #xFFFF)))
+  "Lit un octet à l'adresse ADDR (modulo 64 KB).
+   Signale CPU-WATCHPOINT si un watchpoint :read ou :rw est posé sur ADDR."
+  (let ((a (logand addr #xFFFF)))
+    (when (cpu-watch-table cpu)
+      (let ((kind (gethash a (cpu-watch-table cpu))))
+        (when (member kind '(:read :rw))
+          (signal 'cpu-watchpoint :cpu cpu :address a :kind :read))))
+    (aref (cpu-mem cpu) a)))
 
 (defun mem-write (cpu addr val)
-  "Écrit VAL (8 bits) à l'adresse ADDR (modulo 64 KB)."
-  (setf (aref (cpu-mem cpu) (logand addr #xFFFF))
-        (logand val #xFF)))
+  "Écrit VAL (8 bits) à l'adresse ADDR (modulo 64 KB).
+   Signale CPU-WATCHPOINT si un watchpoint :write ou :rw est posé sur ADDR."
+  (let ((a (logand addr #xFFFF)))
+    (when (cpu-watch-table cpu)
+      (let ((kind (gethash a (cpu-watch-table cpu))))
+        (when (member kind '(:write :rw))
+          (signal 'cpu-watchpoint :cpu cpu :address a :kind :write))))
+    (setf (aref (cpu-mem cpu) a) (logand val #xFF))))
 
 (defun mem-read16 (cpu addr)
   "Lit un mot 16 bits little-endian à ADDR."
@@ -179,6 +198,16 @@
              (format s "Step limit ~D reached at PC=$~4,'0X"
                      (cpu-step-limit-steps c)
                      (cpu-pc (cpu-step-limit-cpu c))))))
+
+(define-condition cpu-watchpoint (condition)
+  ((cpu     :initarg :cpu     :reader cpu-watchpoint-cpu)
+   (address :initarg :address :reader cpu-watchpoint-address)
+   (kind    :initarg :kind    :reader cpu-watchpoint-kind))
+  (:report (lambda (c s)
+             (format s "Watchpoint ~A at $~4,'0X (PC=$~4,'0X)"
+                     (cpu-watchpoint-kind c)
+                     (cpu-watchpoint-address c)
+                     (cpu-pc (cpu-watchpoint-cpu c))))))
 
 
 ;;; --------------------------------------------------------------------------

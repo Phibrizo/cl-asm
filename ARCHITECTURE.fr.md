@@ -28,11 +28,14 @@ cl-asm est structuré en trois couches indépendantes :
 │  cl-asm/simulator.6502                      │
 └──────────────┬──────────────────────────────┘
                │ prend un vecteur d'octets + mémoire
-               ▼
-┌─────────────────────────────────────────────┐
-│  Émetteurs (formats de fichiers)            │
-│  BIN · PRG (C64) · listing · ROM (futur)   │
-└─────────────────────────────────────────────┘
+        ┌──────┴──────────────────────────┐
+        ▼                                 ▼
+┌──────────────────────────┐  ┌───────────────────────────────────────┐
+│  Émetteurs (formats)     │  │  Débogueur (optionnel, interactif)    │
+│  BIN · PRG · listing     │  │  cl-asm/debugger.6502                 │
+└──────────────────────────┘  │  ← cl-asm/disassembler.6502           │
+                               │  ← cl-asm/debug-map (addr→source-loc)│
+                               └───────────────────────────────────────┘
 ```
 
 ---
@@ -59,6 +62,9 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Frontend Lisp natif (.lasm) |
 | `cl-asm/emit` | `src/emit/output.lisp` | Émetteurs de fichiers |
 | `cl-asm/simulator.6502` | `src/simulator/6502.lisp` | Simulateur CPU 6502 |
+| `cl-asm/disassembler.6502` | `src/disassembler/6502.lisp` | Désassembleur 6502 |
+| `cl-asm/debug-map` | `src/core/debug-map.lisp` | Table adresse→source-loc |
+| `cl-asm/debugger.6502` | `src/debugger/6502.lisp` | Débogueur 6502 interactif |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Suites de tests |
 
 ---
