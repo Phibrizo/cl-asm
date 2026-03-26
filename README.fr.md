@@ -1,11 +1,10 @@
 # cl-asm — Assembleur multi-architecture en Common Lisp
 
 Assembleur modulaire écrit en Common Lisp. Cibles actuelles : **6502**
-(Commodore 64, Apple II…), **45GS02** (Mega65), **65C02**
-(Commander X16), **R65C02** (Rockwell), **WDC 65816**
-(SNES, Apple IIgs), **Z80** (ZX Spectrum, MSX, CPC, ZX81)
-et **M68K** (Amiga, Atari ST, Mac 68k),
-et **Intel 8080** (CP/M, Altair).
+(Apple II…), **6510** (Commodore 64, avec opcodes illégaux stables),
+**45GS02** (Mega65), **65C02** (Commander X16), **R65C02** (Rockwell),
+**WDC 65816** (SNES, Apple IIgs), **Z80** (ZX Spectrum, MSX, CPC, ZX81),
+**M68K** (Amiga, Atari ST, Mac 68k) et **Intel 8080** (CP/M, Altair).
 L'architecture est pensée pour accueillir d'autres backends
 sans modifier le cœur du projet.
 
@@ -33,6 +32,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Lexer classique | ✓ | 119 |
 | Parser classique (ca65-like) | ✓ | 84 |
 | Backend 6502 | ✓ | 108 |
+| Backend 6510 (C64, opcodes illégaux) | ✓ | 66 |
 | Backend 45GS02 | ✓ | 80 |
 | Backend 65C02 (X16) | ✓ | 86 |
 | Backend R65C02 (Rockwell) | ✓ | 117 |
@@ -51,7 +51,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Frontend .lasm (Lisp natif) | ✓ | 97 |
 | Convertisseur acme2clasm | ✓ | 20 |
 
-**Total : 2171 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 2261 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -494,7 +494,7 @@ Package `cl-asm/debugger.6502` — débogueur interactif pas-à-pas construit su
 Exemple de session :
 
 ```
-=== Débogueur 6502 — cl-asm v0.9.0 ===
+=== Débogueur 6502 — cl-asm v0.10.0 ===
 Tapez 'h' pour l'aide.
 
 $0200  A9 01     LDA #$01  ; :3:3
@@ -754,7 +754,7 @@ PLATFORM = 64
 | `-o FILE` | Fichier de sortie | même nom, ext .prg |
 | `-f FORMAT` | `prg` ou `bin` | `prg` |
 | `--origin ADDR` | Adresse d'origine (ex: `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502` (aussi `mos6502`, `c64`), `45gs02` (aussi `mega65`), `x16` (aussi `65c02`, `commander-x16`), `r65c02` (aussi `rockwell`), `65816` (aussi `wdc65816`, `snes`, `apple2gs`), `z80` (aussi `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`) | `6502` |
+| `-t TARGET` | `6502` (aussi `mos6502`), `6510` (aussi `mos6510`, `c64`), `45gs02` (aussi `mega65`), `x16` (aussi `65c02`, `commander-x16`), `r65c02` (aussi `rockwell`), `65816` (aussi `wdc65816`, `snes`, `apple2gs`), `z80` (aussi `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`) | `6502` |
 | `-v` | Mode verbose | — |
 
 La cible est détectée automatiquement depuis les premières lignes du source :

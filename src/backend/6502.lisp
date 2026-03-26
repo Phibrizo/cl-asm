@@ -879,7 +879,7 @@
 
 (cl-asm/backends:register-backend
  :6502
- '("6502" "mos6502" "c64")
+ '("6502" "mos6502")
  "CL-ASM/BACKEND.6502" "ASSEMBLE-FILE"
- "MOS 6502 / Commodore 64"
- "MOS 6502 / Commodore 64")
+ "MOS 6502"
+ "MOS 6502")

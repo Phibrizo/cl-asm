@@ -11,6 +11,7 @@ sbcl --load src/core/version.lisp \
      --load src/frontend/classic-lexer.lisp \
      --load src/frontend/classic-parser.lisp \
      --load src/backend/6502.lisp \
+     --load src/backend/6510.lisp \
      --load src/backend/45gs02.lisp \
      --load src/emit/output.lisp \
      --load src/backend/65c02.lisp \
@@ -30,6 +31,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-conditional.lisp \
      --load tests/test-macros.lisp \
      --load tests/test-45gs02.lisp \
+     --load tests/test-6510.lisp \
      --load tests/test-6502.lisp \
      --load tests/test-parser.lisp \
      --load tests/test-lexer.lisp \

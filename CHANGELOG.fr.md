@@ -5,6 +5,47 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.10.0] — 2026-03-26
+
+### Ajouté
+
+**Backend MOS 6510** (`src/backend/6510.lisp`) — nouveau module :
+- Étend le backend 6502 avec les **opcodes illégaux stables** utilisés dans les démos et jeux C64
+- 14 nouveaux mnémoniques, 58 nouvelles entrées d'opcodes :
+  - `LAX` — charge A et X simultanément (6 modes : zp / zp,Y / abs / abs,Y / (ind,X) / (ind),Y)
+  - `SAX` — stocke A AND X (4 modes : zp / zp,Y / abs / (ind,X))
+  - `SLO` — ASL mémoire puis ORA A (7 modes, alias ASO)
+  - `RLA` — ROL mémoire puis AND A (7 modes)
+  - `SRE` — LSR mémoire puis EOR A (7 modes, alias LSE)
+  - `RRA` — ROR mémoire puis ADC A (7 modes)
+  - `DCP` — DEC mémoire puis CMP A (7 modes, alias DCM)
+  - `ISC` — INC mémoire puis SBC A (7 modes, alias ISB/INS)
+  - `ALR` — AND #imm puis LSR A (1 mode, alias ASR)
+  - `ANC` — AND #imm, bit 7 → C (1 mode)
+  - `ARR` — AND #imm puis ROR A (1 mode, flags V/C non-standard)
+  - `AXS` — (A AND X) − #imm → X, NZC mis à jour (1 mode, alias SBX)
+  - `LAS` — (abs,Y) AND SP → A/X/SP (1 mode)
+  - `KIL` — gèle le CPU / JAM (implied, opcode $02)
+- Opcodes instables exclus (XAA/ANE, AHX/SHA, TAS/SHS, SHY, SHX)
+- `assemble-6510` / `assemble-string-6510` / `assemble-file-6510` (avec `&key debug-map`)
+- Aliases cible : `"6510"`, `"mos6510"`, `"c64"`
+
+### Modifié
+
+- `src/backend/6502.lisp` — alias `"c64"` déplacé vers le backend 6510 ; le 6502 n'enregistre plus que `"6502"` / `"mos6502"`
+- `cl-asm.asd` — 6510 ajouté entre 6502 et 45gs02 dans le graphe de dépendances
+
+### Tests
+
+| Suite | 0.9.0 | 0.10.0 |
+|---|---|---|
+| 6510 (nouveau) | — | 66 |
+| **TOTAL** | **2195** | **2261** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.9.0] — 2026-03-25
 
 ### Ajouté

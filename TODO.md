@@ -21,9 +21,10 @@
 - [x] **Simulateur CPU 6502** : struct `cpu`, `step-cpu` (152 opcodes, ISA 6502 complète),
       cycle-accurate, page-crossing penalty, conditions d'erreur. *(v0.6.0)*
 - [x] **Désassembleur 6502** : 151 opcodes officiels, 121 tests. *(v0.6.0)*
-- [ ] **Débogueur** : breakpoints, step/next, affichage registres/mémoire, liaison
-      adresse PC ↔ ligne source (via SOURCE-LOC déjà présent dans l'IR).
-      Nécessite le simulateur.
+- [x] **Débogueur** : REPL interactif (step/next/continue), breakpoints inconditionnels
+      et conditionnels (expr Lisp), watchpoints (:read/:write/:rw), affichage
+      registres/mémoire/désassemblage, affichage ligne source depuis fichier,
+      debug-map adresse↔source-loc. *(v0.7.0→v0.9.0)*
 
 ## Idées de directives .lasm
 

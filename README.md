@@ -1,8 +1,8 @@
 # cl-asm — Multi-architecture Assembler in Common Lisp
 
 A modular assembler written in Common Lisp. Current targets: **6502**
-(Commodore 64, Apple II…), **45GS02** (Mega65), **65C02**
-(Commander X16), **R65C02** (Rockwell), **WDC 65816**
+(Apple II…), **6510** (Commodore 64, with stable illegal opcodes), **45GS02**
+(Mega65), **65C02** (Commander X16), **R65C02** (Rockwell), **WDC 65816**
 (SNES, Apple IIgs), **Z80** (ZX Spectrum, MSX, CPC, ZX81),
 **M68K** (Amiga, Atari ST, Mac 68k), and **Intel 8080** (CP/M, Altair).
 The architecture is designed to accommodate additional backends without modifying the core.
@@ -31,6 +31,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Classic lexer | ✓ | 119 |
 | Classic parser (ca65-like) | ✓ | 84 |
 | 6502 backend | ✓ | 108 |
+| 6510 backend (C64, illegal opcodes) | ✓ | 66 |
 | 45GS02 backend | ✓ | 80 |
 | 65C02 backend (X16) | ✓ | 86 |
 | R65C02 backend (Rockwell) | ✓ | 117 |
@@ -49,7 +50,7 @@ cl-asm/version:+version-patch+   ; → 0
 | .lasm frontend (native Lisp) | ✓ | 97 |
 | acme2clasm converter | ✓ | 20 |
 
-**Total: 2171 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 2261 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -512,7 +513,7 @@ Package `cl-asm/debugger.6502` — interactive step debugger built on top of the
 Sample session:
 
 ```
-=== Débogueur 6502 — cl-asm v0.9.0 ===
+=== Débogueur 6502 — cl-asm v0.10.0 ===
 Tapez 'h' pour l'aide.
 
 $0200  A9 01     LDA #$01  ; :3:3
@@ -800,7 +801,7 @@ The `cl-asm` script assembles a file directly from the terminal.
 | `-o FILE` | Output file | same name, .prg extension |
 | `-f FORMAT` | `prg` or `bin` | `prg` |
 | `--origin ADDR` | Origin address (e.g. `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502` (also `mos6502`, `c64`), `45gs02` (also `mega65`), `x16` (also `65c02`, `commander-x16`), `r65c02` (also `rockwell`), `65816` (also `wdc65816`, `snes`, `apple2gs`), `z80` (also `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`), `i8080` (also `8080`, `cpm`, `altair`, `intel8080`) | `6502` |
+| `-t TARGET` | `6502` (also `mos6502`), `6510` (also `mos6510`, `c64`), `45gs02` (also `mega65`), `x16` (also `65c02`, `commander-x16`), `r65c02` (also `rockwell`), `65816` (also `wdc65816`, `snes`, `apple2gs`), `z80` (also `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`), `i8080` (also `8080`, `cpm`, `altair`, `intel8080`) | `6502` |
 | `-v` | Verbose mode | — |
 
 Target is auto-detected from the first lines of the source file:

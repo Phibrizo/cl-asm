@@ -61,6 +61,7 @@
 
     ;; --- Backends ---
     (run-suite cl-asm/test.6502)
+    (run-suite cl-asm/test.6510)
     (run-suite cl-asm/test.65c02)
     (run-suite cl-asm/test.r65c02)
     (run-suite cl-asm/test.45gs02)
@@ -115,6 +116,9 @@
     (format t "=== 6502         : ~3D OK, ~D KO~%"
             cl-asm/test.6502:*pass*
             cl-asm/test.6502:*fail*)
+    (format t "=== 6510 (c64)   : ~3D OK, ~D KO~%"
+            cl-asm/test.6510:*pass*
+            cl-asm/test.6510:*fail*)
     (format t "=== 65c02        : ~3D OK, ~D KO~%"
             cl-asm/test.65c02:*pass*
             cl-asm/test.65c02:*fail*)

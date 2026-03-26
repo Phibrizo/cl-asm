@@ -3,7 +3,7 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.9.0"
+  :version "0.10.0"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()
@@ -31,6 +31,8 @@
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/frontend/classic-parser"))
+   (:file "src/backend/6510"
+    :depends-on ("src/backend/6502"))
    (:file "src/backend/45gs02"
     :depends-on ("src/backend/6502"))
    (:file "src/backend/65c02"
@@ -64,6 +66,7 @@
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/backend/6502"
+                 "src/backend/6510"
                  "src/backend/45gs02"
                  "src/backend/65c02"
                  "src/backend/r65c02"
@@ -106,6 +109,8 @@
     :depends-on ())
    (:file "tests/test-macros"
     :depends-on ("tests/test-6502"))
+   (:file "tests/test-6510"
+    :depends-on ("tests/test-6502"))
    (:file "tests/test-45gs02"
     :depends-on ("tests/test-6502"))
    (:file "tests/test-r65c02"
@@ -140,6 +145,7 @@
                  "tests/test-lasm"
                  "tests/test-conditional"
                  "tests/test-macros"
+                 "tests/test-6510"
                  "tests/test-45gs02"
                  "tests/test-r65c02"
                  "tests/test-65816"

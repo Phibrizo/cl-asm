@@ -549,7 +549,10 @@ sub:
   "Écrit SOURCE dans un fichier temporaire, assemble avec debug-map,
    retourne (values dbg dm path)."
   (let* ((path (merge-pathnames "cl-asm-dbg-src-test.asm"
-                                (or (uiop:temporary-directory) #p"/tmp/")))
+                                (or (let ((pkg (find-package "UIOP")))
+                                      (when pkg
+                                        (funcall (find-symbol "TEMPORARY-DIRECTORY" pkg))))
+                                    #p"/tmp/")))
          (dm   (make-debug-map)))
     (with-open-file (out path :direction :output :if-exists :supersede
                          :if-does-not-exist :create)
