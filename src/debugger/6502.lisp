@@ -40,6 +40,8 @@
    #:make-debug-map
    #:debug-map-get
    #:debug-map-set
+   ;; désassembleur pluggable
+   #:debugger-disasm-fn
    ;; breakpoints
    #:breakpoint
    #:make-breakpoint
@@ -131,18 +133,23 @@
 ;;; --------------------------------------------------------------------------
 
 (defstruct (debugger (:constructor %make-debugger))
-  "Session de débogage pour un CPU 6502."
+  "Session de débogage pour un CPU 6502.
+   DISASM-FN : fonction (mem addr) → (values mn op size), défaut = désassembleur 6502."
   (cpu              nil)
   (breakpoints      (make-hash-table :test #'eql))
   (watchpoints      (make-hash-table :test #'eql))
   (last-watchpoint  nil)   ; (address kind) du dernier watchpoint déclenché
   (debug-map        nil)
-  (source-cache     (make-hash-table :test #'equal)))  ; filename → vector-of-lines
+  (source-cache     (make-hash-table :test #'equal))   ; filename → vector-of-lines
+  (disasm-fn        #'disasm-one :type function))       ; désassembleur pluggable
 
-(defun make-debugger (cpu &key debug-map)
+(defun make-debugger (cpu &key debug-map disasm-fn)
   "Crée une session débogueur pour CPU.
-   DEBUG-MAP (optionnel) : table adresse → source-loc pour affichage source."
-  (%make-debugger :cpu cpu :debug-map debug-map))
+   DEBUG-MAP  (optionnel) : table adresse → source-loc pour affichage source.
+   DISASM-FN  (optionnel) : fonction (mem addr) → (values mn op size) ;
+               défaut #'cl-asm/disassembler.6502:disasm-one."
+  (%make-debugger :cpu cpu :debug-map debug-map
+                  :disasm-fn (or disasm-fn #'disasm-one)))
 
 
 ;;; --------------------------------------------------------------------------
@@ -262,7 +269,7 @@
          (mem (cpu-mem cpu))
          (pc  (cpu-pc cpu)))
     (multiple-value-bind (mnemonic operand size)
-        (disasm-one mem pc)
+        (funcall (debugger-disasm-fn dbg) mem pc)
       ;; Octets hex (1–3), cadrés sur 8 caractères
       (let* ((hex-str (format nil "~{~2,'0X~^ ~}"
                               (loop for i from 0 below size
@@ -299,13 +306,13 @@
                (format stream "~2,'0X " (aref mem (logand (+ base col) #xFFFF))))
              (terpri stream))))
 
-(defun show-disasm (cpu addr &optional (count 8) (stream *standard-output*))
+(defun show-disasm (dbg addr &optional (count 8) (stream *standard-output*))
   "Désassemble COUNT instructions à partir de ADDR."
-  (let ((mem (cpu-mem cpu))
+  (let ((mem (cpu-mem (debugger-cpu dbg)))
         (pc  addr))
     (dotimes (_ count)
       (multiple-value-bind (mnemonic operand size)
-          (disasm-one mem pc)
+          (funcall (debugger-disasm-fn dbg) mem pc)
         (let ((hex-str (format nil "~{~2,'0X~^ ~}"
                                (loop for i from 0 below size
                                      collect (aref mem (logand (+ pc i) #xFFFF))))))
@@ -412,7 +419,7 @@
   (let* ((cpu (debugger-cpu dbg))
          (pc  (cpu-pc cpu)))
     (multiple-value-bind (mnemonic _op size)
-        (disasm-one (cpu-mem cpu) pc)
+        (funcall (debugger-disasm-fn dbg) (cpu-mem cpu) pc)
       (declare (ignore _op))
       (if (string= mnemonic "JSR")
           ;; Breakpoint temporaire à PC+3 (taille JSR abs = 3)
@@ -627,7 +634,7 @@
            (let* ((addr-or-count (first args))
                   (addr  (if addr-or-count (parse-hex addr-or-count) nil))
                   (count (parse-count (second args) 8)))
-             (show-disasm (debugger-cpu dbg)
+             (show-disasm dbg
                           (or addr (cpu-pc (debugger-cpu dbg)))
                           count output)))
 

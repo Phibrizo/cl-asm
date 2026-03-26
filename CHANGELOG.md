@@ -5,6 +5,45 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.11.0] — 2026-03-26
+
+### Added
+
+**Extensible disassembler registry** (`src/core/disassemblers.lisp`) — new module:
+- `register-disassembler` / `find-disassembler-by-keyword` / `all-disassemblers`
+- Same design as the backend registry; each disassembler self-registers at load time
+
+**45GS02 disassembler** (`src/disassembler/45gs02.lisp`) — new module:
+- Full prefix dispatcher: `$EA` (indirect-32), `$42` (long branches), `$42 $42` (Q register), `$42 $42 $EA` (Q indirect-32)
+- 45GS02-specific non-prefixed opcodes: LDZ, STZ (Z register), INZ, DEZ, PHZ, PLZ, TAZ, TZA, TBA, TAB, TSY, TYS, MAP, EOM, ASR, INW, DEW, ROW, NEG
+- Inherits 6502 base table, overrides STZ ($84/$94 store Z register)
+- Long-branch target computation (signed 16-bit offset, PC+4 relative)
+- Registered as `:45gs02` with aliases `"45gs02"` / `"mega65"`
+
+**65C02 disassembler** (`src/disassembler/65c02.lisp`) — new module:
+- No-prefix flat table (same structure as 6502 disassembler)
+- New instructions: BRA, STZ, TRB, TSB, PHX/PLX/PHY/PLY, INC A, DEC A
+- New modes: `:zero-page-indirect` → `($nn)`, `:indirect-absolute-x` → `($nnnn,X)`
+- Extended modes: LDA/STA/ADC/SBC/AND/ORA/EOR/CMP `($nn)`, JMP `($nnnn,X)`, BIT `#imm`/`zp,X`/`abs,X`
+- Registered as `:65c02` with aliases `"65c02"` / `"x16"` / `"commander-x16"`
+
+**Pluggable disassembler in debugger** (`src/debugger/6502.lisp`):
+- New `disasm-fn` slot in `debugger` struct (default: `#'cl-asm/disassembler.6502:disasm-one`)
+- `make-debugger` accepts `:disasm-fn` keyword; `show-current`, `show-disasm`, `debugger-next` use it
+- Debugger is now architecture-agnostic for disassembly display
+
+### Tests
+
+| Suite | 0.10.0 | 0.11.0 |
+|---|---|---|
+| disasm-45gs02 (new) | — | 97 |
+| disasm-65c02 (new) | — | 44 |
+| **TOTAL** | **2261** | **2402** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.10.0] — 2026-03-26
 
 ### Added

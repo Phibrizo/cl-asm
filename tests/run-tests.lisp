@@ -82,6 +82,8 @@
 
     ;; --- Désassembleur ---
     (run-suite cl-asm/test.disasm-6502)
+    (run-suite cl-asm/test.disasm-45gs02)
+    (run-suite cl-asm/test.disasm-65c02)
 
     ;; --- Débogueur ---
     (run-suite cl-asm/test.debugger-6502)
@@ -160,6 +162,12 @@
     (format t "=== disasm-6502  : ~3D OK, ~D KO~%"
             cl-asm/test.disasm-6502:*pass*
             cl-asm/test.disasm-6502:*fail*)
+    (format t "=== disasm-45gs02: ~3D OK, ~D KO~%"
+            cl-asm/test.disasm-45gs02:*pass*
+            cl-asm/test.disasm-45gs02:*fail*)
+    (format t "=== disasm-65c02 : ~3D OK, ~D KO~%"
+            cl-asm/test.disasm-65c02:*pass*
+            cl-asm/test.disasm-65c02:*fail*)
     (format t "--- ~A ---~%" (%msg "Débogueur" "Debugger"))
     (format t "=== debugger-6502: ~3D OK, ~D KO~%"
             cl-asm/test.debugger-6502:*pass*

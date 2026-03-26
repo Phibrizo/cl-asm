@@ -3,13 +3,15 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.10.0"
+  :version "0.11.0"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()
   :components
   ((:file "src/core/version")
    (:file "src/core/backends"
+    :depends-on ("src/core/version"))
+   (:file "src/core/disassemblers"
     :depends-on ("src/core/version"))
    (:file "src/core/ir"
     :depends-on ("src/core/version"))
@@ -80,12 +82,17 @@
    (:file "src/simulator/6502"
     :depends-on ())
    (:file "src/disassembler/6502"
-    :depends-on ())
+    :depends-on ("src/core/disassemblers"))
+   (:file "src/disassembler/45gs02"
+    :depends-on ("src/disassembler/6502"))
+   (:file "src/disassembler/65c02"
+    :depends-on ("src/disassembler/6502"))
    (:file "src/debugger/6502"
     :depends-on ("src/core/ir"
                  "src/core/debug-map"
                  "src/simulator/6502"
-                 "src/disassembler/6502"))))
+                 "src/disassembler/6502"
+                 "src/disassembler/45gs02"))))
 
 (defsystem "cl-asm/tests"
   :description "Suite de tests pour cl-asm"
@@ -129,6 +136,10 @@
     :depends-on ())
    (:file "tests/test-disasm-6502"
     :depends-on ())
+   (:file "tests/test-disasm-45gs02"
+    :depends-on ())
+   (:file "tests/test-disasm-65c02"
+    :depends-on ())
    (:file "tests/test-debugger-6502"
     :depends-on ())
    (:file "tests/test-m68k-parser"
@@ -155,6 +166,8 @@
                  "tests/test-sim-programs"
                  "tests/test-acme2clasm"
                  "tests/test-disasm-6502"
+                 "tests/test-disasm-45gs02"
+                 "tests/test-disasm-65c02"
                  "tests/test-debugger-6502"
                  "tests/test-m68k-parser"
                  "tests/test-m68k")))

@@ -5,6 +5,45 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.11.0] — 2026-03-26
+
+### Ajouté
+
+**Registre extensible des désassembleurs** (`src/core/disassemblers.lisp`) — nouveau module :
+- `register-disassembler` / `find-disassembler-by-keyword` / `all-disassemblers`
+- Même conception que le registre des backends ; chaque désassembleur s'enregistre au chargement
+
+**Désassembleur 45GS02** (`src/disassembler/45gs02.lisp`) — nouveau module :
+- Dispatcher de préfixes complet : `$EA` (indirect-32), `$42` (branches longues), `$42 $42` (registre Q), `$42 $42 $EA` (Q indirect-32)
+- Opcodes non-préfixés spécifiques 45GS02 : LDZ, STZ (registre Z), INZ, DEZ, PHZ, PLZ, TAZ, TZA, TBA, TAB, TSY, TYS, MAP, EOM, ASR, INW, DEW, ROW, NEG
+- Hérite de la table de base 6502, remplace STZ ($84/$94 stocke le registre Z)
+- Calcul de cible pour les branches longues (offset signé 16 bits, relatif à PC+4)
+- Enregistré comme `:45gs02` avec les alias `"45gs02"` / `"mega65"`
+
+**Désassembleur 65C02** (`src/disassembler/65c02.lisp`) — nouveau module :
+- Table plate sans préfixe (même structure que le désassembleur 6502)
+- Nouvelles instructions : BRA, STZ, TRB, TSB, PHX/PLX/PHY/PLY, INC A, DEC A
+- Nouveaux modes : `:zero-page-indirect` → `($nn)`, `:indirect-absolute-x` → `($nnnn,X)`
+- Modes étendus : LDA/STA/ADC/SBC/AND/ORA/EOR/CMP `($nn)`, JMP `($nnnn,X)`, BIT `#imm`/`zp,X`/`abs,X`
+- Enregistré comme `:65c02` avec les alias `"65c02"` / `"x16"` / `"commander-x16"`
+
+**Désassembleur pluggable dans le débogueur** (`src/debugger/6502.lisp`) :
+- Nouveau slot `disasm-fn` dans la struct `debugger` (défaut : `#'cl-asm/disassembler.6502:disasm-one`)
+- `make-debugger` accepte le mot-clé `:disasm-fn` ; `show-current`, `show-disasm`, `debugger-next` l'utilisent
+- Le débogueur est maintenant indépendant de l'architecture pour l'affichage du désassemblage
+
+### Tests
+
+| Suite | 0.10.0 | 0.11.0 |
+|---|---|---|
+| disasm-45gs02 (nouveau) | — | 97 |
+| disasm-65c02 (nouveau) | — | 44 |
+| **TOTAL** | **2261** | **2402** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.10.0] — 2026-03-26
 
 ### Ajouté

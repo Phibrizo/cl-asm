@@ -10,14 +10,14 @@ sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.9.0**
+**Version courante : 0.11.0**
 
 ```
-cl-asm/version:+version+         ; → "0.9.0"
+cl-asm/version:+version+         ; → "0.11.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 9
+cl-asm/version:+version-minor+   ; → 11
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.9.0"
+(cl-asm/version:version-string)  ; → "0.11.0"
 ```
 
 ---
@@ -44,6 +44,8 @@ cl-asm/version:+version-patch+   ; → 0
 | Simulateur 6502 | ✓ | 294 |
 | Programmes simulateur 6502 | ✓ | 73 |
 | Désassembleur 6502 | ✓ | 121 |
+| Désassembleur 45GS02 | ✓ | 97 |
+| Désassembleur 65C02 (X16) | ✓ | 44 |
 | Débogueur 6502 (REPL interactif) | ✓ | 80 |
 | Émetteurs BIN / PRG / listing | ✓ | — |
 | Macros textuelles | ✓ | 27 |
@@ -51,7 +53,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Frontend .lasm (Lisp natif) | ✓ | 97 |
 | Convertisseur acme2clasm | ✓ | 20 |
 
-**Total : 2261 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 2402 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -143,6 +145,8 @@ cl-asm/
 │   ├── test-sim-6502.lisp
 │   ├── test-sim-programs.lisp
 │   ├── test-disasm-6502.lisp
+│   ├── test-disasm-45gs02.lisp
+│   ├── test-disasm-65c02.lisp
 │   ├── test-debugger-6502.lisp
 │   └── test-acme2clasm.lisp
 └── examples/
@@ -494,7 +498,7 @@ Package `cl-asm/debugger.6502` — débogueur interactif pas-à-pas construit su
 Exemple de session :
 
 ```
-=== Débogueur 6502 — cl-asm v0.10.0 ===
+=== Débogueur 6502 — cl-asm v0.11.0 ===
 Tapez 'h' pour l'aide.
 
 $0200  A9 01     LDA #$01  ; :3:3

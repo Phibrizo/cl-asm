@@ -4,6 +4,7 @@
 
 sbcl --load src/core/version.lisp \
      --load src/core/backends.lisp \
+     --load src/core/disassemblers.lisp \
      --load src/core/ir.lisp \
      --load src/core/debug-map.lisp \
      --load src/core/expression.lisp \
@@ -23,6 +24,8 @@ sbcl --load src/core/version.lisp \
      --load src/frontend/lasm.lisp \
      --load src/simulator/6502.lisp \
      --load src/disassembler/6502.lisp \
+     --load src/disassembler/45gs02.lisp \
+     --load src/disassembler/65c02.lisp \
      --load src/debugger/6502.lisp \
      --load tests/test-debugger-6502.lisp \
      --load tests/test-65c02.lisp \
@@ -46,6 +49,8 @@ sbcl --load src/core/version.lisp \
      --load tests/test-sim-programs.lisp \
      --load tests/test-acme2clasm.lisp \
      --load tests/test-disasm-6502.lisp \
+     --load tests/test-disasm-45gs02.lisp \
+     --load tests/test-disasm-65c02.lisp \
      --load tests/run-tests.lisp \
      --eval "(cl-asm/test:run-all-tests)" \
      --quit

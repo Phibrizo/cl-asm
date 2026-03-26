@@ -20,6 +20,7 @@
 
 (defpackage #:cl-asm/disassembler.6502
   (:use #:cl)
+  (:import-from #:cl-asm/disassemblers #:register-disassembler)
   (:export
    ;; Désassemblage unitaire
    #:disasm-one
@@ -312,3 +313,9 @@ Format : \"$0200  A9 05     LDA #$05\""
   (dolist (line (disasm mem addr :count count))
     (destructuring-bind (pc hex mn op) line
       (format stream "$~4,'0X  ~8A  ~A~@[ ~A~]~%" pc hex mn (if (string= op "") nil op)))))
+
+(register-disassembler
+ :6502
+ '("6502" "mos6502")
+ "CL-ASM/DISASSEMBLER.6502" "DISASM-ONE"
+ "MOS 6502")

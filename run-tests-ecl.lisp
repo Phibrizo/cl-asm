@@ -55,6 +55,7 @@
 
 (load-filtered "src/core/version.lisp")
 (load-filtered "src/core/backends.lisp")
+(load-filtered "src/core/disassemblers.lisp")
 (load-filtered "src/core/ir.lisp")
 (load-filtered "src/core/debug-map.lisp")
 (load-filtered "src/core/expression.lisp")
@@ -74,6 +75,8 @@
 (load-filtered "src/frontend/lasm.lisp")
 (load-filtered "src/simulator/6502.lisp")
 (load-filtered "src/disassembler/6502.lisp")
+(load-filtered "src/disassembler/45gs02.lisp")
+(load-filtered "src/disassembler/65c02.lisp")
 (load-filtered "src/debugger/6502.lisp")
 (load-filtered "tests/test-debugger-6502.lisp")
 (load-filtered "tests/test-65c02.lisp")
@@ -97,6 +100,8 @@
 (load-filtered "tests/test-sim-programs.lisp")
 (load-filtered "tests/test-acme2clasm.lisp")
 (load-filtered "tests/test-disasm-6502.lisp")
+(load-filtered "tests/test-disasm-45gs02.lisp")
+(load-filtered "tests/test-disasm-65c02.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 
