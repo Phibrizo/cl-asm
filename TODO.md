@@ -69,3 +69,70 @@ avec ca65/ACME — on peut innover librement).
 - [x] Backend Zilog Z80 : ZX Spectrum, MSX, CPC, ZX81. Jeu complet avec
       préfixes CB/DD/ED/FD/DD·CB/FD·CB, variable `*z80-mode*` pour éviter
       les conflits de mnémoniques avec le 6502. *(v0.3.0)*
+
+## Améliorations spécifiques à Common Lisp
+
+Idées qui tirent parti des forces propres de CL (2026-03-27).
+
+### Optimiseur peephole ★ prioritaire
+
+Pattern-matching sur les séquences de nœuds IR pour remplacer des
+combinaisons d'instructions par des équivalents plus efficaces.
+
+Exemples 65C02 :
+- `LDA #$00 / STA $zp` → `STZ $zp`
+- `TAX / TXA` ou `TAY / TYA` → suppression si inutile
+- `LDA $zp / STA $zp` → suppression (opération nulle)
+
+Implémentation naturelle en Lisp : `destructuring-bind` ou
+pattern-matching (trivia/optima) sur la liste IR-SECTION-NODES.
+Aucun autre langage ne le ferait aussi proprement sur sa propre IR.
+
+### Système de conditions/restarts pour les erreurs d'assemblage
+
+Remplacer les `error` simples par des conditions CL avec restarts :
+- `use-value` — fournir une valeur de substitution pour un symbole inconnu
+- `skip-instruction` — ignorer l'instruction fautive et continuer
+- `retry` — ré-essayer après correction interactive
+
+Utile pour un REPL d'assemblage interactif : résoudre des références
+indéfinies sans relancer tout l'assemblage.
+
+### Tables d'instructions générées déclarativement
+
+Remplacer les `defparameter` de listes écrites à la main par un DSL
+Lisp + `defmacro` :
+
+```lisp
+(define-instruction "LDA"
+  (:immediate  #xA9 2)
+  (:zero-page  #xA5 2)
+  (:absolute   #xAD 3) ...)
+```
+
+Le macro génèrerait les entrées, les fonctions `lookup-*` et des tests
+de cohérence à la compilation. Moins de duplication, plus robuste.
+
+### Évaluation Lisp complète à l'assemblage (.lasm)
+
+Exposer explicitement la puissance de CL pour générer des données à
+l'assemblage : tables de lookup, boucles déroulées, compression RLE,
+calculs trigonométriques, etc. — sans code d'exécution supplémentaire.
+
+```lisp
+;; Table sinus précalculée à l'assemblage (256 entrées)
+(dotimes (i 256)
+  (byte (round (* 127 (sin (* 2 pi (/ i 256)))))))
+```
+
+### Assemblage incrémental au REPL
+
+API pour construire un programme instruction par instruction dans le
+REPL, avec inspection de l'état binaire à chaque étape :
+
+```lisp
+(with-asm (:target :6502 :origin #x0200)
+  (lda :imm #x42)
+  (sta :zp  #x10)
+  (inspect-pc)   ; → $0204
+  (rts))
