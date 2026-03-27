@@ -295,3 +295,10 @@
  "CL-ASM/BACKEND.6510" "ASSEMBLE-FILE-6510"
  "MOS 6510 / Commodore 64"
  "MOS 6510 / Commodore 64")
+
+(cl-asm/linker:register-linker-backend
+ :6510
+ '("6510" "mos6510" "c64")
+ (lambda (sections symtable origin) (pass-1-6510 sections symtable origin))
+ (lambda (sections symtable origin) (pass-2-6510 sections symtable origin))
+ "MOS 6510 / Commodore 64")

@@ -5,6 +5,30 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.12.0] — 2026-03-27
+
+### Ajouté
+
+**Linker modulaire en mémoire** (`src/core/linker.lisp`) — nouveau module :
+- `link-unit` struct : encapsule les sections IR d'un fichier source parsé + cible architecturale
+- `link-unit-from-program name program &optional target` : constructeur de commodité depuis un IR-PROGRAM
+- `link units &key origin` : fusionne les sections de toutes les unités, crée une table de symboles partagée, exécute les deux passes → vecteur `(unsigned-byte 8)`
+- Registre extensible : `register-linker-backend` / `find-linker-backend` / `all-linker-backends`
+- Backends enregistrés : `:6502`, `:6510`, `:65c02`, `:45gs02`
+- Références croisées de labels entre fichiers : chaque label défini dans une unité est résolu par les autres
+- Validation : erreur si la liste est vide, si le backend est inconnu, ou si les cibles sont mixtes
+
+### Tests
+
+| Suite | 0.11.0 | 0.12.0 |
+|---|---|---|
+| linker-6502 (nouveau) | — | 26 |
+| **TOTAL** | **2402** | **2428** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.11.0] — 2026-03-26
 
 ### Ajouté

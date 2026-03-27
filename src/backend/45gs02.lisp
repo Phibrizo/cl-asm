@@ -516,3 +516,10 @@
  "CL-ASM/BACKEND.45GS02" "ASSEMBLE-FILE-45GS02"
  "Mega65 (45GS02)"
  "Mega65 (45GS02)")
+
+(cl-asm/linker:register-linker-backend
+ :45gs02
+ '("45gs02" "mega65")
+ (lambda (sections symtable origin) (pass-1-45gs02 sections symtable origin))
+ (lambda (sections symtable origin) (pass-2-45gs02 sections symtable origin))
+ "Mega65 (45GS02)")

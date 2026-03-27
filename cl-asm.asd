@@ -3,7 +3,7 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.11.0"
+  :version "0.12.0"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()
@@ -13,6 +13,9 @@
     :depends-on ("src/core/version"))
    (:file "src/core/disassemblers"
     :depends-on ("src/core/version"))
+   (:file "src/core/linker"
+    :depends-on ("src/core/ir"
+                 "src/core/symbol-table"))
    (:file "src/core/ir"
     :depends-on ("src/core/version"))
    (:file "src/core/debug-map"
@@ -30,6 +33,7 @@
     :depends-on ("src/core/ir"
                  "src/core/debug-map"
                  "src/core/backends"
+                 "src/core/linker"
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/frontend/classic-parser"))
@@ -146,6 +150,8 @@
     :depends-on ())
    (:file "tests/test-m68k"
     :depends-on ())
+   (:file "tests/test-linker-6502"
+    :depends-on ())
    (:file "tests/run-tests"
     :depends-on ("tests/test-expression"
                  "tests/test-symbol-table"
@@ -170,7 +176,8 @@
                  "tests/test-disasm-65c02"
                  "tests/test-debugger-6502"
                  "tests/test-m68k-parser"
-                 "tests/test-m68k")))
+                 "tests/test-m68k"
+                 "tests/test-linker-6502")))
   :perform (test-op (o c)
              (let ((output (make-string-output-stream)))
                (let ((*standard-output* output))

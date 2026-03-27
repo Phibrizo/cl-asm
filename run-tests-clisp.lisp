@@ -60,6 +60,7 @@
 (load-filtered "src/core/debug-map.lisp")
 (load-filtered "src/core/expression.lisp")
 (load-filtered "src/core/symbol-table.lisp")
+(load-filtered "src/core/linker.lisp")
 (load-filtered "src/frontend/classic-lexer.lisp")
 (load-filtered "src/frontend/classic-parser.lisp")
 (load-filtered "src/backend/6502.lisp")
@@ -102,6 +103,7 @@
 (load-filtered "tests/test-disasm-6502.lisp")
 (load-filtered "tests/test-disasm-45gs02.lisp")
 (load-filtered "tests/test-disasm-65c02.lisp")
+(load-filtered "tests/test-linker-6502.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 

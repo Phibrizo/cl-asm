@@ -883,3 +883,10 @@
  "CL-ASM/BACKEND.6502" "ASSEMBLE-FILE"
  "MOS 6502"
  "MOS 6502")
+
+(cl-asm/linker:register-linker-backend
+ :6502
+ '("6502" "mos6502")
+ (lambda (sections symtable origin) (pass-1 sections symtable origin))
+ (lambda (sections symtable origin) (pass-2 sections symtable origin))
+ "MOS 6502")

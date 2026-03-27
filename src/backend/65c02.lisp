@@ -283,3 +283,10 @@
  "CL-ASM/BACKEND.65C02" "ASSEMBLE-FILE-65C02"
  "Commander X16 / WDC 65C02"
  "Commander X16 / WDC 65C02")
+
+(cl-asm/linker:register-linker-backend
+ :65c02
+ '("65c02" "x16" "commander-x16")
+ (lambda (sections symtable origin) (pass-1-65c02 sections symtable origin))
+ (lambda (sections symtable origin) (pass-2-65c02 sections symtable origin))
+ "WDC 65C02 / Commander X16")

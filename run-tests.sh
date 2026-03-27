@@ -9,6 +9,7 @@ sbcl --load src/core/version.lisp \
      --load src/core/debug-map.lisp \
      --load src/core/expression.lisp \
      --load src/core/symbol-table.lisp \
+     --load src/core/linker.lisp \
      --load src/frontend/classic-lexer.lisp \
      --load src/frontend/classic-parser.lisp \
      --load src/backend/6502.lisp \
@@ -51,6 +52,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-disasm-6502.lisp \
      --load tests/test-disasm-45gs02.lisp \
      --load tests/test-disasm-65c02.lisp \
+     --load tests/test-linker-6502.lisp \
      --load tests/run-tests.lisp \
      --eval "(cl-asm/test:run-all-tests)" \
      --quit

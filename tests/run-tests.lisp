@@ -88,6 +88,9 @@
     ;; --- Débogueur ---
     (run-suite cl-asm/test.debugger-6502)
 
+    ;; --- Linker ---
+    (run-suite cl-asm/test.linker-6502)
+
     ;; --- Bilan global ---
     (format t "~%")
     (format t "--- ~A ---~%" (%msg "Core" "Core"))
@@ -172,6 +175,10 @@
     (format t "=== debugger-6502: ~3D OK, ~D KO~%"
             cl-asm/test.debugger-6502:*pass*
             cl-asm/test.debugger-6502:*fail*)
+    (format t "--- ~A ---~%" (%msg "Linker" "Linker"))
+    (format t "=== linker-6502  : ~3D OK, ~D KO~%"
+            cl-asm/test.linker-6502:*pass*
+            cl-asm/test.linker-6502:*fail*)
     (format t "-------------------------------~%")
     (format t (%msg "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
                     "=== TOTAL        : ~3D OK, ~D KO out of ~D tests~%")
