@@ -9,14 +9,14 @@ The architecture is designed to accommodate additional backends without modifyin
 
 ## Version
 
-**Current version: 0.11.0**
+**Current version: 0.12.0**
 
 ```
-cl-asm/version:+version+         ; → "0.11.0"
+cl-asm/version:+version+         ; → "0.12.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 11
+cl-asm/version:+version-minor+   ; → 12
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.11.0"
+(cl-asm/version:version-string)  ; → "0.12.0"
 ```
 
 ---
@@ -51,8 +51,9 @@ cl-asm/version:+version-patch+   ; → 0
 | Conditional assembly | ✓ | 27 |
 | .lasm frontend (native Lisp) | ✓ | 97 |
 | acme2clasm converter | ✓ | 20 |
+| In-memory modular linker (6502 family) | ✓ | 26 |
 
-**Total: 2402 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 2428 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -98,10 +99,12 @@ cl-asm/
 │   ├── core/
 │   │   ├── version.lisp        version number
 │   │   ├── backends.lisp       extensible backend registry
+│   │   ├── disassemblers.lisp  extensible disassembler registry
 │   │   ├── ir.lisp             intermediate representation
 │   │   ├── expression.lisp     expression evaluator
 │   │   ├── debug-map.lisp      address→source-loc table (for debugger)
-│   │   └── symbol-table.lisp   symbol table, 2 passes
+│   │   ├── symbol-table.lisp   symbol table, 2 passes
+│   │   └── linker.lisp         in-memory modular linker (6502 family)
 │   ├── frontend/
 │   │   ├── classic-lexer.lisp  tokeniser (ca65-like)
 │   │   ├── classic-parser.lisp parser → IR, macros, conditionals
@@ -118,7 +121,9 @@ cl-asm/
 │   ├── simulator/
 │   │   └── 6502.lisp           6502 CPU simulator (152 opcodes, cycle-accurate)
 │   ├── disassembler/
-│   │   └── 6502.lisp           6502 disassembler (151 official opcodes)
+│   │   ├── 6502.lisp           6502 disassembler (151 official opcodes)
+│   │   ├── 45gs02.lisp         45GS02 disassembler (prefix dispatcher)
+│   │   └── 65c02.lisp          65C02 / X16 disassembler (flat table)
 │   ├── debugger/
 │   │   └── 6502.lisp           interactive 6502 step debugger (REPL)
 │   └── emit/
@@ -147,7 +152,8 @@ cl-asm/
 │   ├── test-disasm-45gs02.lisp
 │   ├── test-disasm-65c02.lisp
 │   ├── test-debugger-6502.lisp
-│   └── test-acme2clasm.lisp
+│   ├── test-acme2clasm.lisp
+│   └── test-linker-6502.lisp
 └── examples/
     ├── c64-raster.asm          C64 raster bar (classic syntax)
     ├── mega65-hello.lasm       Mega65 hello world (.lasm syntax)
@@ -411,6 +417,35 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
   (format t "~D bytes~%" (length bytes)))
 ```
 
+### Linker — multi-file assembly with cross-file label references
+
+Package `cl-asm/linker`. Link multiple source files into a single binary;
+labels defined in one file are visible to all others.
+
+```lisp
+;; Two source units sharing a symbol table
+(let* ((u1 (cl-asm/linker:link-unit-from-program
+             "main"
+             (cl-asm/parser:parse-string
+               "main: JSR helper
+                      RTS")
+             :6502))
+       (u2 (cl-asm/linker:link-unit-from-program
+             "utils"
+             (cl-asm/parser:parse-string
+               "helper: LDA #$42
+                        RTS")
+             :6502))
+       (bytes (cl-asm/linker:link (list u1 u2) :origin #x0200)))
+  bytes)
+;; => #(#x20 #x04 #x02   ; JSR $0204 (helper)
+;;       #x60             ; RTS
+;;       #xA9 #x42        ; LDA #$42
+;;       #x60)            ; RTS
+
+;; Supported targets: :6502  :6510  :65c02  :45gs02
+```
+
 ---
 
 ## 6502 Simulator
@@ -517,7 +552,7 @@ Package `cl-asm/debugger.6502` — interactive step debugger built on top of the
 Sample session:
 
 ```
-=== Débogueur 6502 — cl-asm v0.11.0 ===
+=== Débogueur 6502 — cl-asm v0.12.0 ===
 Tapez 'h' pour l'aide.
 
 $0200  A9 01     LDA #$01  ; :3:3

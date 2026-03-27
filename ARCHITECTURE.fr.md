@@ -21,7 +21,14 @@ cl-asm est structuré en trois couches indépendantes :
 │  Backends (architectures cibles)                                   │
 │  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K · Intel 8080│
 └──────────────┬──────────────────────────────┘
-               │ produit un vecteur d'octets
+               │ produit un vecteur d'octets (fichier unique)
+               │ ou alimenté au linker (multi-fichiers)
+               ▼
+┌─────────────────────────────────────────────┐
+│  Linker (optionnel, famille 6502)           │
+│  cl-asm/linker — link-unit / link           │
+└──────────────┬──────────────────────────────┘
+               │ vecteur d'octets fusionné
                ▼
 ┌─────────────────────────────────────────────┐
 │  Simulateur (optionnel, indépendant)        │
@@ -46,6 +53,8 @@ cl-asm est structuré en trois couches indépendantes :
 |---|---|---|
 | `cl-asm/version` | `src/core/version.lisp` | Numéro de version |
 | `cl-asm/backends` | `src/core/backends.lisp` | Registre extensible de backends |
+| `cl-asm/disassemblers` | `src/core/disassemblers.lisp` | Registre extensible de désassembleurs |
+| `cl-asm/linker` | `src/core/linker.lisp` | Linker modulaire en mémoire (famille 6502) |
 | `cl-asm/ir` | `src/core/ir.lisp` | Structures IR et conditions |
 | `cl-asm/expression` | `src/core/expression.lisp` | Évaluateur d'expressions |
 | `cl-asm/symbol-table` | `src/core/symbol-table.lisp` | Table des symboles |
@@ -63,6 +72,8 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/emit` | `src/emit/output.lisp` | Émetteurs de fichiers |
 | `cl-asm/simulator.6502` | `src/simulator/6502.lisp` | Simulateur CPU 6502 |
 | `cl-asm/disassembler.6502` | `src/disassembler/6502.lisp` | Désassembleur 6502 |
+| `cl-asm/disassembler.45gs02` | `src/disassembler/45gs02.lisp` | Désassembleur 45GS02 |
+| `cl-asm/disassembler.65c02` | `src/disassembler/65c02.lisp` | Désassembleur 65C02 / X16 |
 | `cl-asm/debug-map` | `src/core/debug-map.lisp` | Table adresse→source-loc |
 | `cl-asm/debugger.6502` | `src/debugger/6502.lisp` | Débogueur 6502 interactif |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Suites de tests |

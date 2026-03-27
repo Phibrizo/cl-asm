@@ -21,7 +21,14 @@ cl-asm is structured in three independent layers:
 │  Backends (target architectures)                                  │
 │  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K · Intel 8080│
 └──────────────┬──────────────────────────────┘
-               │ produces a byte vector
+               │ produces a byte vector (single file)
+               │ or fed to the linker (multi-file)
+               ▼
+┌─────────────────────────────────────────────┐
+│  Linker (optional, 6502 family)             │
+│  cl-asm/linker — link-unit / link           │
+└──────────────┬──────────────────────────────┘
+               │ merged byte vector
                ▼
 ┌─────────────────────────────────────────────┐
 │  Simulator (optional, independent)          │
@@ -46,6 +53,8 @@ cl-asm is structured in three independent layers:
 |---|---|---|
 | `cl-asm/version` | `src/core/version.lisp` | Version number |
 | `cl-asm/backends` | `src/core/backends.lisp` | Extensible backend registry |
+| `cl-asm/disassemblers` | `src/core/disassemblers.lisp` | Extensible disassembler registry |
+| `cl-asm/linker` | `src/core/linker.lisp` | In-memory modular linker (6502 family) |
 | `cl-asm/ir` | `src/core/ir.lisp` | IR structures and conditions |
 | `cl-asm/expression` | `src/core/expression.lisp` | Expression evaluator |
 | `cl-asm/symbol-table` | `src/core/symbol-table.lisp` | Symbol table |
@@ -63,6 +72,8 @@ cl-asm is structured in three independent layers:
 | `cl-asm/emit` | `src/emit/output.lisp` | File emitters |
 | `cl-asm/simulator.6502` | `src/simulator/6502.lisp` | 6502 CPU simulator |
 | `cl-asm/disassembler.6502` | `src/disassembler/6502.lisp` | 6502 disassembler |
+| `cl-asm/disassembler.45gs02` | `src/disassembler/45gs02.lisp` | 45GS02 disassembler |
+| `cl-asm/disassembler.65c02` | `src/disassembler/65c02.lisp` | 65C02 / X16 disassembler |
 | `cl-asm/debug-map` | `src/core/debug-map.lisp` | Address→source-loc table |
 | `cl-asm/debugger.6502` | `src/debugger/6502.lisp` | Interactive 6502 debugger |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Test suites |
