@@ -250,9 +250,10 @@
 ;;;  Points d'entree publics
 ;;; --------------------------------------------------------------------------
 
-(defun assemble-65c02 (program &key (origin #x0801) (section :text))
+(defun assemble-65c02 (program &key (origin #x0801) (section :text) optimize)
   "Assemble PROGRAM pour le 65C02 / Commander X16.
-   Retourne un vecteur d'octets."
+   Retourne un vecteur d'octets.
+   OPTIMIZE : si non-NIL, applique l'optimiseur peephole avant la passe 1."
   (let* ((symtable (cl-asm/symbol-table:make-symbol-table))
          (sections (let ((main (cl-asm/ir:program-find-section
                                 program section))
@@ -261,21 +262,23 @@
                                   (eq (cl-asm/ir:ir-section-name s) section))
                                 (cl-asm/ir:ir-program-sections program))))
                      (if main (cons main rest) rest))))
+    (when optimize
+      (setf sections (cl-asm/optimizer:optimize-sections sections :65c02)))
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
     (pass-1-65c02 sections symtable origin)
     (cl-asm/symbol-table:begin-pass-2 symtable)
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
     (pass-2-65c02 sections symtable origin)))
 
-(defun assemble-string-65c02 (source &key (origin #x0801))
+(defun assemble-string-65c02 (source &key (origin #x0801) optimize)
   "Raccourci : parse SOURCE puis assemble pour le 65C02."
   (let ((program (cl-asm/parser:parse-string source)))
-    (assemble-65c02 program :origin origin)))
+    (assemble-65c02 program :origin origin :optimize optimize)))
 
-(defun assemble-file-65c02 (path &key (origin #x0801))
+(defun assemble-file-65c02 (path &key (origin #x0801) optimize)
   "Raccourci : lit, parse et assemble le fichier a PATH pour le 65C02."
   (let ((program (cl-asm/parser:parse-file path)))
-    (assemble-65c02 program :origin origin)))
+    (assemble-65c02 program :origin origin :optimize optimize)))
 
 (cl-asm/backends:register-backend
  :x16

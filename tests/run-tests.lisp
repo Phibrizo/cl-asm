@@ -91,6 +91,12 @@
     ;; --- Linker ---
     (run-suite cl-asm/test.linker-6502)
 
+    ;; --- Optimiseur ---
+    (run-suite cl-asm/test.optimizer)
+
+    ;; --- Conditions/Restarts ---
+    (run-suite cl-asm/test.restarts)
+
     ;; --- Bilan global ---
     (format t "~%")
     (format t "--- ~A ---~%" (%msg "Core" "Core"))
@@ -179,6 +185,14 @@
     (format t "=== linker-6502  : ~3D OK, ~D KO~%"
             cl-asm/test.linker-6502:*pass*
             cl-asm/test.linker-6502:*fail*)
+    (format t "--- ~A ---~%" (%msg "Optimiseur" "Optimizer"))
+    (format t "=== optimizer    : ~3D OK, ~D KO~%"
+            cl-asm/test.optimizer:*pass*
+            cl-asm/test.optimizer:*fail*)
+    (format t "--- ~A ---~%" (%msg "Conditions/Restarts" "Conditions/Restarts"))
+    (format t "=== restarts     : ~3D OK, ~D KO~%"
+            cl-asm/test.restarts:*pass*
+            cl-asm/test.restarts:*fail*)
     (format t "-------------------------------~%")
     (format t (%msg "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
                     "=== TOTAL        : ~3D OK, ~D KO out of ~D tests~%")

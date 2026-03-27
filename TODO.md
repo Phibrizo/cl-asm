@@ -74,29 +74,23 @@ avec ca65/ACME — on peut innover librement).
 
 Idées qui tirent parti des forces propres de CL (2026-03-27).
 
-### Optimiseur peephole ★ prioritaire
+### Optimiseur peephole ★
 
-Pattern-matching sur les séquences de nœuds IR pour remplacer des
-combinaisons d'instructions par des équivalents plus efficaces.
+- [x] **Règles A+B (6502/6510/65C02/45GS02)** : `JMP` vers label suivant supprimé ;
+  `JSR foo / RTS` → `JMP foo` (tail-call). Optionnel via `&key optimize`. *(v0.13.0)*
+- [x] **Règle C (65C02 uniquement)** : `LDA #$00 / STA addr` → `STZ addr`
+  (zp, zp,X, abs, abs,X). Non applicable au 45GS02 (STZ y = Store Z register). *(v0.13.0)*
 
-Exemples 65C02 :
-- `LDA #$00 / STA $zp` → `STZ $zp`
+Idées pour règles supplémentaires (non encore implémentées) :
 - `TAX / TXA` ou `TAY / TYA` → suppression si inutile
 - `LDA $zp / STA $zp` → suppression (opération nulle)
 
-Implémentation naturelle en Lisp : `destructuring-bind` ou
-pattern-matching (trivia/optima) sur la liste IR-SECTION-NODES.
-Aucun autre langage ne le ferait aussi proprement sur sa propre IR.
-
 ### Système de conditions/restarts pour les erreurs d'assemblage
 
-Remplacer les `error` simples par des conditions CL avec restarts :
-- `use-value` — fournir une valeur de substitution pour un symbole inconnu
-- `skip-instruction` — ignorer l'instruction fautive et continuer
-- `retry` — ré-essayer après correction interactive
-
-Utile pour un REPL d'assemblage interactif : résoudre des références
-indéfinies sans relancer tout l'assemblage.
+- [x] `use-value` / `use-zero` sur `asm-undefined-label` *(v0.14.0)*
+- [x] `skip-instruction` sur `asm-unknown-mnemonic` / `asm-syntax-error` *(v0.14.0)*
+- [x] `clamp-value` / `use-value` sur `asm-range-error` (branche hors portée) *(v0.14.0)*
+- [x] Macros `with-asm-use-zero` et `with-asm-skip-errors` *(v0.14.0)*
 
 ### Tables d'instructions générées déclarativement
 

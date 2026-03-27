@@ -345,35 +345,57 @@
     :source-loc   source-loc
     :pc           (st-current-pc st))))
 
+(defun %signal-undefined-label (name message source-loc)
+  "Signale asm-undefined-label avec restarts use-value et use-zero.
+   Si un restart est invoqué, retourne (values VAL T).
+   Sinon, propage l'erreur normalement."
+  (restart-case
+    (progn
+      (error 'cl-asm/ir::asm-undefined-label
+             :label      name
+             :message    message
+             :source-loc source-loc)
+      ;; Non atteint si l'erreur propage
+      (values 0 t))
+    (cl-asm/restarts:use-value (v)
+      :report "Fournir la valeur de ce symbole"
+      :interactive (lambda () (format *query-io* "Valeur pour ~A : " name)
+                              (list (read *query-io*)))
+      (values v t))
+    (cl-asm/restarts:use-zero ()
+      :report "Utiliser 0 comme valeur"
+      (values 0 t))))
+
 (defun resolve-symbol (st name &key source-loc)
   "Résout NAME. retourne (values VALEUR RESOLVEDP).
    En pass 1, un forward-ref retourne (values :unresolved nil).
-   En pass 2, un symbole toujours absent signalé une erreur."
+   En pass 2, un symbole toujours absent signale une erreur avec restarts
+   (use-value, use-zero)."
   (let ((entry (scope-lookup (current-scope st) name)))
     (cond
       ;; Symbole connu avec valeur numérique
       ((and entry (not (eq (symbol-entry-value entry) :unresolved)))
        (setf (symbol-entry-used-p entry) t)
        (let ((val (symbol-entry-value entry)))
-         ;; Les équates sont ?evalués récursivement via resolve-équate
+         ;; Les équates sont évalués récursivement via resolve-équate
          (if (eq (symbol-entry-kind entry) :equate)
              (resolve-equate st val source-loc)
              (values val t))))
       ;; Symbole connu mais non encore résolu (forward ref en pass 1)
       ((and entry (eq (symbol-entry-value entry) :unresolved))
        (if (= (st-current-pass st) 2)
-           (error 'cl-asm/ir::asm-undefined-label
-                  :label name
-                  :message (format nil "Symbole '~A' toujours non résolu en pass 2." name)
-                  :source-loc source-loc)
+           (%signal-undefined-label
+            name
+            (format nil "Symbole '~A' toujours non résolu en pass 2." name)
+            source-loc)
            (values :unresolved nil)))
       ;; Symbole inconnu
       (t
        (if (= (st-current-pass st) 2)
-           (error 'cl-asm/ir::asm-undefined-label
-                  :label name
-                  :message (format nil "Symbole '~A' indéfini." name)
-                  :source-loc source-loc)
+           (%signal-undefined-label
+            name
+            (format nil "Symbole '~A' indéfini." name)
+            source-loc)
            ;; Pass 1 : forward ref, on laisse passer
            (values :unresolved nil))))))
 
@@ -385,9 +407,10 @@
       (:backward
        (or (nls-resolve-backward (st-numeric-labels st) number pc)
            (if (= (st-current-pass st) 2)
-               (error 'cl-asm/ir::asm-undefined-label
-                      :label (format nil "~D-" number)
-                      :message (format nil "Label numérique ~D- introuvable avant $~X." number pc))
+               (%signal-undefined-label
+                (format nil "~D-" number)
+                (format nil "Label numérique ~D- introuvable avant $~X." number pc)
+                nil)
                (values :unresolved nil))))
       (:forward
        (or (nls-resolve-forward (st-numeric-labels st) number pc)

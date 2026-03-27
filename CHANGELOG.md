@@ -5,6 +5,46 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.14.0] — 2026-03-27
+
+### Added
+- **Conditions/Restarts** (`src/core/restarts.lisp`): CL restart protocol on assembly errors — `use-value`, `use-zero` for `asm-undefined-label`; `skip-instruction` for `asm-unknown-mnemonic`/`asm-syntax-error`; `clamp-value`/`use-value` for `asm-range-error` (out-of-range branches).
+- `with-asm-use-zero` macro: auto-resolve undefined labels to 0.
+- `with-asm-skip-errors` macro: silently ignore unknown mnemonics and unsupported addressing modes.
+
+### Changed
+- `symbol-table.lisp`: `%signal-undefined-label` helper wraps `asm-undefined-label` with `restart-case`.
+- `6502.lisp`: `encode-instruction` adds `skip-instruction` restart; `encode-relative` adds `clamp-value` and `use-value` restarts. All existing behaviour unchanged when no handler is bound.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-restarts | 14 |
+| **Total** | **2470** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
+## [0.13.0] — 2026-03-27
+
+### Added
+- **Peephole optimizer** (`src/core/optimizer.lisp`): extensible registry — `register-peephole-optimizer`, `find-peephole-optimizer`, `optimize-sections`. Called before pass-1 when `assemble` is invoked with `&key optimize t`.
+- **6502/6510 rules** (`src/optimizer/6502.lisp`): rule A (JMP→next label elimination), rule B (JSR/RTS→JMP tail-call). Exported as `*rules-6502*`.
+- **65C02/45GS02 rules** (`src/optimizer/65c02.lisp`): rules A+B+C for `:65c02`; rules A+B only for `:45gs02`. Rule C: `LDA #0 / STA :direct` → `STZ :direct` (nil or :x index-reg). Note: STZ on 45GS02 means "Store Z register", so rule C is excluded for that target.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| optimizer-6502 (new) | 28 |
+| **Total** | **2456** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.12.0] — 2026-03-27
 
 ### Added

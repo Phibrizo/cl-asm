@@ -483,9 +483,10 @@
 ;;;  Point d'entree public
 ;;; --------------------------------------------------------------------------
 
-(defun assemble-45gs02 (program &key (origin #x2001) (section :text))
+(defun assemble-45gs02 (program &key (origin #x2001) (section :text) optimize)
   "Assemble PROGRAM pour le 45GS02. Retourne un vecteur d'octets.
-   ORIGIN : adresse de chargement par defaut ($2001 pour Mega65 BASIC)."
+   ORIGIN   : adresse de chargement par defaut ($2001 pour Mega65 BASIC).
+   OPTIMIZE : si non-NIL, applique l'optimiseur peephole avant la passe 1."
   (let* ((symtable (cl-asm/symbol-table:make-symbol-table))
          (sections (let ((main (cl-asm/ir:program-find-section
                                 program section))
@@ -494,21 +495,23 @@
                                   (eq (cl-asm/ir:ir-section-name s) section))
                                 (cl-asm/ir:ir-program-sections program))))
                      (if main (cons main rest) rest))))
+    (when optimize
+      (setf sections (cl-asm/optimizer:optimize-sections sections :45gs02)))
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
     (pass-1-45gs02 sections symtable origin)
     (cl-asm/symbol-table:begin-pass-2 symtable)
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
     (pass-2-45gs02 sections symtable origin)))
 
-(defun assemble-string-45gs02 (source &key (origin #x2001))
+(defun assemble-string-45gs02 (source &key (origin #x2001) optimize)
   "Raccourci : parse SOURCE puis assemble pour le 45GS02."
   (let ((program (cl-asm/parser:parse-string source)))
-    (assemble-45gs02 program :origin origin)))
+    (assemble-45gs02 program :origin origin :optimize optimize)))
 
-(defun assemble-file-45gs02 (path &key (origin #x2001))
+(defun assemble-file-45gs02 (path &key (origin #x2001) optimize)
   "Raccourci : lit, parse et assemble le fichier à PATH pour le 45GS02."
   (let ((program (cl-asm/parser:parse-file path)))
-    (assemble-45gs02 program :origin origin)))
+    (assemble-45gs02 program :origin origin :optimize optimize)))
 
 (cl-asm/backends:register-backend
  :45gs02

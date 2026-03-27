@@ -59,8 +59,10 @@
 (load-filtered "src/core/ir.lisp")
 (load-filtered "src/core/debug-map.lisp")
 (load-filtered "src/core/expression.lisp")
+(load-filtered "src/core/restarts.lisp")
 (load-filtered "src/core/symbol-table.lisp")
 (load-filtered "src/core/linker.lisp")
+(load-filtered "src/core/optimizer.lisp")
 (load-filtered "src/frontend/classic-lexer.lisp")
 (load-filtered "src/frontend/classic-parser.lisp")
 (load-filtered "src/backend/6502.lisp")
@@ -79,6 +81,8 @@
 (load-filtered "src/disassembler/45gs02.lisp")
 (load-filtered "src/disassembler/65c02.lisp")
 (load-filtered "src/debugger/6502.lisp")
+(load-filtered "src/optimizer/6502.lisp")
+(load-filtered "src/optimizer/65c02.lisp")
 (load-filtered "tests/test-debugger-6502.lisp")
 (load-filtered "tests/test-65c02.lisp")
 (load-filtered "tests/test-r65c02.lisp")
@@ -104,6 +108,8 @@
 (load-filtered "tests/test-disasm-45gs02.lisp")
 (load-filtered "tests/test-disasm-65c02.lisp")
 (load-filtered "tests/test-linker-6502.lisp")
+(load-filtered "tests/test-optimizer.lisp")
+(load-filtered "tests/test-restarts.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 

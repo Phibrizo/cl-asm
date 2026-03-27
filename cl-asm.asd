@@ -3,7 +3,7 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.12.0"
+  :version "0.13.0"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()
@@ -16,6 +16,10 @@
    (:file "src/core/linker"
     :depends-on ("src/core/ir"
                  "src/core/symbol-table"))
+   (:file "src/core/optimizer"
+    :depends-on ("src/core/ir"))
+   (:file "src/core/restarts"
+    :depends-on ("src/core/ir"))
    (:file "src/core/ir"
     :depends-on ("src/core/version"))
    (:file "src/core/debug-map"
@@ -23,7 +27,7 @@
    (:file "src/core/expression"
     :depends-on ("src/core/ir"))
    (:file "src/core/symbol-table"
-    :depends-on ("src/core/ir" "src/core/expression"))
+    :depends-on ("src/core/ir" "src/core/expression" "src/core/restarts"))
    (:file "src/frontend/classic-lexer"
     :depends-on ("src/core/ir"))
    (:file "src/frontend/classic-parser"
@@ -34,6 +38,8 @@
                  "src/core/debug-map"
                  "src/core/backends"
                  "src/core/linker"
+                 "src/core/optimizer"
+                 "src/core/restarts"
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/frontend/classic-parser"))
@@ -96,7 +102,13 @@
                  "src/core/debug-map"
                  "src/simulator/6502"
                  "src/disassembler/6502"
-                 "src/disassembler/45gs02"))))
+                 "src/disassembler/45gs02"))
+   (:file "src/optimizer/6502"
+    :depends-on ("src/core/optimizer"
+                 "src/backend/6502"))
+   (:file "src/optimizer/65c02"
+    :depends-on ("src/optimizer/6502"
+                 "src/backend/65c02"))))
 
 (defsystem "cl-asm/tests"
   :description "Suite de tests pour cl-asm"
@@ -152,6 +164,10 @@
     :depends-on ())
    (:file "tests/test-linker-6502"
     :depends-on ())
+   (:file "tests/test-optimizer"
+    :depends-on ())
+   (:file "tests/test-restarts"
+    :depends-on ())
    (:file "tests/run-tests"
     :depends-on ("tests/test-expression"
                  "tests/test-symbol-table"
@@ -177,7 +193,9 @@
                  "tests/test-debugger-6502"
                  "tests/test-m68k-parser"
                  "tests/test-m68k"
-                 "tests/test-linker-6502")))
+                 "tests/test-linker-6502"
+                 "tests/test-optimizer"
+                 "tests/test-restarts")))
   :perform (test-op (o c)
              (let ((output (make-string-output-stream)))
                (let ((*standard-output* output))

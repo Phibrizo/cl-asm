@@ -5,6 +5,46 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.14.0] — 2026-03-27
+
+### Ajouté
+- **Conditions/Restarts** (`src/core/restarts.lisp`) : protocole de restarts CL sur les erreurs d'assemblage — `use-value`, `use-zero` pour `asm-undefined-label` ; `skip-instruction` pour `asm-unknown-mnemonic`/`asm-syntax-error` ; `clamp-value`/`use-value` pour `asm-range-error` (branches hors portée).
+- Macro `with-asm-use-zero` : résolution automatique des labels indéfinis à 0.
+- Macro `with-asm-skip-errors` : ignore silencieusement les mnémoniques inconnus et les modes d'adressage non supportés.
+
+### Modifié
+- `symbol-table.lisp` : le helper `%signal-undefined-label` encapsule `asm-undefined-label` dans un `restart-case`.
+- `6502.lisp` : `encode-instruction` ajoute le restart `skip-instruction` ; `encode-relative` ajoute les restarts `clamp-value` et `use-value`. Tout le comportement existant reste inchangé en l'absence de handler.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-restarts | 14 |
+| **Total** | **2470** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
+## [0.13.0] — 2026-03-27
+
+### Ajouté
+- **Optimiseur peephole** (`src/core/optimizer.lisp`) : registre extensible — `register-peephole-optimizer`, `find-peephole-optimizer`, `optimize-sections`. Appelé avant la passe 1 quand `assemble` est invoqué avec `&key optimize t`.
+- **Règles 6502/6510** (`src/optimizer/6502.lisp`) : règle A (élimination de JMP vers le label suivant), règle B (transformation JSR/RTS → JMP tail-call). Exportées sous le nom `*rules-6502*`.
+- **Règles 65C02/45GS02** (`src/optimizer/65c02.lisp`) : règles A+B+C pour `:65c02` ; règles A+B seulement pour `:45gs02`. Règle C : `LDA #0 / STA :direct` → `STZ :direct` (index nil ou :x). Note : STZ sur 45GS02 signifie « Store Z register », la règle C est donc exclue pour cette cible.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| optimizer-6502 (nouveau) | 28 |
+| **Total** | **2456** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.12.0] — 2026-03-27
 
 ### Ajouté

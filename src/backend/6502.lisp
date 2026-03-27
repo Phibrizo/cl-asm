@@ -320,17 +320,33 @@
 
 (defun encode-relative (target-addr current-pc loc)
   "Calcule l'offset relatif pour une branche.
-   L'offset est relatif a l'adresse de l'instruction suivante (PC+2)."
+   L'offset est relatif a l'adresse de l'instruction suivante (PC+2).
+   Restarts disponibles si la branche est hors portee :
+     clamp-value — tronque l'offset à [-128..127]
+     use-value   — fournit un offset brut"
   (let ((offset (- target-addr (+ current-pc 2))))
-    (unless (<= -128 offset 127)
-      (error 'cl-asm/ir:asm-range-error
-             :value offset
-             :bits  8
-             :message (format nil
-                               "Branche hors portee : offset ~D (limite -128..127)"
-                               offset)
-             :source-loc loc))
-    (encode-byte offset)))
+    (if (<= -128 offset 127)
+        (encode-byte offset)
+        (let ((clamped (max -128 (min 127 offset))))
+          (restart-case
+            (progn
+              (error 'cl-asm/ir:asm-range-error
+                     :value offset
+                     :bits  8
+                     :message (format nil
+                                       "Branche hors portee : offset ~D (limite -128..127)"
+                                       offset)
+                     :source-loc loc)
+              ;; Non atteint normalement
+              (encode-byte 0))
+            (cl-asm/restarts:clamp-value ()
+              :report (lambda (s)
+                        (format s "Tronquer l'offset a ~D (la branche la plus proche)"
+                                clamped))
+              (encode-byte clamped))
+            (cl-asm/restarts:use-value (v)
+              :report "Fournir un offset de branche manuel"
+              (encode-byte (logand v #xFF))))))))
 
 
 ;;; --------------------------------------------------------------------------
@@ -372,10 +388,19 @@
 
     ;; Valider le mnemonique
     (unless clauses
-      (error 'cl-asm/ir:asm-unknown-mnemonic
-             :mnemonic mn
-             :message  (format nil "Mnemonique inconnu : ~A" mn)
-             :source-loc loc))
+      (let ((skip-p
+             (restart-case
+               (progn
+                 (error 'cl-asm/ir:asm-unknown-mnemonic
+                        :mnemonic mn
+                        :message  (format nil "Mnemonique inconnu : ~A" mn)
+                        :source-loc loc)
+                 nil)
+               (cl-asm/restarts:skip-instruction ()
+                 :report "Ignorer cette instruction (emet 0 octet)"
+                 t))))
+        (when skip-p
+          (return-from encode-instruction (values '() 0)))))
 
     ;; Evaluer la valeur de l'operande
     (multiple-value-bind (addr-val resolved)
@@ -417,11 +442,20 @@
             (setf mode :relative
                   clause (find :relative clauses :key #'clause-mode)))
           (unless clause
-            (error 'cl-asm/ir:asm-syntax-error
-                   :message (format nil
-                                     "~A : mode d'adressage non supporte (~A)"
-                                     mn mode)
-                   :source-loc loc)))
+            (let ((skip-p
+                   (restart-case
+                     (progn
+                       (error 'cl-asm/ir:asm-syntax-error
+                              :message (format nil
+                                                "~A : mode d'adressage non supporte (~A)"
+                                                mn mode)
+                              :source-loc loc)
+                       nil)
+                     (cl-asm/restarts:skip-instruction ()
+                       :report "Ignorer cette instruction (emet 0 octet)"
+                       t))))
+              (when skip-p
+                (return-from encode-instruction (values '() 0))))))
 
         ;; Encoder selon le mode
         (let ((opcode (clause-opcode clause)))
@@ -837,12 +871,13 @@
 ;;;  Point d'entree public
 ;;; --------------------------------------------------------------------------
 
-(defun assemble (program &key (origin #x0801) (section :text) debug-map)
+(defun assemble (program &key (origin #x0801) (section :text) debug-map optimize)
   "Assemble PROGRAM (IR-PROGRAM) et retourne un vecteur d'octets.
    ORIGIN    : adresse de chargement par defaut ($0801 pour C64).
    SECTION   : section principale a assembler (:text par defaut).
    DEBUG-MAP : cl-asm/debugger.6502:debug-map a remplir (adresse → source-loc)
-               pour un usage avec le debogueur interactif."
+               pour un usage avec le debogueur interactif.
+   OPTIMIZE  : si non-NIL, applique l'optimiseur peephole avant la passe 1."
   (let* ((symtable (cl-asm/symbol-table:make-symbol-table))
          ;; On assemble toutes les sections dans l'ordre, en commencant
          ;; par la section principale
@@ -853,6 +888,10 @@
                                   (eq (cl-asm/ir:ir-section-name s) section))
                                 (cl-asm/ir:ir-program-sections program))))
                      (if main (cons main rest) rest))))
+
+    ;; Optimisation peephole (avant passe 1 pour recalcul correct des adresses)
+    (when optimize
+      (setf sections (cl-asm/optimizer:optimize-sections sections :6502)))
 
     ;; Initialiser le PC de la table des symboles
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
@@ -865,17 +904,17 @@
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
     (pass-2 sections symtable origin :debug-map debug-map)))
 
-(defun assemble-string (source &key (origin #x0801))
+(defun assemble-string (source &key (origin #x0801) optimize)
   "Raccourci : parse SOURCE puis assemble. Retourne le vecteur d'octets."
   (let ((program (cl-asm/parser:parse-string source)))
-    (assemble program :origin origin)))
+    (assemble program :origin origin :optimize optimize)))
 
-(defun assemble-file (path &key (origin #x0801) debug-map)
+(defun assemble-file (path &key (origin #x0801) debug-map optimize)
   "Raccourci : lit, parse et assemble le fichier a PATH.
    Retourne le vecteur d'octets.
    DEBUG-MAP (optionnel) : debug-map a remplir (adresse → source-loc)."
   (let ((program (cl-asm/parser:parse-file path)))
-    (assemble program :origin origin :debug-map debug-map)))
+    (assemble program :origin origin :debug-map debug-map :optimize optimize)))
 
 (cl-asm/backends:register-backend
  :6502

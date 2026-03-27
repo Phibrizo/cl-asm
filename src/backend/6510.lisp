@@ -262,9 +262,10 @@
 ;;;  Points d'entrée publics
 ;;; --------------------------------------------------------------------------
 
-(defun assemble-6510 (program &key (origin #x0801) (section :text) debug-map)
+(defun assemble-6510 (program &key (origin #x0801) (section :text) debug-map optimize)
   "Assemble PROGRAM pour le MOS 6510 / Commodore 64.
-   Retourne un vecteur d'octets."
+   Retourne un vecteur d'octets.
+   OPTIMIZE : si non-NIL, applique l'optimiseur peephole avant la passe 1."
   (let* ((symtable (cl-asm/symbol-table:make-symbol-table))
          (sections (let ((main (cl-asm/ir:program-find-section
                                 program section))
@@ -273,21 +274,23 @@
                                   (eq (cl-asm/ir:ir-section-name s) section))
                                 (cl-asm/ir:ir-program-sections program))))
                      (if main (cons main rest) rest))))
+    (when optimize
+      (setf sections (cl-asm/optimizer:optimize-sections sections :6510)))
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
     (pass-1-6510 sections symtable origin)
     (cl-asm/symbol-table:begin-pass-2 symtable)
     (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
     (pass-2-6510 sections symtable origin :debug-map debug-map)))
 
-(defun assemble-string-6510 (source &key (origin #x0801))
+(defun assemble-string-6510 (source &key (origin #x0801) optimize)
   "Raccourci : parse SOURCE puis assemble pour le 6510."
   (let ((program (cl-asm/parser:parse-string source)))
-    (assemble-6510 program :origin origin)))
+    (assemble-6510 program :origin origin :optimize optimize)))
 
-(defun assemble-file-6510 (path &key (origin #x0801) debug-map)
+(defun assemble-file-6510 (path &key (origin #x0801) debug-map optimize)
   "Raccourci : lit, parse et assemble le fichier à PATH pour le 6510."
   (let ((program (cl-asm/parser:parse-file path)))
-    (assemble-6510 program :origin origin :debug-map debug-map)))
+    (assemble-6510 program :origin origin :debug-map debug-map :optimize optimize)))
 
 (cl-asm/backends:register-backend
  :6510

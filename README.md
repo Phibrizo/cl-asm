@@ -9,14 +9,14 @@ The architecture is designed to accommodate additional backends without modifyin
 
 ## Version
 
-**Current version: 0.12.0**
+**Current version: 0.14.0**
 
 ```
-cl-asm/version:+version+         ; → "0.12.0"
+cl-asm/version:+version+         ; → "0.14.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 12
+cl-asm/version:+version-minor+   ; → 14
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.12.0"
+(cl-asm/version:version-string)  ; → "0.14.0"
 ```
 
 ---
@@ -52,8 +52,10 @@ cl-asm/version:+version-patch+   ; → 0
 | .lasm frontend (native Lisp) | ✓ | 97 |
 | acme2clasm converter | ✓ | 20 |
 | In-memory modular linker (6502 family) | ✓ | 26 |
+| Peephole optimizer (6502/6510/65C02/45GS02) | ✓ | 28 |
+| Conditions & Restarts | ✓ | 14 |
 
-**Total: 2428 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 2470 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -104,7 +106,9 @@ cl-asm/
 │   │   ├── expression.lisp     expression evaluator
 │   │   ├── debug-map.lisp      address→source-loc table (for debugger)
 │   │   ├── symbol-table.lisp   symbol table, 2 passes
-│   │   └── linker.lisp         in-memory modular linker (6502 family)
+│   │   ├── linker.lisp         in-memory modular linker (6502 family)
+│   │   ├── optimizer.lisp      extensible peephole optimizer registry
+│   │   └── restarts.lisp       CL restart protocol for assembly errors
 │   ├── frontend/
 │   │   ├── classic-lexer.lisp  tokeniser (ca65-like)
 │   │   ├── classic-parser.lisp parser → IR, macros, conditionals
@@ -126,6 +130,9 @@ cl-asm/
 │   │   └── 65c02.lisp          65C02 / X16 disassembler (flat table)
 │   ├── debugger/
 │   │   └── 6502.lisp           interactive 6502 step debugger (REPL)
+│   ├── optimizer/
+│   │   ├── 6502.lisp           peephole rules A+B for 6502/6510
+│   │   └── 65c02.lisp          peephole rules A+B+C for 65C02/45GS02
 │   └── emit/
 │       └── output.lisp         BIN, PRG, listing emitters
 ├── tests/
@@ -153,7 +160,9 @@ cl-asm/
 │   ├── test-disasm-65c02.lisp
 │   ├── test-debugger-6502.lisp
 │   ├── test-acme2clasm.lisp
-│   └── test-linker-6502.lisp
+│   ├── test-linker-6502.lisp
+│   ├── test-optimizer-6502.lisp
+│   └── test-restarts.lisp
 └── examples/
     ├── c64-raster.asm          C64 raster bar (classic syntax)
     ├── mega65-hello.lasm       Mega65 hello world (.lasm syntax)
@@ -446,6 +455,30 @@ labels defined in one file are visible to all others.
 ;; Supported targets: :6502  :6510  :65c02  :45gs02
 ```
 
+### Conditions & Restarts
+
+Assembly errors carry CL restarts for programmatic recovery:
+
+```lisp
+;; Resolve all undefined labels to 0 (useful for layout passes)
+(cl-asm/restarts:with-asm-use-zero
+  (cl-asm/backend.6502:assemble-string "LDA unknown_fn\nRTS"))
+; → #(165 0 96)  ; LDA $00, RTS
+
+;; Ignore unknown mnemonics (tolerant mode)
+(cl-asm/restarts:with-asm-skip-errors
+  (cl-asm/backend.6502:assemble-string "FUTURE_OP\nNOP"))
+; → #(234)       ; NOP only
+
+;; Fine-grained control with handler-bind
+(handler-bind
+  ((cl-asm/ir:asm-undefined-label
+    (lambda (c)
+      (format t "Resolving ~A to $0300~%" (cl-asm/ir:asm-error-label c))
+      (invoke-restart 'cl-asm/restarts:use-value #x0300))))
+  (cl-asm/backend.6502:assemble-string "JSR missing_fn\nRTS"))
+```
+
 ---
 
 ## 6502 Simulator
@@ -552,7 +585,7 @@ Package `cl-asm/debugger.6502` — interactive step debugger built on top of the
 Sample session:
 
 ```
-=== Débogueur 6502 — cl-asm v0.12.0 ===
+=== Débogueur 6502 — cl-asm v0.14.0 ===
 Tapez 'h' pour l'aide.
 
 $0200  A9 01     LDA #$01  ; :3:3
