@@ -3,7 +3,7 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.15.0"
+  :version "0.16.0"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()
@@ -95,6 +95,7 @@
                  "src/backend/i8086"))
    (:file "src/emit/output"
     :depends-on ("src/core/ir"
+                 "src/core/disassemblers"
                  "src/backend/6502"))
    (:file "src/simulator/6502"
     :depends-on ())
@@ -177,6 +178,10 @@
     :depends-on ())
    (:file "tests/test-restarts"
     :depends-on ())
+   (:file "tests/test-listing"
+    :depends-on ("tests/test-6502"
+                 "tests/test-disasm-6502"
+                 "tests/test-disasm-65c02"))
    (:file "tests/run-tests"
     :depends-on ("tests/test-expression"
                  "tests/test-symbol-table"
@@ -205,7 +210,8 @@
                  "tests/test-m68k"
                  "tests/test-linker-6502"
                  "tests/test-optimizer"
-                 "tests/test-restarts")))
+                 "tests/test-restarts"
+                 "tests/test-listing")))
   :perform (test-op (o c)
              (let ((output (make-string-output-stream)))
                (let ((*standard-output* output))

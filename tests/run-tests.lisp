@@ -100,6 +100,9 @@
     ;; --- Conditions/Restarts ---
     (run-suite cl-asm/test.restarts)
 
+    ;; --- Listing ---
+    (run-suite cl-asm/test.listing)
+
     ;; --- Bilan global ---
     (format t "~%")
     (format t "--- ~A ---~%" (%msg "Core" "Core"))
@@ -200,6 +203,10 @@
     (format t "=== restarts     : ~3D OK, ~D KO~%"
             cl-asm/test.restarts:*pass*
             cl-asm/test.restarts:*fail*)
+    (format t "--- ~A ---~%" (%msg "Listing" "Listing"))
+    (format t "=== listing      : ~3D OK, ~D KO~%"
+            cl-asm/test.listing:*pass*
+            cl-asm/test.listing:*fail*)
     (format t "-------------------------------~%")
     (format t (%msg "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
                     "=== TOTAL        : ~3D OK, ~D KO out of ~D tests~%")

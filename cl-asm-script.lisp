@@ -171,6 +171,7 @@
         (format t "  --origin ADDR    Adresse d'origine (ex: 0x0801, $0801)~%")
         (format t "  -t, --target T   Cible : ~A~%"
                 (backend-aliases-string))
+        (format t "  --listing        Generer un listing annote (.lst, cycles CPU)~%")
         (format t "  -v, --verbose    Mode verbose~%")
         (format t "  -h, --help       Cette aide~%"))
       (progn
@@ -181,6 +182,7 @@
         (format t "  --origin ADDR    Origin address (e.g. 0x0801, $0801)~%")
         (format t "  -t, --target T   Target: ~A~%"
                 (backend-aliases-string))
+        (format t "  --listing        Generate annotated listing (.lst, CPU cycles)~%")
         (format t "  -v, --verbose    Verbose mode~%")
         (format t "  -h, --help       Show this help~%"))))
 
@@ -214,7 +216,8 @@
           (format  :prg)
           (origin  #x0801)
           (target  nil)
-          (verbose nil))
+          (verbose nil)
+          (listing nil))
 
       (let ((i 0))
         (loop while (< i (length args))
@@ -238,6 +241,9 @@
                                 (cl-asm/backends:backend-keyword entry)
                                 :6502)))
                     (incf i 2))
+                   ((string= arg "--listing")
+                    (setf listing t)
+                    (incf i))
                    ((or (string= arg "-v") (string= arg "--verbose"))
                     (setf verbose t)
                     (incf i))
@@ -295,6 +301,23 @@
 
         (format t "~A -> ~A (~D ~A)~%"
                 input output (length bytes)
-                (msg "octets" "bytes"))))))
+                (msg "octets" "bytes"))
+
+        (when (and listing
+                   (not (string-equal (pathname-type input) "lasm")))
+          (let ((lst-path (default-output input :lst)))
+            (handler-case
+                (let ((program (call "CL-ASM/PARSER" "PARSE-FILE" input)))
+                  (call "CL-ASM/EMIT" "WRITE-LISTING"
+                        program bytes lst-path
+                        :origin origin
+                        :target target)
+                  (format t "~A -> ~A (~A)~%"
+                          input lst-path (msg "listing" "listing")))
+              (error (e)
+                (format *error-output*
+                        (msg "Avertissement listing : ~A~%"
+                             "Listing warning: ~A~%")
+                        e))))))))))
 
 (main)

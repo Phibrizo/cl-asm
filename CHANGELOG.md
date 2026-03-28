@@ -5,6 +5,32 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.16.0] — 2026-03-28
+
+### Added
+- **Annotated listing with CPU cycles** (`src/emit/output.lisp`): new `--listing` CLI option — generates a `.lst` file showing address, hex bytes, mnemonic, operand and cycle count per instruction.
+- **6502 cycle table** (`*cycles-6502*`): 151 official opcodes. Each entry `(base-cycles . extra-flag)` with flag `0` (fixed), `1` (+1 if page-crossing), `2` (branch: +1 taken, +2 taken+page). Also valid for MOS 6510 (C64).
+- **65C02 cycle table** (`*cycles-65c02*`): inherits from 6502 and adds/fixes 65C02 opcodes — BRA, STZ, PHX/PLX/PHY/PLY, TSB/TRB, zero-page-indirect, JMP(ind)=6cy (page-crossing bug fixed). Valid for Commander X16 and 45GS02 (approximate).
+- Fixed instruction size calculation in `emit-listing`: uses the registered disassembler (6502/65C02/45GS02) to advance PC correctly — the bug previously returned 1 byte per instruction unconditionally.
+- `emit-listing` / `write-listing` accept `&key target` (`:6502` `:6510` `:65c02` `:r65c02` `:45gs02`) to enable cycles and correct sizes. Backward-compatible: without `target`, behavior is identical to before.
+- Disassembler fallbacks: `:6510` → `:6502`, `:r65c02` → `:65c02`.
+- 40 tests in `tests/test-listing.lisp`.
+
+### Changed
+- `cl-asm-script.lisp`: new `--listing` option — generates `source.lst` in the same directory as the source file.
+- `run-tests.sh`: `src/emit/output.lisp` now loaded after disassemblers (correct order for runtime dispatch).
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-listing | 40 |
+| **Total** | **2746** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.15.0] — 2026-03-28
 
 ### Added

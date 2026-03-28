@@ -15,7 +15,7 @@
 ;;;   PATCH : correction de bug
 
 (defparameter +version-major+ 0)
-(defparameter +version-minor+ 15)
+(defparameter +version-minor+ 16)
 (defparameter +version-patch+ 0)
 
 (defparameter +version+
