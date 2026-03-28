@@ -63,6 +63,30 @@ cl-asm/version:+version-patch+   ; → 0
 
 ---
 
+## Feature Matrix
+
+Tooling support per target architecture.
+
+| Architecture | Assembler | Disassembler | Simulator | Debugger | Profiler/Tracer | Linker | Optimizer | Cycle listing |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **6502** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ A+B | ✓ |
+| **6510** (C64) | ✓ | ~¹ | ~¹ | ~¹ | ~¹ | ✓ | ✓ A+B | ✓ |
+| **65C02** (X16) | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ A+B+C | ✓ |
+| **R65C02** (Rockwell) | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ~² |
+| **45GS02** (Mega65) | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ A+B | ~² |
+| **65816** (SNES/IIgs) | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Z80** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **M68K** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Intel 8080** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Intel 8086/8088** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+¹ Legal opcodes only (6502 subset) — 6510 illegal opcodes (LAX, SAX…) are not simulated or disassembled
+² Approximate — uses the 65C02 cycle table as a fallback
+
+Optimizer rules: **A** = JMP→next label elision · **B** = JSR/RTS→JMP tail-call · **C** = LDA #0/STA→STZ (65C02 only; excluded from 45GS02 where STZ means Store Z register)
+
+---
+
 ## Prerequisites
 
 * **SBCL** 2.x (recommended), **CLISP** 2.49.95+, or **ECL** 21.x+

@@ -179,11 +179,16 @@ Expected output after all tests pass:
 ## Règle documentaire
 
 **Après chaque ajout d'une nouvelle architecture**, mettre à jour tous les `.md` :
-1. `README.md` et `README.fr.md` — titre, tableau de statut (nouveau backend + total), structure des fichiers, section CLI (alias), section programmatic usage (exemple), section syntax (modes spécifiques).
+1. `README.md` et `README.fr.md` — titre, tableau de statut (nouveau backend + total), **matrice des fonctionnalités** (nouvelle ligne, toutes colonnes à ✗ sauf Assembleur), structure des fichiers, section CLI (alias), section programmatic usage (exemple), section syntax (modes spécifiques).
 2. `CHANGELOG.md` et `CHANGELOG.fr.md` — nouvelle entrée `[X.Y.Z]` avec date, ajouts, modifications, tableau des tests.
 3. `ARCHITECTURE.md` et `ARCHITECTURE.fr.md` — diagramme de couches (backends), tableau des packages, nouvelle section de module.
 4. `CLAUDE.md` — section Backend, compteur de tests, section Upcoming Work.
 5. `src/core/version.lisp` — incrémenter le numéro de version (minor pour un nouveau backend).
+
+**Après chaque ajout d'une nouvelle fonctionnalité transversale** (désassembleur, simulateur, linker, optimiseur, profiler…), mettre à jour la **matrice des fonctionnalités** dans `README.md` et `README.fr.md` :
+- Nouvelle colonne si la fonctionnalité est nouvelle.
+- Mise à jour des cellules existantes (✗ → ✓ ou ~) pour les architectures concernées.
+- Mettre à jour la note explicative sous le tableau si nécessaire (règles optimiseur, fallbacks cycles…).
 
 ## Z80-specific parser design
 
