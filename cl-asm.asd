@@ -3,7 +3,7 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.16.0"
+  :version "0.17.0"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()

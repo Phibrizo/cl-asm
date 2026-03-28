@@ -48,6 +48,7 @@ cl-asm/version:+version-patch+   ; → 0
 | 65C02 disassembler (X16) | ✓ | 44 |
 | 6502 debugger (interactive REPL) | ✓ | 80 |
 | BIN / PRG / listing emitters | ✓ | — |
+| Intel HEX / Motorola S-record emitters | ✓ | 32 |
 | Text macros | ✓ | 27 |
 | Conditional assembly | ✓ | 27 |
 | .lasm frontend (native Lisp) | ✓ | 97 |
@@ -56,7 +57,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Peephole optimizer (6502/6510/65C02/45GS02) | ✓ | 28 |
 | Conditions & Restarts | ✓ | 14 |
 
-**Total: 2706 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 2778 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -136,7 +137,9 @@ cl-asm/
 │   │   ├── 6502.lisp           peephole rules A+B for 6502/6510
 │   │   └── 65c02.lisp          peephole rules A+B+C for 65C02/45GS02
 │   └── emit/
-│       └── output.lisp         BIN, PRG, listing emitters
+│       ├── output.lisp         BIN, PRG, listing emitters
+│       ├── ihex.lisp           Intel HEX emitter
+│       └── srec.lisp           Motorola S-record emitter
 ├── tests/
 │   ├── run-tests.lisp
 │   ├── test-expression.lisp
@@ -165,7 +168,8 @@ cl-asm/
 │   ├── test-acme2clasm.lisp
 │   ├── test-linker-6502.lisp
 │   ├── test-optimizer-6502.lisp
-│   └── test-restarts.lisp
+│   ├── test-restarts.lisp
+│   └── test-emitters.lisp
 └── examples/
     ├── c64-raster.asm          C64 raster bar (classic syntax)
     ├── mega65-hello.lasm       Mega65 hello world (.lasm syntax)
@@ -250,7 +254,7 @@ Expected output (all methods):
 --- Tools ---
 === acme2clasm   :  20 OK, 0 KO
 -------------------------------
-=== TOTAL        : 2706 OK, 0 KO out of 2706 tests
+=== TOTAL        : 2778 OK, 0 KO out of 2778 tests
 ```
 
 ---
@@ -339,6 +343,12 @@ ln -s /path/to/cl-asm ~/quicklisp/local-projects/cl-asm
 
 ;; Write a BIN file (raw binary, no header)
 (cl-asm/emit:write-bin bytes "/tmp/demo.bin")
+
+;; Write an Intel HEX file
+(cl-asm/emit.ihex:write-ihex bytes "/tmp/demo.hex" :origin #x0801)
+
+;; Write a Motorola S-record file
+(cl-asm/emit.srec:write-srec bytes "/tmp/demo.srec" :origin #x0801)
 ```
 
 ### Assemble 45GS02 code (Mega65)
@@ -699,7 +709,9 @@ When assembled from a file, source locations show as `filename.asm:line:col`.
 | --- | --- | --- |
 | BIN | `write-bin` | Raw binary, no header |
 | PRG | `write-prg` | C64 format: 2-byte LE header + binary |
-| LST | `write-listing` | Annotated listing: address |
+| HEX | `write-ihex` | Intel HEX (microcontrollers, flash programmers) |
+| SREC | `write-srec` | Motorola S-record (68k, embedded flash programmers) |
+| LST | `write-listing` | Annotated listing: address, hex, mnemonic, CPU cycles |
 
 ---
 
@@ -843,6 +855,12 @@ The `cl-asm` script assembles a file directly from the terminal.
 # Raw binary (no header)
 ./cl-asm programme.asm -o demo.bin --format bin
 
+# Intel HEX (microcontrollers, flash programmers)
+./cl-asm programme.asm --format ihex
+
+# Motorola S-record (68k, embedded)
+./cl-asm programme.asm --format srec
+
 # Custom origin
 ./cl-asm programme.asm --origin 0xC000
 
@@ -879,7 +897,7 @@ The `cl-asm` script assembles a file directly from the terminal.
 | Option | Description | Default |
 | --- | --- | --- |
 | `-o FILE` | Output file | same name, .prg extension |
-| `-f FORMAT` | `prg` or `bin` | `prg` |
+| `-f FORMAT` | `prg`, `bin`, `ihex` (Intel HEX → `.hex`), `srec` (Motorola S-record → `.srec`) | `prg` |
 | `--origin ADDR` | Origin address (e.g. `0x0801`) | `0x0801` |
 | `-t TARGET` | `6502` (also `mos6502`), `6510` (also `mos6510`, `c64`), `45gs02` (also `mega65`), `x16` (also `65c02`, `commander-x16`), `r65c02` (also `rockwell`), `65816` (also `wdc65816`, `snes`, `apple2gs`), `z80` (also `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`), `i8080` (also `8080`, `cpm`, `altair`, `intel8080`), `i8086` (also `8086`, `8088`, `i8088`, `ibmpc`, `msdos`, `x86-16`) | `6502` |
 | `-v` | Verbose mode | — |

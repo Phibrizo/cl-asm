@@ -49,6 +49,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Désassembleur 65C02 (X16) | ✓ | 44 |
 | Débogueur 6502 (REPL interactif) | ✓ | 80 |
 | Émetteurs BIN / PRG / listing | ✓ | — |
+| Émetteurs Intel HEX / Motorola S-record | ✓ | 32 |
 | Macros textuelles | ✓ | 27 |
 | Assemblage conditionnel | ✓ | 27 |
 | Frontend .lasm (Lisp natif) | ✓ | 97 |
@@ -57,7 +58,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Optimiseur peephole (6502/6510/65C02/45GS02) | ✓ | 28 |
 | Conditions & Restarts | ✓ | 14 |
 
-**Total : 2706 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 2778 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -137,7 +138,9 @@ cl-asm/
 │   │   ├── 6502.lisp           règles peephole A+B pour 6502/6510
 │   │   └── 65c02.lisp          règles peephole A+B+C pour 65C02/45GS02
 │   └── emit/
-│       └── output.lisp         émetteurs BIN, PRG, listing
+│       ├── output.lisp         émetteurs BIN, PRG, listing
+│       ├── ihex.lisp           émetteur Intel HEX
+│       └── srec.lisp           émetteur Motorola S-record
 ├── tests/
 │   ├── run-tests.lisp
 │   ├── test-expression.lisp
@@ -244,7 +247,7 @@ Résultat attendu :
 --- Outils ---
 === acme2clasm   :  20 OK, 0 KO
 -------------------------------
-=== TOTAL        : 2706 OK, 0 KO sur 2706 tests
+=== TOTAL        : 2778 OK, 0 KO sur 2778 tests
 ```
 
 ---
@@ -323,6 +326,12 @@ Puis dans le REPL :
 
 ;; Écrire un fichier BIN (binaire brut, sans header)
 (cl-asm/emit:write-bin bytes "/tmp/demo.bin")
+
+;; Écrire un fichier Intel HEX
+(cl-asm/emit.ihex:write-ihex bytes "/tmp/demo.hex" :origin #x0801)
+
+;; Écrire un fichier Motorola S-record
+(cl-asm/emit.srec:write-srec bytes "/tmp/demo.srec" :origin #x0801)
 ```
 
 ### Assembler du code 45GS02 (Mega65)
@@ -677,6 +686,8 @@ Quand le programme est assemblé depuis un fichier, les localisations source s'a
 | --- | --- | --- |
 | BIN | `write-bin` | Binaire brut, sans header |
 | PRG | `write-prg` | Format C64 : 2 octets header LE + binaire |
+| HEX | `write-ihex` | Intel HEX (microcontrôleurs, flasheurs) |
+| SREC | `write-srec` | Motorola S-record (68k, flasheurs embarqués) |
 | LST | `write-listing` | Listing annoté : adresse |
 
 ---
@@ -812,6 +823,8 @@ PLATFORM = 64
 ./cl-asm programme.asm               # → programme.prg (6502, $0801)
 ./cl-asm programme.asm -o demo.prg   # fichier de sortie explicite
 ./cl-asm programme.asm -o demo.bin --format bin
+./cl-asm programme.asm --format ihex   # Intel HEX → programme.hex
+./cl-asm programme.asm --format srec   # Motorola S-record → programme.srec
 ./cl-asm programme.asm --origin 0xC000
 ./cl-asm mega65.lasm --target 45gs02
 ./cl-asm prog.asm --target x16
@@ -831,7 +844,7 @@ PLATFORM = 64
 | Option | Description | Défaut |
 | --- | --- | --- |
 | `-o FILE` | Fichier de sortie | même nom, ext .prg |
-| `-f FORMAT` | `prg` ou `bin` | `prg` |
+| `-f FORMAT` | `prg`, `bin`, `ihex` (Intel HEX → `.hex`), `srec` (Motorola S-record → `.srec`) | `prg` |
 | `--origin ADDR` | Adresse d'origine (ex: `0x0801`) | `0x0801` |
 | `-t TARGET` | `6502` (aussi `mos6502`), `6510` (aussi `mos6510`, `c64`), `45gs02` (aussi `mega65`), `x16` (aussi `65c02`, `commander-x16`), `r65c02` (aussi `rockwell`), `65816` (aussi `wdc65816`, `snes`, `apple2gs`), `z80` (aussi `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`), `i8080` (aussi `8080`, `cpm`, `altair`, `intel8080`), `i8086` (aussi `8086`, `8088`, `i8088`, `ibmpc`, `msdos`, `x86-16`) | `6502` |
 | `-v` | Mode verbose | — |

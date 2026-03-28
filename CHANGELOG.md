@@ -5,6 +5,28 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.17.0] — 2026-03-28
+
+### Added
+- **Extensible emitter registry** (`src/core/emitters.lisp`): `register-emitter keyword aliases extension fn desc-fr desc-en`, `find-emitter-by-keyword`, `find-emitter-by-alias`, `all-emitters`. Same design as `backends.lisp` and `disassemblers.lisp`. Adding a new output format = one file + one `register-emitter` call, no changes to the CLI or `output.lisp`. Package `cl-asm/emitters`.
+- **Intel HEX emitter** (`src/emit/ihex.lisp`): `:LLAAAATT...CC` records (16 bytes/record), two's complement checksum, EOF record `:00000001FF`. CLI: `--format ihex` → `.hex`. Package `cl-asm/emit.ihex`.
+- **Motorola S-record emitter** (`src/emit/srec.lisp`): S0 header (`cl-asm`), S1 data records (16 bytes/record), S9 end record. One's complement checksum. CLI: `--format srec` → `.srec`. Package `cl-asm/emit.srec`.
+
+### Changed
+- `src/emit/output.lisp`: `:bin` and `:prg` now register themselves in the emitter registry.
+- `cl-asm-script.lisp`: `--format` uses the registry (`find-emitter-by-alias`) instead of a hardcoded `ecase`; `default-output` reads the file extension from the registry (`:ihex` → `.hex`, `:srec` → `.srec`).
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-emitters | 32 |
+| **Total** | **2778** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.16.0] — 2026-03-28
 
 ### Added
