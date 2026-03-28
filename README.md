@@ -9,14 +9,14 @@ The architecture is designed to accommodate additional backends without modifyin
 
 ## Version
 
-**Current version: 0.15.0**
+**Current version: 0.17.0**
 
 ```
-cl-asm/version:+version+         ; → "0.15.0"
+cl-asm/version:+version+         ; → "0.17.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 15
+cl-asm/version:+version-minor+   ; → 17
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.15.0"
+(cl-asm/version:version-string)  ; → "0.17.0"
 ```
 
 ---
