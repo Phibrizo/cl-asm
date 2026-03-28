@@ -205,13 +205,17 @@ RTS")))
     (check "listing/no-target — $0200 présent"        (search "0200" lst))))
 
 (deftest test/listing-write-file
-  ;; write-listing produit un fichier valide
+  ;; write-listing produit un fichier valide (sans dépendance UIOP)
   (let* ((prog  (cl-asm/parser:parse-string "LDA #$00
 RTS"))
          (bytes (cl-asm/backend.6502:assemble prog :origin #x0200))
-         (path  (uiop:with-temporary-file (:pathname p :keep t) p)))
+         (path  "/tmp/cl-asm-listing-test.lst"))
     (cl-asm/emit:write-listing prog bytes path :origin #x0200 :target :6502)
-    (let ((content (uiop:read-file-string path)))
+    (let ((content (with-open-file (f path :direction :input)
+                     (with-output-to-string (s)
+                       (loop for line = (read-line f nil nil)
+                             while line
+                             do (write-string line s) (terpri s))))))
       (check "listing/write-file — fichier non vide" (plusp (length content)))
       (check "listing/write-file — contient LDA"     (search "LDA" content))
       (check "listing/write-file — contient 2cy"     (search "2cy" content)))
