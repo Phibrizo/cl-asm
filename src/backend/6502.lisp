@@ -346,6 +346,9 @@
               (encode-byte clamped))
             (cl-asm/restarts:use-value (v)
               :report "Fournir un offset de branche manuel"
+              :interactive (lambda ()
+                             (format *query-io* "Offset (-128..127) : ")
+                             (list (read *query-io*)))
               (encode-byte (logand v #xFF))))))))
 
 
