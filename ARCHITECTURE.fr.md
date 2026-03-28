@@ -26,9 +26,10 @@ cl-asm est structuré en trois couches indépendantes :
                ▼
 ┌─────────────────────────────────────────────┐
 │  Linker (optionnel, famille 6502)           │
-│  cl-asm/linker — link-unit / link           │
+│  cl-asm/linker        — link-unit / link    │
+│  cl-asm/linker-script — layout multi-segs  │
 └──────────────┬──────────────────────────────┘
-               │ vecteur d'octets fusionné
+               │ vecteur(s) d'octets fusionné(s)
                ▼
 ┌─────────────────────────────────────────────┐
 │  Simulateur (optionnel, indépendant)        │
@@ -55,6 +56,7 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/backends` | `src/core/backends.lisp` | Registre extensible de backends |
 | `cl-asm/disassemblers` | `src/core/disassemblers.lisp` | Registre extensible de désassembleurs |
 | `cl-asm/linker` | `src/core/linker.lisp` | Linker modulaire en mémoire (famille 6502) |
+| `cl-asm/linker-script` | `src/core/linker-script.lisp` | Linker script multi-segments |
 | `cl-asm/ir` | `src/core/ir.lisp` | Structures IR et conditions |
 | `cl-asm/expression` | `src/core/expression.lisp` | Évaluateur d'expressions |
 | `cl-asm/symbol-table` | `src/core/symbol-table.lisp` | Table des symboles |
@@ -916,6 +918,105 @@ exécute les instructions pas à pas dans un espace mémoire virtuel de 64 Ko.
 - Pénalité de traversée de page : +1 cycle pour les instructions de lecture indexées (LDA/LDX/LDY abs,X/Y, ADC/SBC/etc. abs,X/Y)
 - Instructions d'écriture (STA abs,X/Y, STA (ind),Y) : nombre de cycles fixe
 - Branches : 2 cycles non prises, 3 cycles prises même page, 4 cycles prises page différente
+
+---
+
+## Module `cl-asm/linker`
+
+Linker modulaire en mémoire pour la famille 6502. Plusieurs fichiers sources
+peuvent être assemblés en un seul binaire avec une table de symboles partagée —
+les labels définis dans un fichier sont résolus dans tous les autres.
+
+### Interface
+
+```lisp
+;; Emballer un IR-PROGRAM dans un link-unit
+(link-unit-from-program "main" (parse-file "main.asm") :6502) ; → link-unit
+
+;; Fusionner les units → vecteur d'octets unique
+(link (list u1 u2) :origin #x0800) ; → (vector (unsigned-byte 8))
+
+;; Enregistrement d'un backend (une fois par backend)
+(register-linker-backend :6502 '("6502" "mos6502")
+  #'pass-1 #'pass-2 "MOS 6502")
+
+;; Requêtes de registre
+(find-linker-backend :6502)   ; → linker-backend-entry ou NIL
+(all-linker-backends)         ; → liste de toutes les entrées
+
+;; Accesseurs
+(link-unit-name     u)        ; → string
+(link-unit-target   u)        ; → :6502 | :6510 | :65c02 | :45gs02
+(link-unit-sections u)        ; → liste de ir-section
+```
+
+### Backends enregistrés
+
+| Mot-clé | Alias |
+|---|---|
+| `:6502` | `"6502"` `"mos6502"` |
+| `:6510` | `"6510"` `"mos6510"` `"c64"` |
+| `:65c02` | `"65c02"` `"x16"` |
+| `:45gs02` | `"45gs02"` `"mega65"` |
+
+---
+
+## Module `cl-asm/linker-script`
+
+Linker script multi-segments. Place des segments à des adresses distinctes
+avec une table de symboles partagée — les références croisées inter-segments
+(JSR, branchements, constantes `.equ`) sont résolues automatiquement.
+
+### Interface
+
+```lisp
+;; Décrire un segment
+(make-script-segment :name "main" :at #x0800 :units (list u1 u2))
+;; → script-segment
+
+;; Assembler les segments → liste de résultats
+(link-segments (list seg1 seg2) :target :6502) ; → (list script-result …)
+
+;; Aplatir en binaire contigu
+(multiple-value-bind (bytes base)
+    (segments->flat-binary results :fill #x00)
+  ...)
+;; bytes → (vector (unsigned-byte 8))
+;; base  → adresse la plus basse parmi tous les résultats
+
+;; Accesseurs — script-segment
+(script-segment-name  s)  ; → string
+(script-segment-at    s)  ; → entier (adresse de chargement)
+(script-segment-units s)  ; → liste de link-unit
+(script-segment-fill  s)  ; → (unsigned-byte 8)
+
+;; Accesseurs — script-result
+(script-result-name    r) ; → string
+(script-result-address r) ; → entier
+(script-result-bytes   r) ; → (vector (unsigned-byte 8))
+```
+
+### Fonctionnement
+
+```
+link-segments :
+  1. Pour chaque segment (dans l'ordre) :
+       PC ← segment.at
+       appel pass-1(segment.sections, symtable-partagée, segment.at)
+       → les labels de tous les segments sont enregistrés dans la table commune
+  2. begin-pass-2(symtable-partagée)
+  3. Pour chaque segment (dans l'ordre) :
+       PC ← segment.at
+       appel pass-2(segment.sections, symtable-partagée, segment.at)
+       → vecteur d'octets pour ce segment
+  Retourne : liste de script-result, un par segment
+
+segments->flat-binary :
+  base = min(result.address)
+  buf  = vecteur de taille (max(result.address + len) − base) rempli de fill
+  Pour chaque result : replace(buf, result.bytes, offset = result.address − base)
+  Retourne : (values buf base)
+```
 
 ---
 

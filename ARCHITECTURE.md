@@ -26,9 +26,10 @@ cl-asm is structured in three independent layers:
                ▼
 ┌─────────────────────────────────────────────┐
 │  Linker (optional, 6502 family)             │
-│  cl-asm/linker — link-unit / link           │
+│  cl-asm/linker       — link-unit / link     │
+│  cl-asm/linker-script — multi-segment layout│
 └──────────────┬──────────────────────────────┘
-               │ merged byte vector
+               │ merged byte vector(s)
                ▼
 ┌─────────────────────────────────────────────┐
 │  Simulator (optional, independent)          │
@@ -55,6 +56,7 @@ cl-asm is structured in three independent layers:
 | `cl-asm/backends` | `src/core/backends.lisp` | Extensible backend registry |
 | `cl-asm/disassemblers` | `src/core/disassemblers.lisp` | Extensible disassembler registry |
 | `cl-asm/linker` | `src/core/linker.lisp` | In-memory modular linker (6502 family) |
+| `cl-asm/linker-script` | `src/core/linker-script.lisp` | Multi-segment linker script |
 | `cl-asm/ir` | `src/core/ir.lisp` | IR structures and conditions |
 | `cl-asm/expression` | `src/core/expression.lisp` | Expression evaluator |
 | `cl-asm/symbol-table` | `src/core/symbol-table.lisp` | Symbol table |
@@ -832,6 +834,105 @@ instructions step by step in a virtual 64 KB memory space.
 - Page-crossing penalty: +1 cycle for indexed read instructions (LDA/LDX/LDY abs,X/Y, ADC/SBC/etc. abs,X/Y)
 - Write instructions (STA abs,X/Y, STA (ind),Y): always fixed cycle count
 - Branches: 2 cycles not taken, 3 cycles taken same page, 4 cycles taken cross-page
+
+---
+
+## Module `cl-asm/linker`
+
+In-memory modular linker for the 6502 family. Multiple source files can be
+assembled into a single binary with a shared symbol table — labels defined in
+one file are resolved in all others.
+
+### Interface
+
+```lisp
+;; Wrap a parsed IR-PROGRAM in a link-unit
+(link-unit-from-program "main" (parse-file "main.asm") :6502) ; → link-unit
+
+;; Merge units → single byte vector
+(link (list u1 u2) :origin #x0800) ; → (vector (unsigned-byte 8))
+
+;; Backend registration (done once per backend)
+(register-linker-backend :6502 '("6502" "mos6502")
+  #'pass-1 #'pass-2 "MOS 6502")
+
+;; Registry queries
+(find-linker-backend :6502)   ; → linker-backend-entry or NIL
+(all-linker-backends)         ; → list of all entries
+
+;; Accessors
+(link-unit-name    u)         ; → string
+(link-unit-target  u)         ; → :6502 | :6510 | :65c02 | :45gs02
+(link-unit-sections u)        ; → list of ir-section
+```
+
+### Registered backends
+
+| Keyword | Aliases |
+|---|---|
+| `:6502` | `"6502"` `"mos6502"` |
+| `:6510` | `"6510"` `"mos6510"` `"c64"` |
+| `:65c02` | `"65c02"` `"x16"` |
+| `:45gs02` | `"45gs02"` `"mega65"` |
+
+---
+
+## Module `cl-asm/linker-script`
+
+Multi-segment linker script. Places segments at distinct addresses with a
+shared symbol table — cross-segment JSR, branches, and `.equ` constants are
+resolved transparently.
+
+### Interface
+
+```lisp
+;; Describe a segment
+(make-script-segment :name "main" :at #x0800 :units (list u1 u2))
+;; → script-segment
+
+;; Assemble segments → list of results
+(link-segments (list seg1 seg2) :target :6502) ; → (list script-result …)
+
+;; Flatten to contiguous binary
+(multiple-value-bind (bytes base)
+    (segments->flat-binary results :fill #x00)
+  ...)
+;; bytes → (vector (unsigned-byte 8))
+;; base  → lowest address among all results
+
+;; Accessors — script-segment
+(script-segment-name  s)  ; → string
+(script-segment-at    s)  ; → integer (load address)
+(script-segment-units s)  ; → list of link-unit
+(script-segment-fill  s)  ; → (unsigned-byte 8)
+
+;; Accessors — script-result
+(script-result-name    r) ; → string
+(script-result-address r) ; → integer
+(script-result-bytes   r) ; → (vector (unsigned-byte 8))
+```
+
+### How it works
+
+```
+link-segments:
+  1. For each segment (in order):
+       PC ← segment.at
+       call pass-1(segment.sections, shared-symtable, segment.at)
+       → labels from all segments registered in shared table
+  2. begin-pass-2(shared-symtable)
+  3. For each segment (in order):
+       PC ← segment.at
+       call pass-2(segment.sections, shared-symtable, segment.at)
+       → byte vector for that segment
+  Returns: list of script-result, one per segment
+
+segments->flat-binary:
+  base = min(result.address)
+  buf  = vector of size (max(result.address + len) − base) filled with fill
+  For each result: replace(buf, result.bytes, at offset result.address − base)
+  Returns: (values buf base)
+```
 
 ---
 
