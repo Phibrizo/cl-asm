@@ -10,14 +10,14 @@ sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.18.0**
+**Version courante : 0.19.0**
 
 ```
-cl-asm/version:+version+         ; → "0.18.0"
+cl-asm/version:+version+         ; → "0.19.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 18
+cl-asm/version:+version-minor+   ; → 19
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.18.0"
+(cl-asm/version:version-string)  ; → "0.19.0"
 ```
 
 ---
@@ -58,8 +58,9 @@ cl-asm/version:+version-patch+   ; → 0
 | Linker script multi-segments | ✓ | 50 |
 | Optimiseur peephole (6502/6510/65C02/45GS02) | ✓ | 28 |
 | Conditions & Restarts | ✓ | 14 |
+| Profiler & tracer 6502/6510 | ✓ | 78 |
 
-**Total : 2828 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 2906 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 

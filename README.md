@@ -9,14 +9,14 @@ The architecture is designed to accommodate additional backends without modifyin
 
 ## Version
 
-**Current version: 0.18.0**
+**Current version: 0.19.0**
 
 ```
-cl-asm/version:+version+         ; → "0.18.0"
+cl-asm/version:+version+         ; → "0.19.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 18
+cl-asm/version:+version-minor+   ; → 19
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.18.0"
+(cl-asm/version:version-string)  ; → "0.19.0"
 ```
 
 ---
@@ -57,8 +57,9 @@ cl-asm/version:+version-patch+   ; → 0
 | Multi-segment linker script | ✓ | 50 |
 | Peephole optimizer (6502/6510/65C02/45GS02) | ✓ | 28 |
 | Conditions & Restarts | ✓ | 14 |
+| 6502/6510 profiler & tracer | ✓ | 78 |
 
-**Total: 2828 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 2906 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 

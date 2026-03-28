@@ -32,6 +32,7 @@ sbcl --load src/core/version.lisp \
      --load src/disassembler/45gs02.lisp \
      --load src/disassembler/65c02.lisp \
      --load src/debugger/6502.lisp \
+     --load src/profiler/6502.lisp \
      --load src/optimizer/6502.lisp \
      --load src/optimizer/65c02.lisp \
      --load src/emit/output.lisp \
@@ -64,6 +65,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-disasm-65c02.lisp \
      --load tests/test-linker-6502.lisp \
      --load tests/test-linker-script.lisp \
+     --load tests/test-profiler-6502.lisp \
      --load tests/test-optimizer.lisp \
      --load tests/test-restarts.lisp \
      --load tests/test-listing.lisp \

@@ -36,14 +36,20 @@ cl-asm est structuré en trois couches indépendantes :
 │  cl-asm/simulator.6502                      │
 └──────────────┬──────────────────────────────┘
                │ prend un vecteur d'octets + mémoire
-        ┌──────┴──────────────────────────┐
-        ▼                                 ▼
+        ┌──────┴────────────────────────────────────┐
+        ▼                                           ▼
 ┌──────────────────────────┐  ┌───────────────────────────────────────┐
 │  Émetteurs (formats)     │  │  Débogueur (optionnel, interactif)    │
 │  BIN · PRG · listing     │  │  cl-asm/debugger.6502                 │
 └──────────────────────────┘  │  ← cl-asm/disassembler.6502           │
                                │  ← cl-asm/debug-map (addr→source-loc)│
                                └───────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  Profiler/Tracer (optionnel, 6502/6510)     │
+│  cl-asm/profiler.6502                       │
+│  ← cl-asm/simulator.6502 (step-cpu)         │
+│  ← cl-asm/disassembler.6502 (disasm-one)   │
+└─────────────────────────────────────────────┘
 ```
 
 ---
@@ -79,6 +85,7 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/disassembler.65c02` | `src/disassembler/65c02.lisp` | Désassembleur 65C02 / X16 |
 | `cl-asm/debug-map` | `src/core/debug-map.lisp` | Table adresse→source-loc |
 | `cl-asm/debugger.6502` | `src/debugger/6502.lisp` | Débogueur 6502 interactif |
+| `cl-asm/profiler.6502` | `src/profiler/6502.lisp` | Profiler et tracer 6502/6510 |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Suites de tests |
 
 ---

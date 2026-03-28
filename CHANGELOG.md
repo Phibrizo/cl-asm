@@ -5,6 +5,26 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.19.0] — 2026-03-28
+
+### Added
+- **6502/6510 profiler and tracer** (`src/profiler/6502.lisp`): built on top of the existing 6502 simulator. Package `cl-asm/profiler.6502`.
+  - **Profiler**: 65536-entry fixnum arrays (`hit-count`, `cycle-count`); incremental `total-hits` / `total-cycles`. `make-profiler`, `profiler-reset`, `profile-step cpu profiler` (safe even when BRK or illegal opcode is signaled), `run-with-profiler cpu profiler &key max-steps`, `print-profile profiler &key (stream t) (top 20)`.
+  - **Tracer**: circular ring buffer of `trace-entry` structs (PC, A, X, Y, SP, P, delta-cycles, mnemonic, operand). `make-tracer &key (max-size 1000)`, `tracer-reset`, `trace-step cpu tracer`, `run-with-tracer cpu tracer &key max-steps`, `tracer-entries-in-order &optional last`, `tracer-count`, `tracer-total`, `print-trace tracer &key (stream t) (last 20)`.
+  - Both use `handler-bind` (no stack unwind) to guarantee recording even when the outer `handler-case` in `run-with-profiler`/`run-with-tracer` catches `cpu-break`/`cpu-illegal-opcode` and unwinds.
+- 78 tests in `tests/test-profiler-6502.lisp`: profiler make/reset, hit count (single, loop), cycle count, accumulation across runs, `run-with-profiler` return values, `print-profile` smoke test; tracer make/reset, single entry, register snapshots, multiple entries, circular overflow, non-full buffer, last-N entries, cycle tracking, `run-with-tracer` return values, `print-trace` smoke test; `profile-step`/`trace-step` unit tests; total-hits/tracer-count consistency.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-profiler-6502 | 78 |
+| **Total** | **2906** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.18.0] — 2026-03-28
 
 ### Added

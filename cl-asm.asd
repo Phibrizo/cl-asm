@@ -121,6 +121,9 @@
                  "src/simulator/6502"
                  "src/disassembler/6502"
                  "src/disassembler/45gs02"))
+   (:file "src/profiler/6502"
+    :depends-on ("src/simulator/6502"
+                 "src/disassembler/6502"))
    (:file "src/optimizer/6502"
     :depends-on ("src/core/optimizer"
                  "src/backend/6502"))
@@ -186,6 +189,8 @@
     :depends-on ())
    (:file "tests/test-linker-script"
     :depends-on ())
+   (:file "tests/test-profiler-6502"
+    :depends-on ())
    (:file "tests/test-optimizer"
     :depends-on ())
    (:file "tests/test-restarts"
@@ -224,6 +229,7 @@
                  "tests/test-m68k"
                  "tests/test-linker-6502"
                  "tests/test-linker-script"
+                 "tests/test-profiler-6502"
                  "tests/test-optimizer"
                  "tests/test-restarts"
                  "tests/test-listing"

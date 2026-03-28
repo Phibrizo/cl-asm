@@ -116,6 +116,12 @@ All backends implement two-pass assembly against the shared IR and symbol table.
 
 - **`restarts.lisp`** — Restart names and convenience macros. Restart names exported: `use-value`, `use-zero`, `skip-instruction`, `clamp-value`. `with-asm-use-zero` wraps assembly, auto-resolving undefined labels to 0. `with-asm-skip-errors` ignores unknown mnemonics/unsupported modes (0 bytes emitted). Restarts are established in `symbol-table.lisp` (`%signal-undefined-label` — `use-value`, `use-zero`) and `6502.lisp` (`encode-instruction` — `skip-instruction`; `encode-relative` — `clamp-value`, `use-value`). Package `cl-asm/restarts`.
 
+### Profiler/Tracer (`src/profiler/`)
+
+- **`6502.lisp`** — Profiler and tracer for the 6502/6510 simulator. Package `cl-asm/profiler.6502`.
+  - **Profiler**: `profiler` struct — two 65536-entry fixnum arrays (`hit-count`, `cycle-count`) + incremental `total-hits`/`total-cycles`. `make-profiler`, `profiler-reset profiler`, `profile-step cpu profiler` (uses `handler-bind` to record even on BRK/illegal before an outer `handler-case` unwinds), `run-with-profiler cpu profiler &key (max-steps 1000000)` → `(values cpu status)` with status `:brk`/`:illegal`/`:step-limit`/`:watchpoint`. `print-profile profiler &key (stream t) (top 20)` — sorted by hit count.
+  - **Tracer**: `tracer` struct — circular ring buffer of `trace-entry` (PC, A, X, Y, SP, P, delta-cycles, mnemonic, operand). `make-tracer &key (max-size 1000)`, `tracer-reset tracer`, `tracer-count tracer` (entries in buffer), `tracer-total tracer` (total recorded), `trace-step cpu tracer`, `run-with-tracer cpu tracer &key (max-steps 1000000)`, `tracer-entries-in-order tracer &optional last` (chronological slice of last N entries), `print-trace tracer &key (stream t) (last 20)`.
+
 ### Optimizer (`src/core/optimizer.lisp`, `src/optimizer/`)
 
 - **`optimizer.lisp`** — Extensible peephole optimizer registry. `register-peephole-optimizer target rules description`, `find-peephole-optimizer target`, `optimize-sections sections target` (called before pass-1). Each rule is a function `(nodes) → nil | (values replacement-list consumed-count)`. Package `cl-asm/optimizer`.
@@ -163,11 +169,11 @@ Tables exportées : `*cycles-6502*` (151 opcodes, valide aussi pour 6510), `*cyc
 
 ## Test Structure
 
-2828 tests across 31 suites in `tests/test-*.lisp`. Regression test reference binaries live in `tests/regression/{c64,mega65,x16}/` as `.ref.prg` files.
+2906 tests across 32 suites in `tests/test-*.lisp`. Regression test reference binaries live in `tests/regression/{c64,mega65,x16}/` as `.ref.prg` files.
 
 Expected output after all tests pass:
 ```
-=== TOTAL        : 2828 OK, 0 KO sur 2828 tests
+=== TOTAL        : 2906 OK, 0 KO sur 2906 tests
 ```
 
 ## Règle documentaire
@@ -231,6 +237,8 @@ The Z80 parser shares the classic frontend with 6502. Some mnemonics are common 
 - ~~**Annotated listing with CPU cycles**: `--listing` CLI flag, `*cycles-6502*`/`*cycles-65c02*` tables, instruction size bugfix, `&key target` on `emit-listing`/`write-listing`~~ — done in v0.16.0 (40 tests).
 - ~~**Intel HEX / Motorola S-record output formats**: extensible emitter registry (`src/core/emitters.lisp`), `src/emit/ihex.lisp`, `src/emit/srec.lisp`. CLI `--format ihex/srec`. Adding a new format = one file + `register-emitter`, no CLI changes~~ — done in v0.17.0 (32 tests).
 - ~~**Linker script**: multi-segment placement at distinct addresses, shared symbol table for cross-segment references (JSR/branches/`.equ`), `segments->flat-binary` with fill-byte padding~~ — done in v0.18.0 (50 tests).
+- ~~**Profiler/Tracer 6502/6510**: hit-count + cycle-count arrays, ring-buffer tracer, `profile-step`/`trace-step`, `run-with-profiler`/`run-with-tracer`, `print-profile`/`print-trace`, `tracer-entries-in-order`. Uses `handler-bind` for guaranteed recording on BRK/illegal~~ — done in v0.19.0 (78 tests).
 - ~~**Full Lisp evaluation in `.lasm`**: `dotimes`/`loop`/`let`/`defmacro` etc. already work natively — `load-lasm-string` calls `(eval form)` in the `cl-asm/lasm` package. Validated by `test/lisp-dotimes` and `test/lisp-loop`.~~ — already done, not a new feature.
+- **Profiler/Tracer for 65C02/45GS02 (Commander X16, Mega65)**: requires extending the 6502 simulator to support 65C02 and 45GS02 ISAs first — deferred.
 - **Declarative instruction tables** (`define-instruction` DSL): macro generating hash-table entries + compile-time consistency checks + automatic disassembler table derivation. Low priority — current format is already readable.
 - **Incremental REPL assembly** (`with-asm` macro): build a program form-by-form in SLIME/SLY with `inspect-pc` feedback. Low complexity, ergonomic gain for interactive sessions.

@@ -80,6 +80,9 @@
     (run-suite cl-asm/test.sim-6502)
     (run-suite cl-asm/test.sim-programs)
 
+    ;; --- Profiler/Tracer ---
+    (run-suite cl-asm/test.profiler-6502)
+
     ;; --- Outils ---
     (run-suite cl-asm/test.acme2clasm)
 
@@ -177,6 +180,10 @@
     (format t "=== sim-programs : ~3D OK, ~D KO~%"
             cl-asm/test.sim-programs:*pass*
             cl-asm/test.sim-programs:*fail*)
+    (format t "--- ~A ---~%" (%msg "Profiler/Tracer" "Profiler/Tracer"))
+    (format t "=== profiler-6502: ~3D OK, ~D KO~%"
+            cl-asm/test.profiler-6502:*pass*
+            cl-asm/test.profiler-6502:*fail*)
     (format t "--- ~A ---~%" (%msg "Outils" "Tools"))
     (format t "=== acme2clasm   : ~3D OK, ~D KO~%"
             cl-asm/test.acme2clasm:*pass*

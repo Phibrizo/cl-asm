@@ -5,6 +5,26 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.19.0] — 2026-03-28
+
+### Ajouté
+- **Profiler et tracer 6502/6510** (`src/profiler/6502.lisp`) : construit au-dessus du simulateur 6502 existant. Package `cl-asm/profiler.6502`.
+  - **Profiler** : tableaux fixnum 65536 entrées (`hit-count`, `cycle-count`) ; compteurs incrémentiels `total-hits` / `total-cycles`. `make-profiler`, `profiler-reset`, `profile-step cpu profiler` (sûr même si BRK ou opcode illégal est signalé), `run-with-profiler cpu profiler &key max-steps`, `print-profile profiler &key (stream t) (top 20)`.
+  - **Tracer** : tampon circulaire de structs `trace-entry` (PC, A, X, Y, SP, P, delta-cycles, mnémonique, opérande). `make-tracer &key (max-size 1000)`, `tracer-reset`, `trace-step cpu tracer`, `run-with-tracer cpu tracer &key max-steps`, `tracer-entries-in-order &optional last`, `tracer-count`, `tracer-total`, `print-trace tracer &key (stream t) (last 20)`.
+  - Les deux utilisent `handler-bind` (sans déroulement de pile) pour garantir l'enregistrement même lorsque le `handler-case` externe dans `run-with-profiler`/`run-with-tracer` capte `cpu-break`/`cpu-illegal-opcode` et remonte la pile.
+- 78 tests dans `tests/test-profiler-6502.lisp` : profiler make/reset, hit count (simple, boucle), cycle count, accumulation sur plusieurs runs, valeurs de retour de `run-with-profiler`, smoke test `print-profile` ; tracer make/reset, entrée unique, snapshot registres, entrées multiples, dépassement circulaire, tampon non plein, dernières N entrées, cycles, valeurs de retour de `run-with-tracer`, smoke test `print-trace` ; tests unitaires `profile-step`/`trace-step` ; cohérence total-hits/tracer-count.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-profiler-6502 | 78 |
+| **Total** | **2906** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.18.0] — 2026-03-28
 
 ### Ajouté
