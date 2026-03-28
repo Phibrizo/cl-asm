@@ -39,7 +39,7 @@
    #:trace-entry-x
    #:trace-entry-y
    #:trace-entry-sp
-   #:trace-entry-p
+   #:trace-entry-flags
    #:trace-entry-delta-cy
    #:trace-entry-mnemonic
    #:trace-entry-operand))
@@ -194,7 +194,7 @@
   (x        0   :type (unsigned-byte 8))
   (y        0   :type (unsigned-byte 8))
   (sp       0   :type (unsigned-byte 8))
-  (p        0   :type (unsigned-byte 8))
+  (flags    0   :type (unsigned-byte 8))
   (delta-cy 0   :type fixnum)
   (mnemonic ""  :type string)
   (operand  nil))           ; string ou NIL
@@ -270,7 +270,7 @@
                  (setf recorded t)
                  (%tracer-push tracer
                                (make-trace-entry
-                                :pc pc :a a :x x :y y :sp sp :p p
+                                :pc pc :a a :x x :y y :sp sp :flags p
                                 :delta-cy (max 0 (- (cpu-cycles cpu) cy))
                                 :mnemonic mn :operand op)))))
         (handler-bind
@@ -314,7 +314,7 @@
                      (trace-entry-x  e)
                      (trace-entry-y  e)
                      (trace-entry-sp e)
-                     (trace-entry-p  e)
+                     (trace-entry-flags e)
                      (trace-entry-delta-cy e)
                      (trace-entry-mnemonic e)
                      (trace-entry-operand  e)))))

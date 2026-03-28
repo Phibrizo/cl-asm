@@ -57,7 +57,8 @@
                 parse-expr parse-expr-bitor parse-expr-bitxor
                 parse-expr-bitand parse-expr-shift parse-expr-add
                 parse-expr-mul parse-expr-unary parse-expr-atom
-                parse-operand parse-line skip-to-newline))
+                parse-operand parse-line skip-to-newline
+                preprocess-anonymous-labels preprocess-scoped-labels))
 (declaim (ftype (function (t t) t) emit-node parse-directive-arg))
 (declaim (ftype (function (t t t) t) parse-directive))
 (declaim (ftype (function (t string &rest t) t) parser-error))
