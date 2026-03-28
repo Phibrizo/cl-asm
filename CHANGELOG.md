@@ -27,6 +27,13 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 | test-listing | 40 |
 | **Total** | **2746** |
 
+### Fixed (post-release)
+- `tests/test-disasm-6502.lisp`: added `(declare (ignore ...))` for unused `size`/`op` bindings in `multiple-value-bind` — eliminates SBCL STYLE-WARNINGs.
+- `src/debugger/6502.lisp`: bind `*package*` to `cl-asm/debugger.6502` in `read-from-string` for conditional breakpoints — eliminates `undefined variable: COMMON-LISP-USER::CPU` warning.
+- `src/backend/6502.lisp`: added `:interactive` clause to `USE-VALUE` restart in `encode-relative` — eliminates CLISP `RESTART-CASE` warning.
+- `cl-asm-script.lisp`: removed one extra closing parenthesis in the `--listing` block — was causing `INPUT-ERROR-IN-LOAD` crash on startup (all regression tests KO).
+- `run-tests-clisp.lisp` / `run-tests-ecl.lisp`: same load-order and `test-listing` fixes as `run-tests.sh`.
+
 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
 
 ---
