@@ -1,0 +1,34 @@
+; -*- coding: utf-8 -*-
+; include-utils.lasm — Sous-routines partagées (inclus via include-source)
+;
+; Ce fichier est conçu pour être inclus dans un programme .lasm principal :
+;   (include-source "include-utils.lasm")
+;
+; Exports : constantes BORDER-COLOR, BG-COLOR, SCREEN, SPACE-CHAR
+;           sous-routines CLEAR-SCREEN, SET-BORDER
+
+; --- Constantes ---
+(equ 'border-color #xD020)
+(equ 'bg-color     #xD021)
+(equ 'screen       #x0400)
+(equ 'space-char   #x20)   ; espace PETSCII
+
+; --- clear-screen : remplit les 1000 caractères de l'écran avec ' '
+; Modifie : A, X
+(label 'clear-screen)
+    (lda :imm 'space-char)
+    (ldx :imm 0)
+(label '@loop)
+    (sta :x 'screen)
+    (sta :x (+ 'screen #x100))
+    (sta :x (+ 'screen #x200))
+    (sta :x (+ 'screen #x300))
+    (inx)
+    (bne '@loop)
+    (rts)
+
+; --- set-border : couleur bord = A, fond = X
+(label 'set-border)
+    (sta 'border-color)
+    (stx 'bg-color)
+    (rts)

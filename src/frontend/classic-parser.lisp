@@ -76,6 +76,13 @@
 (defvar *m68k-mode* nil)
 (declaim (ftype (function (t t list) t) expand-macro))
 
+(defvar *include-stack* nil
+  "Pile des fichiers en cours d'inclusion (détection de cycles).
+   Chaque entrée est un PATHNAME truename.")
+(defvar *base-dir* nil
+  "Répertoire de base (PATHNAME) pour résoudre les chemins relatifs des .include.
+   NIL = utiliser *DEFAULT-PATHNAME-DEFAULTS*.")
+
 
 ;;; --------------------------------------------------------------------------
 ;;;  Définition de macro
@@ -523,10 +530,6 @@
              do (pc-advance ctx)
                 (push (string-upcase (pc-value ctx)) args)
                 (pc-expect ctx :identifier)))
-      ;; .include "FILE"
-      (:include
-       (push (pc-value ctx) args)
-       (pc-expect ctx :string))
       ;; .incbin "FILE" [, OFFSET [, COUNT]]
       (:incbin
        (unless (eq (pc-kind ctx) :string)
@@ -930,6 +933,51 @@
                (parser-error ctx "Fin de fichier dans un bloc .else")))))))
     t))
 
+;;; --------------------------------------------------------------------------
+;;;  Include de fichier source
+;;; --------------------------------------------------------------------------
+
+(defun do-include (ctx filename loc)
+  "Résout FILENAME relatif à *BASE-DIR*, tokenise le fichier inclus et exécute
+   son contenu dans le contexte de parsing CTX courant (même sections, macros,
+   table des symboles).  Les nœuds IR produits sont injectés dans la section
+   courante exactement comme s'ils étaient écrits inline.
+
+   Détection de cycles : signale asm-error si FILENAME est déjà en cours
+   d'inclusion (comparaison par truename).
+
+   Note : les labels anonymes (@) et scopés (@name) des fichiers inclus sont
+   renumérotés indépendamment.  Évitez de les réutiliser dans plusieurs
+   fichiers inclus depuis le même parent."
+  (let* ((resolved (if *base-dir*
+                       (merge-pathnames filename *base-dir*)
+                       (pathname filename)))
+         (truepath (handler-case (truename resolved)
+                     (file-error ()
+                       (error 'cl-asm/ir:asm-error
+                              :message (format nil
+                                               ".include : fichier introuvable \"~A\""
+                                               filename)
+                              :source-loc loc)))))
+    (when (member truepath *include-stack* :test #'equal)
+      (error 'cl-asm/ir:asm-error
+             :message (format nil ".include : inclusion circulaire \"~A\"" filename)
+             :source-loc loc))
+    (let* ((*include-stack* (cons truepath *include-stack*))
+           (*base-dir* (make-pathname
+                         :directory (pathname-directory truepath)
+                         :name nil :type nil))
+           (tokens (cl-asm/lexer:tokenize-file truepath))
+           (tokens (preprocess-anonymous-labels tokens))
+           (tokens (preprocess-scoped-labels tokens))
+           (saved  (parse-context-tokens ctx)))
+      (setf (parse-context-tokens ctx) tokens)
+      (unwind-protect
+           (loop while (not (eq (pc-kind ctx) :eof))
+                 do (parse-line ctx))
+        (setf (parse-context-tokens ctx) saved)))))
+
+
 (defun parse-line (ctx)
   "Parse une ligne source. Ajoute les noeuds dans la section courante."
   (pc-skip-newlines ctx)
@@ -1041,6 +1089,13 @@
               ;; .if — assemblage conditionnel
               ((string-equal name ".if")
                (parse-if ctx loc)
+               (return-from parse-line t))
+              ;; .include "FILE" — traitement immédiat au moment du parsing
+              ((string-equal name ".include")
+               (unless (eq (pc-kind ctx) :string)
+                 (parser-error ctx "Nom de fichier attendu pour .include"))
+               (let ((filename (prog1 (pc-value ctx) (pc-advance ctx))))
+                 (do-include ctx filename loc))
                (return-from parse-line t))
               ;; .else / .endif au niveau racine = erreur de syntaxe
               ((string-equal name ".else")
@@ -1345,10 +1400,15 @@
 
 (defun parse-tokens (tokens &key (file nil) (section :text))
   "Parse une liste de TOKENS et retourne un IR-PROGRAM.
-   FILE   : nom du fichier source (pour les messages d'erreur).
+   FILE    : nom du fichier source (pour les messages d'erreur et la
+             résolution des chemins relatifs dans .include).
    SECTION : section initiale (défaut :text)."
-  (declare (ignore file))
-  (let* ((tokens   (preprocess-anonymous-labels tokens))
+  (let* ((*base-dir* (when (and file (not (string= file "")))
+                       (let* ((p   (pathname file))
+                              (dir (pathname-directory p)))
+                         (when dir
+                           (make-pathname :directory dir :name nil :type nil)))))
+         (tokens   (preprocess-anonymous-labels tokens))
          (tokens   (preprocess-scoped-labels tokens))
          (program  (cl-asm/ir:make-ir-program))
          (sect     (cl-asm/ir:program-find-or-create-section program section))
@@ -1370,9 +1430,11 @@
     (parse-tokens tokens :file file :section section)))
 
 (defun parse-file (path &key (section :text))
-  "Lit, tokenise et parse le fichier à PATH. Retourne un IR-PROGRAM."
-  (let ((tokens (cl-asm/lexer:tokenize-file path)))
-    (parse-tokens tokens :file (namestring path) :section section)))
+  "Lit, tokenise et parse le fichier à PATH. Retourne un IR-PROGRAM.
+   Le répertoire du fichier sert de base pour les .include relatifs."
+  (let* ((truepath (truename path))
+         (tokens   (cl-asm/lexer:tokenize-file truepath)))
+    (parse-tokens tokens :file (namestring truepath) :section section)))
 
 
 ;;; --------------------------------------------------------------------------

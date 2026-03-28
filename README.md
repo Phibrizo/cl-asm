@@ -9,14 +9,14 @@ The architecture is designed to accommodate additional backends without modifyin
 
 ## Version
 
-**Current version: 0.19.0**
+**Current version: 0.20.0**
 
 ```
-cl-asm/version:+version+         ; → "0.19.0"
+cl-asm/version:+version+         ; → "0.20.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 19
+cl-asm/version:+version-minor+   ; → 20
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.19.0"
+(cl-asm/version:version-string)  ; → "0.20.0"
 ```
 
 ---
@@ -58,8 +58,9 @@ cl-asm/version:+version-patch+   ; → 0
 | Peephole optimizer (6502/6510/65C02/45GS02) | ✓ | 28 |
 | Conditions & Restarts | ✓ | 14 |
 | 6502/6510 profiler & tracer | ✓ | 78 |
+| `.include` / `include-source` | ✓ | 13 |
 
-**Total: 2906 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 2919 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -84,6 +85,8 @@ Tooling support per target architecture.
 ² Approximate — uses the 65C02 cycle table as a fallback
 
 Optimizer rules: **A** = JMP→next label elision · **B** = JSR/RTS→JMP tail-call · **C** = LDA #0/STA→STZ (65C02 only; excluded from 45GS02 where STZ means Store Z register)
+
+**Note:** `.include "file.asm"` (classic syntax) and `(include-source "file.lasm")` (Lisp syntax) are available for **all architectures** — they are resolved at parse time, before backend dispatch.
 
 ---
 

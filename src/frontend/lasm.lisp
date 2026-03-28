@@ -58,6 +58,7 @@
    #:defstruct-asm
    #:defenum
    #:include-binary
+   #:include-source
    #:petscii
    #:assert-size
    #:sine-table
@@ -91,6 +92,11 @@
 
 (defvar *ctx* nil
   "Contexte .lasm courant (lie dynamiquement pendant load-lasm).")
+
+(defvar *lasm-include-stack* nil
+  "Pile des fichiers .lasm en cours d'inclusion (détection de cycles).")
+(defvar *lasm-base-dir* nil
+  "Répertoire de base (PATHNAME) pour résoudre les chemins relatifs dans include-source.")
 
 
 ;;; --------------------------------------------------------------------------
@@ -306,6 +312,35 @@
          :args (cl:append (list filename)
                           (when offset (list offset))
                           (when count  (list count))))))
+
+(defun include-source (filename)
+  "Inclut un fichier source .lasm dans le contexte courant.
+   Le fichier est exécuté dans le même contexte d'assemblage que l'appelant :
+   même section, même table des symboles. Les labels, constantes et macros
+   définis dedans sont accessibles après l'include.
+
+   Les chemins relatifs sont résolus par rapport au répertoire du fichier
+   incluant (ou *DEFAULT-PATHNAME-DEFAULTS* depuis un REPL).
+
+   Détection de cycles : signale une erreur si FILENAME est déjà en cours
+   d'inclusion.
+
+   Ex: (include-source \"utils.lasm\")"
+  (let* ((resolved (if *lasm-base-dir*
+                       (merge-pathnames filename *lasm-base-dir*)
+                       (pathname filename)))
+         (truepath (handler-case (truename resolved)
+                     (file-error ()
+                       (error "include-source : fichier introuvable \"~A\""
+                              filename)))))
+    (when (member truepath *lasm-include-stack* :test #'equal)
+      (error "include-source : inclusion circulaire \"~A\"" filename))
+    (let ((*lasm-include-stack* (cons truepath *lasm-include-stack*))
+          (*lasm-base-dir* (make-pathname
+                             :directory (pathname-directory truepath)
+                             :name nil :type nil)))
+      (load truepath))))
+
 
 (defmacro defenum (name &rest values)
   "Définit un enum avec constantes auto-numérotées à partir de 0.
@@ -854,10 +889,16 @@
 
 (defun load-lasm (path)
   "Charge et execute le fichier .lasm a PATH.
-   Retourne un IR-PROGRAM."
-  (let* ((*ctx* (make-fresh-lasm-context))
-         (*package* (find-package '#:cl-asm/lasm)))
-    (load path)
+   Retourne un IR-PROGRAM.
+   Le répertoire du fichier sert de base pour les include-source relatifs."
+  (let* ((truepath             (truename path))
+         (*ctx*                (make-fresh-lasm-context))
+         (*package*            (find-package '#:cl-asm/lasm))
+         (*lasm-include-stack* (list truepath))
+         (*lasm-base-dir*      (make-pathname
+                                 :directory (pathname-directory truepath)
+                                 :name nil :type nil)))
+    (load truepath)
     (lasm-context-program *ctx*)))
 
 (defun lasm-program ()

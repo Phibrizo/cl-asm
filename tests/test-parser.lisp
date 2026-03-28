@@ -358,6 +358,134 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Tests : .include
+;;; --------------------------------------------------------------------------
+
+(defun asm-file-bytes (path)
+  "Parse PATH et assemble avec le backend 6502. Retourne le vecteur d'octets."
+  (cl-asm/backend.6502:assemble (parse-file path)))
+
+(defun bytes= (vec &rest expected)
+  "Vrai si VEC contient exactement les octets EXPECTED."
+  (and (= (length vec) (length expected))
+       (every #'= vec expected)))
+
+(deftest test/include
+  (let ((utils  "/tmp/cl-asm-test-include-utils.asm")
+        (nested "/tmp/cl-asm-test-include-nested.asm")
+        (main   "/tmp/cl-asm-test-include-main.asm"))
+
+    ;; --- fichiers temporaires ---
+    (with-open-file (s utils :direction :output :if-exists :supersede)
+      (write-string
+"MAGIC = $42
+helper:
+    LDA #MAGIC
+    RTS
+" s))
+    (with-open-file (s nested :direction :output :if-exists :supersede)
+      (write-string
+"NESTED_VAL = $FF
+" s))
+    (with-open-file (s main :direction :output :if-exists :supersede)
+      (format s
+".org $C000
+    .include \"~A\"
+    JSR helper
+    NOP
+" utils))
+
+    ;; Test 1 : les instructions du fichier inclus sont présentes dans l'IR
+    (check ".include : noeuds du fichier inclus injectés dans l'IR"
+      (let* ((prog  (parse-file main))
+             (sect  (program-find-section prog :text))
+             (nodes (ir-section-nodes sect)))
+        ;; On doit trouver LDA (depuis helper) et JSR (depuis main)
+        (and (some (lambda (n) (and (ir-instruction-p n)
+                                    (string= (ir-instruction-mnemonic n) "LDA")))
+                   nodes)
+             (some (lambda (n) (and (ir-instruction-p n)
+                                    (string= (ir-instruction-mnemonic n) "JSR")))
+                   nodes))))
+
+    ;; Test 2 : les octets assemblés sont corrects
+    ;; $C000: LDA #$42 (A9 42), RTS (60), JSR $C000 (20 00 C0), NOP (EA)
+    (check ".include : octets assemblés corrects"
+      (let ((bytes (asm-file-bytes main)))
+        (and (>= (length bytes) 7)
+             (= #xA9 (aref bytes 0))   ; LDA #
+             (= #x42 (aref bytes 1))   ; #$42 (MAGIC)
+             (= #x60 (aref bytes 2))   ; RTS
+             (= #x20 (aref bytes 3))   ; JSR
+             (= #xEA (aref bytes 6)))));; NOP
+
+    ;; Test 3 : la constante définie dans l'inclus est résolue
+    (check ".include : constante MAGIC résolue à $42"
+      (let ((bytes (asm-file-bytes main)))
+        (= #x42 (aref bytes 1))))
+
+    ;; Test 4 : include imbriqué (utils inclut nested)
+    (with-open-file (s utils :direction :output :if-exists :supersede)
+      (format s
+"    .include \"~A\"
+sub:
+    LDA #NESTED_VAL
+    RTS
+" nested))
+    (with-open-file (s main :direction :output :if-exists :supersede)
+      (format s
+".org $C000
+    .include \"~A\"
+    JSR sub
+" utils))
+    (check ".include imbriqué : NESTED_VAL=$FF résolu"
+      (let ((bytes (asm-file-bytes main)))
+        (and (>= (length bytes) 2)
+             (= #xA9 (aref bytes 0))   ; LDA #
+             (= #xFF (aref bytes 1)))));; #$FF
+
+    ;; Test 5 : macro définie dans l'inclus utilisable dans le parent
+    (with-open-file (s utils :direction :output :if-exists :supersede)
+      (write-string
+".macro LDAX val
+    LDA #val
+.endmacro
+" s))
+    (with-open-file (s main :direction :output :if-exists :supersede)
+      (format s
+".org $C000
+    .include \"~A\"
+    LDAX $55
+" utils))
+    (check ".include : macro définie dans l'inclus utilisable dans le parent"
+      (let ((bytes (asm-file-bytes main)))
+        (and (>= (length bytes) 2)
+             (= #xA9 (aref bytes 0))
+             (= #x55 (aref bytes 1)))))
+
+    ;; Test 6 : erreur si fichier inexistant
+    (check-error ".include : erreur si fichier introuvable"
+      cl-asm/ir:asm-error
+      (parse-string ".include \"/tmp/cl-asm-inexistant-xyz.asm\""))
+
+    ;; Test 7 : erreur si argument manquant (pas de string)
+    (check-error ".include : erreur si argument manquant"
+      cl-asm/ir:asm-syntax-error
+      (parse-string ".include"))
+
+    ;; Test 8 : inclusion circulaire détectée
+    (let ((circ-a "/tmp/cl-asm-test-circ-a.asm")
+          (circ-b "/tmp/cl-asm-test-circ-b.asm"))
+      (with-open-file (s circ-a :direction :output :if-exists :supersede)
+        (format s ".include \"~A\"~%" circ-b))
+      (with-open-file (s circ-b :direction :output :if-exists :supersede)
+        (format s ".include \"~A\"~%" circ-a))
+      (check-error ".include : inclusion circulaire détectée"
+        cl-asm/ir:asm-error
+        (parse-file circ-a)))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Lanceur
 ;;; --------------------------------------------------------------------------
 
@@ -395,6 +523,7 @@
   (test/comments-ignored)
   (test/error-unexpected-token)
   (test/error-missing-rparen)
+  (test/include)
   (when *failures*
     (format t "~&Echecs parser :~%")
     (dolist (f (reverse *failures*))

@@ -1,0 +1,41 @@
+; -*- coding: utf-8 -*-
+; include-main.lasm — Exemple d'utilisation de include-source (C64 / MOS 6502)
+;
+; Démontre l'inclusion d'un fichier source .lasm externe via include-source.
+; Les sous-routines et constantes de include-utils.lasm sont disponibles
+; immédiatement après l'appel, comme si elles étaient écrites inline.
+;
+; Assemblage :
+;   ./cl-asm examples/include-main.lasm -o /tmp/include-main.prg
+;   x64sc /tmp/include-main.prg
+
+(org #x0801)
+
+; Stub BASIC : 10 SYS 2064
+(db #x0B #x08 #x0A #x00 #x9E #x32 #x30 #x36 #x34 #x00 #x00 #x00)
+
+; Inclusion des utilitaires partagés
+; Constantes et sous-routines disponibles dès ici :
+;   border-color, bg-color, screen, space-char
+;   clear-screen, set-border
+(include-source "include-utils.lasm")
+
+; Programme principal
+(label 'start)
+    ; Effacer l'écran
+    (jsr 'clear-screen)
+
+    ; Bord bleu clair (14), fond noir (0)
+    (lda :imm 14)
+    (ldx :imm 0)
+    (jsr 'set-border)
+
+    ; Écrire 'H' 'I' '!' sur l'écran
+    (lda :imm #x08)             ; 'H' PETSCII
+    (sta 'screen)
+    (lda :imm #x09)             ; 'I'
+    (sta (+ 'screen 1))
+    (lda :imm #x1B)             ; '!'
+    (sta (+ 'screen 2))
+
+    (rts)

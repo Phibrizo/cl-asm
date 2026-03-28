@@ -5,6 +5,31 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.20.0] — 2026-03-28
+
+### Ajouté
+- **Directive `.include "fichier.asm"`** (`src/frontend/classic-parser.lisp`) : inclut un fichier source externe au moment du parsing. Les nœuds IR du fichier inclus (labels, instructions, directives, macros, constantes) sont injectés dans la section courante comme s'ils étaient écrits inline. Les chemins relatifs sont résolus par rapport au répertoire du fichier incluant. La détection de cycles signale une `asm-error`. Fonctionne avec tous les backends.
+- **Fonction `(include-source "fichier.lasm")`** (`src/frontend/lasm.lisp`) : équivalent pour les fichiers `.lasm`. Le fichier inclus s'exécute dans le même contexte d'assemblage (`*ctx*`). Chemins relatifs résolus depuis le répertoire du fichier incluant. Détection de cycles.
+- Variables dynamiques `*include-stack*` / `*base-dir*` (parser) et `*lasm-include-stack*` / `*lasm-base-dir*` (lasm) pour la résolution des chemins et la détection de cycles.
+- `parse-file` utilise désormais `truename` pour que les chemins relatifs des `.include` soient résolus correctement.
+- 13 tests répartis dans `tests/test-parser.lisp` (8 tests : injection IR, octets assemblés, include imbriqué, macro dans include, erreurs) et `tests/test-lasm.lisp` (5 tests : octets, include imbriqué, erreurs).
+- Exemples : `examples/include-main.asm` + `examples/include-utils.asm` et `examples/include-main.lasm` + `examples/include-utils.lasm`.
+
+### Notes
+- Les labels anonymes (`@`) et scopés (`@nom`) des fichiers inclus sont renumérotés indépendamment. Éviter de réutiliser les mêmes noms de labels locaux dans plusieurs fichiers inclus depuis le même parent — utiliser des noms uniques ou la syntaxe de labels globaux `::`.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-parser (+8) | 92 |
+| test-lasm (+5) | 102 |
+| **Total** | **2919** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.19.0] — 2026-03-28
 
 ### Ajouté

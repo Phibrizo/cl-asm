@@ -437,6 +437,81 @@
 
 
 ;;; --------------------------------------------------------------------------
+;;;  Tests : include-source
+;;; --------------------------------------------------------------------------
+
+(deftest test/include-source
+  (let ((utils "/tmp/cl-asm-test-lasm-utils.lasm")
+        (main  "/tmp/cl-asm-test-lasm-main.lasm"))
+
+    ;; --- fichiers temporaires ---
+    (with-open-file (s utils :direction :output :if-exists :supersede)
+      (write-string
+"(equ 'magic #x42)
+(label 'helper)
+(lda :imm 'magic)
+(rts)
+" s))
+    (with-open-file (s main :direction :output :if-exists :supersede)
+      (format s
+"(org #xC000)
+(include-source \"~A\")
+(jsr 'helper)
+(nop)
+" utils))
+
+    ;; Test 1 : bytes assemblés corrects
+    ;; $C000: LDA #$42 (A9 42), RTS (60), JSR $C000 (20 00 C0), NOP (EA)
+    (check "include-source : octets assemblés corrects"
+      (let ((bytes (assemble-lasm main)))
+        (and (>= (length bytes) 7)
+             (= #xA9 (aref bytes 0))    ; LDA #
+             (= #x42 (aref bytes 1))    ; magic
+             (= #x60 (aref bytes 2))    ; RTS
+             (= #x20 (aref bytes 3))    ; JSR
+             (= #xEA (aref bytes 6))))) ; NOP
+
+    ;; Test 2 : constante définie dans l'inclus résolue
+    (check "include-source : constante MAGIC résolue à $42"
+      (let ((bytes (assemble-lasm main)))
+        (= #x42 (aref bytes 1))))
+
+    ;; Test 3 : include imbriqué
+    (let ((deep "/tmp/cl-asm-test-lasm-deep.lasm"))
+      (with-open-file (s deep :direction :output :if-exists :supersede)
+        (write-string "(equ 'deep-val #xFF)" s))
+      (with-open-file (s utils :direction :output :if-exists :supersede)
+        (format s "(include-source \"~A\")~%(label 'sub)~%(lda :imm 'deep-val)~%(rts)~%" deep))
+      (with-open-file (s main :direction :output :if-exists :supersede)
+        (format s "(org #xC000)~%(include-source \"~A\")~%(jsr 'sub)~%" utils))
+      (check "include-source imbriqué : deep-val=$FF résolu"
+        (let ((bytes (assemble-lasm main)))
+          (and (>= (length bytes) 2)
+               (= #xA9 (aref bytes 0))
+               (= #xFF (aref bytes 1))))))
+
+    ;; Test 4 : erreur si fichier inexistant
+    (check "include-source : erreur si fichier introuvable"
+      (handler-case
+          (progn (assemble-lasm-string
+                  "(include-source \"/tmp/cl-asm-lasm-inexistant-xyz.lasm\")")
+                 nil)
+        (error () t)))
+
+    ;; Test 5 : inclusion circulaire détectée
+    (let ((circ-a "/tmp/cl-asm-lasm-circ-a.lasm")
+          (circ-b "/tmp/cl-asm-lasm-circ-b.lasm"))
+      (with-open-file (s circ-a :direction :output :if-exists :supersede)
+        (format s "(include-source \"~A\")~%" circ-b))
+      (with-open-file (s circ-b :direction :output :if-exists :supersede)
+        (format s "(include-source \"~A\")~%" circ-a))
+      (check "include-source : inclusion circulaire détectée"
+        (handler-case
+            (progn (assemble-lasm circ-a) nil)
+          (error () t))))))
+
+
+;;; --------------------------------------------------------------------------
 ;;;  Lanceur
 ;;; --------------------------------------------------------------------------
 
@@ -466,6 +541,7 @@
   (test/cosine-table-lasm)
   (test/linear-ramp-lasm)
   (test/include-binary)
+  (test/include-source)
   (test/defenum-lasm)
   (test/defstruct-lasm)
   (test/65c02-basic)

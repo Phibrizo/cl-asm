@@ -67,8 +67,8 @@ Frontend (.asm/.lasm) → IR → Backend (target encoder) → Emitter (BIN/PRG/l
 
 ### Frontend (`src/frontend/`)
 
-- **`classic-lexer.lisp`** / **`classic-parser.lisp`** — Tokenizer and recursive-descent parser for ca65-like `.asm` syntax. Supports macros (`.macro`/`.endmacro`) and conditional assembly (`.if`/`.endif`). Also supports: native ACME syntax (`!byte`/`!word`/`!fill`/`!pet` directives, `*=addr` org, `!to`/`!cpu` ignored); ca65 anonymous labels (`preprocess-anonymous-labels`); scoped `@`-labels (`preprocess-scoped-labels`); `.res N` as alias for `.fill N`. Extra directives: `.padto ADDR[,VAL]`, `.assertpc ADDR`, `.asciiz "str"`, `.pascalstr "str"`, `.defstruct`/`.field`/`.endstruct`, `.defenum`/`.val`/`.endenum`, `.incbin "file"[,offset[,count]]`.
-- **`lasm.lisp`** — Native Lisp frontend: `.lasm` files are valid Common Lisp where mnemonics are functions. Addressing modes as keywords (`:imm`, `:x`, `:y`, `:z`, `:ind`, `:ix`, `:iy`, `:abs`, `:zp`, `:a`). Extra directives: `(pad-to addr [v])`, `(assert-pc addr)`, `(ascii-z "str")`, `(pascal-str "str")`, `(defstruct-asm name fields…)`, `(defenum name vals…)`, `(include-binary "file" [offset [count]])`.
+- **`classic-lexer.lisp`** / **`classic-parser.lisp`** — Tokenizer and recursive-descent parser for ca65-like `.asm` syntax. Supports macros (`.macro`/`.endmacro`) and conditional assembly (`.if`/`.endif`). Also supports: native ACME syntax (`!byte`/`!word`/`!fill`/`!pet` directives, `*=addr` org, `!to`/`!cpu` ignored); ca65 anonymous labels (`preprocess-anonymous-labels`); scoped `@`-labels (`preprocess-scoped-labels`); `.res N` as alias for `.fill N`. Extra directives: `.padto ADDR[,VAL]`, `.assertpc ADDR`, `.asciiz "str"`, `.pascalstr "str"`, `.defstruct`/`.field`/`.endstruct`, `.defenum`/`.val`/`.endenum`, `.incbin "file"[,offset[,count]]`, `.include "file"` (source include, resolved at parse time). Include implementation: `do-include` saves/restores the token stream, processes the included file in the same parse context (shared sections, macros, symtable); `*include-stack*` detects cycles; `*base-dir*` resolves relative paths.
+- **`lasm.lisp`** — Native Lisp frontend: `.lasm` files are valid Common Lisp where mnemonics are functions. Addressing modes as keywords (`:imm`, `:x`, `:y`, `:z`, `:ind`, `:ix`, `:iy`, `:abs`, `:zp`, `:a`). Extra directives: `(pad-to addr [v])`, `(assert-pc addr)`, `(ascii-z "str")`, `(pascal-str "str")`, `(defstruct-asm name fields…)`, `(defenum name vals…)`, `(include-binary "file" [offset [count]])`, `(include-source "file")` (source include, same assembly context).
 
 ### Backend (`src/backend/`)
 
@@ -169,11 +169,11 @@ Tables exportées : `*cycles-6502*` (151 opcodes, valide aussi pour 6510), `*cyc
 
 ## Test Structure
 
-2906 tests across 32 suites in `tests/test-*.lisp`. Regression test reference binaries live in `tests/regression/{c64,mega65,x16}/` as `.ref.prg` files.
+2919 tests across 32 suites in `tests/test-*.lisp`. Regression test reference binaries live in `tests/regression/{c64,mega65,x16}/` as `.ref.prg` files.
 
 Expected output after all tests pass:
 ```
-=== TOTAL        : 2906 OK, 0 KO sur 2906 tests
+=== TOTAL        : 2919 OK, 0 KO sur 2919 tests
 ```
 
 ## Règle documentaire
@@ -244,6 +244,7 @@ The Z80 parser shares the classic frontend with 6502. Some mnemonics are common 
 - ~~**Linker script**: multi-segment placement at distinct addresses, shared symbol table for cross-segment references (JSR/branches/`.equ`), `segments->flat-binary` with fill-byte padding~~ — done in v0.18.0 (50 tests).
 - ~~**Profiler/Tracer 6502/6510**: hit-count + cycle-count arrays, ring-buffer tracer, `profile-step`/`trace-step`, `run-with-profiler`/`run-with-tracer`, `print-profile`/`print-trace`, `tracer-entries-in-order`. Uses `handler-bind` for guaranteed recording on BRK/illegal~~ — done in v0.19.0 (78 tests).
 - ~~**Full Lisp evaluation in `.lasm`**: `dotimes`/`loop`/`let`/`defmacro` etc. already work natively — `load-lasm-string` calls `(eval form)` in the `cl-asm/lasm` package. Validated by `test/lisp-dotimes` and `test/lisp-loop`.~~ — already done, not a new feature.
+- ~~**`.include "file"` / `(include-source "file")`**: source file inclusion resolved at parse time, shared context (macros/labels/constants), relative paths, cycle detection~~ — done in v0.20.0 (13 tests).
 - **Profiler/Tracer for 65C02/45GS02 (Commander X16, Mega65)**: requires extending the 6502 simulator to support 65C02 and 45GS02 ISAs first — deferred.
 - **Declarative instruction tables** (`define-instruction` DSL): macro generating hash-table entries + compile-time consistency checks + automatic disassembler table derivation. Low priority — current format is already readable.
 - **Incremental REPL assembly** (`with-asm` macro): build a program form-by-form in SLIME/SLY with `inspect-pc` feedback. Low complexity, ergonomic gain for interactive sessions.

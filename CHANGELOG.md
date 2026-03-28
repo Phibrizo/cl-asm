@@ -5,6 +5,31 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.20.0] — 2026-03-28
+
+### Added
+- **`.include "file.asm"` directive** (`src/frontend/classic-parser.lisp`): includes an external source file inline at parse time. The included file's IR nodes (labels, instructions, directives, macros, constants) are injected into the current section exactly as if they were written inline. Relative paths are resolved from the directory of the including file. Circular inclusion is detected and raises `asm-error`. Works with all backends (the include is resolved before backend dispatch).
+- **`(include-source "file.lasm")` function** (`src/frontend/lasm.lisp`): equivalent for `.lasm` files. The included file executes in the same assembly context (`*ctx*`). Relative paths resolved from the including file's directory. Circular inclusion detected.
+- Dynamic variables `*include-stack*` / `*base-dir*` (parser) and `*lasm-include-stack*` / `*lasm-base-dir*` (lasm) for path resolution and cycle detection.
+- `parse-file` now uses `truename` so that relative `.include` paths are resolved correctly even when called with a relative path.
+- 13 tests across `tests/test-parser.lisp` (8 tests: IR injection, assembled bytes, nested include, macro in include, errors) and `tests/test-lasm.lisp` (5 tests: bytes, nested include, errors).
+- Examples: `examples/include-main.asm` + `examples/include-utils.asm` and `examples/include-main.lasm` + `examples/include-utils.lasm`.
+
+### Notes
+- Anonymous labels (`@`) and scoped labels (`@name`) within included files are renumbered independently. If the same label names are used in multiple included files, they may collide — use unique names or the `::` global label syntax across file boundaries.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-parser (+8) | 92 |
+| test-lasm (+5) | 102 |
+| **Total** | **2919** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.19.0] — 2026-03-28
 
 ### Added
