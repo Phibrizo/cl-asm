@@ -5,6 +5,7 @@
 sbcl --load src/core/version.lisp \
      --load src/core/backends.lisp \
      --load src/core/disassemblers.lisp \
+     --load src/core/emitters.lisp \
      --load src/core/ir.lisp \
      --load src/core/debug-map.lisp \
      --load src/core/expression.lisp \
@@ -33,6 +34,8 @@ sbcl --load src/core/version.lisp \
      --load src/optimizer/6502.lisp \
      --load src/optimizer/65c02.lisp \
      --load src/emit/output.lisp \
+     --load src/emit/ihex.lisp \
+     --load src/emit/srec.lisp \
      --load tests/test-debugger-6502.lisp \
      --load tests/test-65c02.lisp \
      --load tests/test-r65c02.lisp \
@@ -62,6 +65,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-optimizer.lisp \
      --load tests/test-restarts.lisp \
      --load tests/test-listing.lisp \
+     --load tests/test-emitters.lisp \
      --load tests/run-tests.lisp \
      --eval "(cl-asm/test:run-all-tests)" \
      --quit

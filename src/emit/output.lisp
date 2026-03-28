@@ -5,6 +5,8 @@
                 #:find-disassembler-by-keyword
                 #:disassembler-package
                 #:disassembler-function)
+  (:import-from #:cl-asm/emitters
+                #:register-emitter)
   (:export
    #:emit-bin #:write-bin
    #:emit-prg #:write-prg
@@ -508,3 +510,24 @@
                      :if-exists :supersede)
     (emit-listing program bytes s :origin origin :target target))
   path)
+
+
+;;; --------------------------------------------------------------------------
+;;;  Enregistrement dans le registre des émetteurs
+;;; --------------------------------------------------------------------------
+
+(cl-asm/emitters:register-emitter
+  :bin
+  '("bin" "raw" "binary")
+  "bin"
+  (lambda (bytes path &key origin) (declare (ignore origin)) (write-bin bytes path))
+  "Binaire brut (pas de header)"
+  "Raw binary (no header)")
+
+(cl-asm/emitters:register-emitter
+  :prg
+  '("prg" "c64")
+  "prg"
+  (lambda (bytes path &key (origin #x0801)) (write-prg bytes path :load-address origin))
+  "PRG C64 (2 octets adresse de chargement + binaire)"
+  "Commodore 64 PRG (2-byte load address + binary)")

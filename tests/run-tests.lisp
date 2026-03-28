@@ -103,6 +103,9 @@
     ;; --- Listing ---
     (run-suite cl-asm/test.listing)
 
+    ;; --- Emetteurs ---
+    (run-suite cl-asm/test.emitters)
+
     ;; --- Bilan global ---
     (format t "~%")
     (format t "--- ~A ---~%" (%msg "Core" "Core"))
@@ -207,6 +210,10 @@
     (format t "=== listing      : ~3D OK, ~D KO~%"
             cl-asm/test.listing:*pass*
             cl-asm/test.listing:*fail*)
+    (format t "--- ~A ---~%" (%msg "Emetteurs" "Emitters"))
+    (format t "=== emitters     : ~3D OK, ~D KO~%"
+            cl-asm/test.emitters:*pass*
+            cl-asm/test.emitters:*fail*)
     (format t "-------------------------------~%")
     (format t (%msg "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
                     "=== TOTAL        : ~3D OK, ~D KO out of ~D tests~%")

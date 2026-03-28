@@ -53,14 +53,23 @@
 
 (require :asdf)
 
-;;; Pré-déclarer cl-asm/backends pour que le lecteur puisse résoudre les
-;;; symboles qualifiés avant que load-cl-asm ne charge le vrai paquet.
+;;; Pré-déclarer cl-asm/backends et cl-asm/emitters pour que le lecteur
+;;; puisse résoudre les symboles qualifiés avant que load-cl-asm ne charge
+;;; les vrais paquets.
 (unless (find-package "CL-ASM/BACKENDS")
   (let ((pkg (make-package "CL-ASM/BACKENDS" :use '())))
     (export (mapcar (lambda (s) (intern s pkg))
                     '("ALL-BACKENDS" "BACKEND-ALIASES" "BACKEND-KEYWORD"
                       "BACKEND-PACKAGE" "BACKEND-FUNCTION"
                       "FIND-BACKEND-BY-ALIAS"))
+            pkg)))
+
+(unless (find-package "CL-ASM/EMITTERS")
+  (let ((pkg (make-package "CL-ASM/EMITTERS" :use '())))
+    (export (mapcar (lambda (s) (intern s pkg))
+                    '("ALL-EMITTERS" "EMITTER-ALIASES" "EMITTER-KEYWORD"
+                      "EMITTER-EXTENSION" "EMITTER-FUNCTION"
+                      "FIND-EMITTER-BY-ALIAS" "FIND-EMITTER-BY-KEYWORD"))
             pkg)))
 
 (defun find-cl-asm-asd (script-dir)
@@ -101,10 +110,14 @@
      (parse-integer s))))
 
 (defun default-output (input fmt)
-  (let* ((s (namestring input))
-         (dot (position #\. s :from-end t))
-         (base (if dot (subseq s 0 dot) s)))
-    (concatenate 'string base "." (string-downcase (symbol-name fmt)))))
+  (let* ((s    (namestring input))
+         (dot  (position #\. s :from-end t))
+         (base (if dot (subseq s 0 dot) s))
+         (ext  (let ((entry (cl-asm/emitters:find-emitter-by-keyword fmt)))
+                 (if entry
+                     (cl-asm/emitters:emitter-extension entry)
+                     (string-downcase (symbol-name fmt))))))
+    (concatenate 'string base "." ext)))
 
 (defun detect-target (source-path)
   "Détecte la cible en scannant les 10 premières lignes du fichier source.
@@ -167,7 +180,7 @@
         (format t "Usage: cl-asm SOURCE [options]~%~%")
         (format t "Options:~%")
         (format t "  -o FILE          Fichier de sortie~%")
-        (format t "  -f, --format FMT Format : prg (defaut) ou bin~%")
+        (format t "  -f, --format FMT Format : prg (defaut), bin, ihex, srec~%")
         (format t "  --origin ADDR    Adresse d'origine (ex: 0x0801, $0801)~%")
         (format t "  -t, --target T   Cible : ~A~%"
                 (backend-aliases-string))
@@ -178,7 +191,7 @@
         (format t "Usage: cl-asm SOURCE [options]~%~%")
         (format t "Options:~%")
         (format t "  -o FILE          Output file~%")
-        (format t "  -f, --format FMT Format: prg (default) or bin~%")
+        (format t "  -f, --format FMT Format: prg (default), bin, ihex, srec~%")
         (format t "  --origin ADDR    Origin address (e.g. 0x0801, $0801)~%")
         (format t "  -t, --target T   Target: ~A~%"
                 (backend-aliases-string))
@@ -227,8 +240,11 @@
                     (setf output (nth (1+ i) args))
                     (incf i 2))
                    ((or (string= arg "-f") (string= arg "--format"))
-                    (let ((fmt (nth (1+ i) args)))
-                      (setf format (if (string-equal fmt "bin") :bin :prg)))
+                    (let* ((fmt-str (nth (1+ i) args))
+                           (entry   (cl-asm/emitters:find-emitter-by-alias fmt-str)))
+                      (setf format (if entry
+                                       (cl-asm/emitters:emitter-keyword entry)
+                                       :prg)))
                     (incf i 2))
                    ((string= arg "--origin")
                     (setf origin (parse-integer-auto (nth (1+ i) args)))
@@ -287,11 +303,12 @@
                        (exit-lisp 1)))))
 
         (handler-case
-            (ecase format
-              (:prg (call "CL-ASM/EMIT" "WRITE-PRG"
-                          bytes output :load-address origin))
-              (:bin (call "CL-ASM/EMIT" "WRITE-BIN"
-                          bytes output)))
+            (let ((emitter (cl-asm/emitters:find-emitter-by-keyword format)))
+              (if emitter
+                  (funcall (cl-asm/emitters:emitter-function emitter)
+                           bytes output :origin origin)
+                  (error (msg "Format inconnu : ~A" "Unknown format: ~A")
+                         format)))
           (error (e)
             (format *error-output*
                     (msg "Erreur ecriture : ~A~%"

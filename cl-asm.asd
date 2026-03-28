@@ -13,6 +13,8 @@
     :depends-on ("src/core/version"))
    (:file "src/core/disassemblers"
     :depends-on ("src/core/version"))
+   (:file "src/core/emitters"
+    :depends-on ("src/core/version"))
    (:file "src/core/linker"
     :depends-on ("src/core/ir"
                  "src/core/symbol-table"))
@@ -96,7 +98,12 @@
    (:file "src/emit/output"
     :depends-on ("src/core/ir"
                  "src/core/disassemblers"
+                 "src/core/emitters"
                  "src/backend/6502"))
+   (:file "src/emit/ihex"
+    :depends-on ("src/core/emitters"))
+   (:file "src/emit/srec"
+    :depends-on ("src/core/emitters"))
    (:file "src/simulator/6502"
     :depends-on ())
    (:file "src/disassembler/6502"
@@ -182,6 +189,8 @@
     :depends-on ("tests/test-6502"
                  "tests/test-disasm-6502"
                  "tests/test-disasm-65c02"))
+   (:file "tests/test-emitters"
+    :depends-on ())
    (:file "tests/run-tests"
     :depends-on ("tests/test-expression"
                  "tests/test-symbol-table"
@@ -211,7 +220,8 @@
                  "tests/test-linker-6502"
                  "tests/test-optimizer"
                  "tests/test-restarts"
-                 "tests/test-listing")))
+                 "tests/test-listing"
+                 "tests/test-emitters")))
   :perform (test-op (o c)
              (let ((output (make-string-output-stream)))
                (let ((*standard-output* output))

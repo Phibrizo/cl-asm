@@ -56,6 +56,7 @@
 (load-filtered "src/core/version.lisp")
 (load-filtered "src/core/backends.lisp")
 (load-filtered "src/core/disassemblers.lisp")
+(load-filtered "src/core/emitters.lisp")
 (load-filtered "src/core/ir.lisp")
 (load-filtered "src/core/debug-map.lisp")
 (load-filtered "src/core/expression.lisp")
@@ -84,6 +85,8 @@
 (load-filtered "src/optimizer/6502.lisp")
 (load-filtered "src/optimizer/65c02.lisp")
 (load-filtered "src/emit/output.lisp")
+(load-filtered "src/emit/ihex.lisp")
+(load-filtered "src/emit/srec.lisp")
 (load-filtered "tests/test-debugger-6502.lisp")
 (load-filtered "tests/test-65c02.lisp")
 (load-filtered "tests/test-r65c02.lisp")
@@ -113,6 +116,7 @@
 (load-filtered "tests/test-optimizer.lisp")
 (load-filtered "tests/test-restarts.lisp")
 (load-filtered "tests/test-listing.lisp")
+(load-filtered "tests/test-emitters.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 
