@@ -3,7 +3,7 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.17.0"
+  :version "0.18.0"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()
@@ -17,6 +17,9 @@
     :depends-on ("src/core/version"))
    (:file "src/core/linker"
     :depends-on ("src/core/ir"
+                 "src/core/symbol-table"))
+   (:file "src/core/linker-script"
+    :depends-on ("src/core/linker"
                  "src/core/symbol-table"))
    (:file "src/core/optimizer"
     :depends-on ("src/core/ir"))
@@ -181,6 +184,8 @@
     :depends-on ())
    (:file "tests/test-linker-6502"
     :depends-on ())
+   (:file "tests/test-linker-script"
+    :depends-on ())
    (:file "tests/test-optimizer"
     :depends-on ())
    (:file "tests/test-restarts"
@@ -218,6 +223,7 @@
                  "tests/test-m68k-parser"
                  "tests/test-m68k"
                  "tests/test-linker-6502"
+                 "tests/test-linker-script"
                  "tests/test-optimizer"
                  "tests/test-restarts"
                  "tests/test-listing"

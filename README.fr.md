@@ -10,14 +10,14 @@ sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.17.0**
+**Version courante : 0.18.0**
 
 ```
-cl-asm/version:+version+         ; → "0.17.0"
+cl-asm/version:+version+         ; → "0.18.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 17
+cl-asm/version:+version-minor+   ; → 18
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.17.0"
+(cl-asm/version:version-string)  ; → "0.18.0"
 ```
 
 ---
@@ -55,10 +55,11 @@ cl-asm/version:+version-patch+   ; → 0
 | Frontend .lasm (Lisp natif) | ✓ | 97 |
 | Convertisseur acme2clasm | ✓ | 20 |
 | Linker modulaire en mémoire (famille 6502) | ✓ | 26 |
+| Linker script multi-segments | ✓ | 50 |
 | Optimiseur peephole (6502/6510/65C02/45GS02) | ✓ | 28 |
 | Conditions & Restarts | ✓ | 14 |
 
-**Total : 2778 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 2828 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -110,6 +111,7 @@ cl-asm/
 │   │   ├── debug-map.lisp      table adresse→source-loc (pour le débogueur)
 │   │   ├── symbol-table.lisp   table des symboles, 2 passes
 │   │   ├── linker.lisp         linker modulaire en mémoire (famille 6502)
+│   │   ├── linker-script.lisp  linker script multi-segments
 │   │   ├── optimizer.lisp      registre extensible d'optimiseurs peephole
 │   │   └── restarts.lisp       protocole de restarts CL pour les erreurs d'assemblage
 │   ├── frontend/
@@ -168,6 +170,7 @@ cl-asm/
 │   ├── test-debugger-6502.lisp
 │   ├── test-acme2clasm.lisp
 │   ├── test-linker-6502.lisp
+│   ├── test-linker-script.lisp
 │   ├── test-optimizer-6502.lisp
 │   └── test-restarts.lisp
 └── examples/
@@ -247,7 +250,7 @@ Résultat attendu :
 --- Outils ---
 === acme2clasm   :  20 OK, 0 KO
 -------------------------------
-=== TOTAL        : 2778 OK, 0 KO sur 2778 tests
+=== TOTAL        : 2828 OK, 0 KO sur 2778 tests
 ```
 
 ---
@@ -448,6 +451,37 @@ les labels définis dans un fichier sont visibles par les autres.
 ;;       #x60)            ; RTS
 
 ;; Cibles supportées : :6502  :6510  :65c02  :45gs02
+```
+
+### Linker script — layout multi-segments à des adresses distinctes
+
+Package `cl-asm/linker-script`. Place des segments à des adresses différentes
+avec une table de symboles partagée — les références croisées (JSR, branchements,
+constantes `.equ`) fonctionnent automatiquement.
+
+```lisp
+(let* ((u-main (cl-asm/linker:link-unit-from-program
+                 "main"
+                 (cl-asm/parser:parse-string "JSR routine\nRTS")
+                 :6502))
+       (u-lib  (cl-asm/linker:link-unit-from-program
+                 "lib"
+                 (cl-asm/parser:parse-string "routine: LDA #$42\nRTS")
+                 :6502))
+       (segs (list
+               (cl-asm/linker-script:make-script-segment
+                 :name "main" :at #x0200 :units (list u-main))
+               (cl-asm/linker-script:make-script-segment
+                 :name "lib"  :at #x0210 :units (list u-lib))))
+       (results (cl-asm/linker-script:link-segments segs)))
+  ;; Assemblage en tampon contigu (trous remplis avec #x00)
+  (multiple-value-bind (bytes base)
+      (cl-asm/linker-script:segments->flat-binary results)
+    (format t "base=$~4,'0X, ~D octets~%" base (length bytes))))
+;; → base=$0200, 19 octets
+;; results[0].bytes = #(#x20 #x10 #x02  ; JSR $0210
+;;                       #x60)           ; RTS
+;; results[1].bytes = #(#xA9 #x42 #x60) ; LDA #$42 / RTS
 ```
 
 ### Conditions & Restarts

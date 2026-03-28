@@ -5,6 +5,25 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.18.0] — 2026-03-28
+
+### Ajouté
+- **Linker script multi-segments** (`src/core/linker-script.lisp`) : placement de plusieurs segments à des adresses distinctes avec table de symboles partagée, permettant les références croisées inter-segments (JSR, branches, constantes `.equ`). Structures `script-segment` (`:name`, `:at`, `:units`, `:fill`) et `script-result` (`:name`, `:address`, `:bytes`). Package `cl-asm/linker-script`.
+- **`link-segments segments &key target`** : passe 1 sur tous les segments (dans l'ordre, chacun avec son adresse), puis passe 2 — retourne une liste de `script-result`. Backends supportés : tous ceux du linker (`:6502`, `:6510`, `:65c02`, `:45gs02`).
+- **`segments->flat-binary results &key (fill #x00)`** : assemble les résultats en un vecteur contigu, remplissant les trous entre segments avec l'octet `fill`. Retourne `(values bytes base-address)`.
+- 50 tests dans `tests/test-linker-script.lisp` : segment unique, deux segments indépendants, références croisées (JSR, branchement, `.equ`), segment multi-units, trois segments, backend 65C02, `segments->flat-binary` (vide, gap, octet de remplissage, adjacent, intégration), accesseurs, gestion d'erreurs.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-linker-script | 50 |
+| **Total** | **2828** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.17.0] — 2026-03-28
 
 ### Ajouté

@@ -12,6 +12,7 @@ sbcl --load src/core/version.lisp \
      --load src/core/restarts.lisp \
      --load src/core/symbol-table.lisp \
      --load src/core/linker.lisp \
+     --load src/core/linker-script.lisp \
      --load src/core/optimizer.lisp \
      --load src/frontend/classic-lexer.lisp \
      --load src/frontend/classic-parser.lisp \
@@ -62,6 +63,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-disasm-45gs02.lisp \
      --load tests/test-disasm-65c02.lisp \
      --load tests/test-linker-6502.lisp \
+     --load tests/test-linker-script.lisp \
      --load tests/test-optimizer.lisp \
      --load tests/test-restarts.lisp \
      --load tests/test-listing.lisp \

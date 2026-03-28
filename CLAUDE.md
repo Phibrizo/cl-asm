@@ -107,9 +107,10 @@ All backends implement two-pass assembly against the shared IR and symbol table.
 
 - **`6502.lisp`** — Interactive step debugger. `make-debugger cpu &key debug-map` → session. `debugger-repl` REPL with commands: step/next/continue/b/d/lb/w/dw/lw/regs/mem/disasm/quit. `debugger-step`/`debugger-next`/`debugger-continue` return `:ok`/`:brk`/`:breakpoint`/`:watchpoint`/`:illegal`. Breakpoints: `set-breakpoint addr &key condition` (condition slot present for future conditional breakpoints). Watchpoints: `set-watchpoint addr &key kind` (`:read`/`:write`/`:rw`), wired to `cpu-watch-table`; `cpu-watchpoint` condition captured by `%step-one`; `debugger-last-watchpoint` stores `(addr kind)`. Source display: `show-current` reads source file via `source-cache` (hash filename → vector-of-lines), shows `; file:line | text` above disassembly when `source-loc-file` is non-nil. Conditional breakpoints in REPL: `b $ADDR <lisp-expr>` compiles `(lambda (cpu) <expr>)` via `eval`; `cpu` is bound to the CPU struct.
 
-### Linker (`src/core/linker.lisp`)
+### Linker (`src/core/linker.lisp`, `src/core/linker-script.lisp`)
 
 - **`linker.lisp`** — In-memory modular linker for the 6502 family. `link-unit` struct wraps a list of IR sections + target keyword. `link-unit-from-program name program target` constructs a unit from a parsed IR-PROGRAM. `link units &key origin` merges all sections into a shared symbol table, runs pass-1 then pass-2 via the registered backend functions → `(unsigned-byte 8)` vector. Registered backends: `:6502` / `:6510` / `:65c02` / `:45gs02`. Enables cross-file label references. Package `cl-asm/linker`.
+- **`linker-script.lisp`** — Multi-segment linker script. `script-segment` struct (`:name`, `:at`, `:units`, `:fill`). `link-segments segments &key target` → list of `script-result` (`:name`, `:address`, `:bytes`): runs pass-1 over all segments with a shared symbol table (cross-segment JSR/branch/`.equ`), then pass-2 per segment. `segments->flat-binary results &key (fill #x00)` → `(values bytes base-address)`: assembles results into a contiguous vector, padding gaps with `fill`. Package `cl-asm/linker-script`.
 
 ### Conditions/Restarts (`src/core/restarts.lisp`)
 
@@ -162,11 +163,11 @@ Tables exportées : `*cycles-6502*` (151 opcodes, valide aussi pour 6510), `*cyc
 
 ## Test Structure
 
-2778 tests across 30 suites in `tests/test-*.lisp`. Regression test reference binaries live in `tests/regression/{c64,mega65,x16}/` as `.ref.prg` files.
+2828 tests across 31 suites in `tests/test-*.lisp`. Regression test reference binaries live in `tests/regression/{c64,mega65,x16}/` as `.ref.prg` files.
 
 Expected output after all tests pass:
 ```
-=== TOTAL        : 2778 OK, 0 KO sur 2778 tests
+=== TOTAL        : 2828 OK, 0 KO sur 2828 tests
 ```
 
 ## Règle documentaire
@@ -229,6 +230,7 @@ The Z80 parser shares the classic frontend with 6502. Some mnemonics are common 
 - ~~**Intel 8086/8088 backend**: real-mode x86 encoder, ModRM byte, all addressing modes, full instruction set~~ — done in v0.15.0 (236 tests).
 - ~~**Annotated listing with CPU cycles**: `--listing` CLI flag, `*cycles-6502*`/`*cycles-65c02*` tables, instruction size bugfix, `&key target` on `emit-listing`/`write-listing`~~ — done in v0.16.0 (40 tests).
 - ~~**Intel HEX / Motorola S-record output formats**: extensible emitter registry (`src/core/emitters.lisp`), `src/emit/ihex.lisp`, `src/emit/srec.lisp`. CLI `--format ihex/srec`. Adding a new format = one file + `register-emitter`, no CLI changes~~ — done in v0.17.0 (32 tests).
+- ~~**Linker script**: multi-segment placement at distinct addresses, shared symbol table for cross-segment references (JSR/branches/`.equ`), `segments->flat-binary` with fill-byte padding~~ — done in v0.18.0 (50 tests).
 - ~~**Full Lisp evaluation in `.lasm`**: `dotimes`/`loop`/`let`/`defmacro` etc. already work natively — `load-lasm-string` calls `(eval form)` in the `cl-asm/lasm` package. Validated by `test/lisp-dotimes` and `test/lisp-loop`.~~ — already done, not a new feature.
 - **Declarative instruction tables** (`define-instruction` DSL): macro generating hash-table entries + compile-time consistency checks + automatic disassembler table derivation. Low priority — current format is already readable.
 - **Incremental REPL assembly** (`with-asm` macro): build a program form-by-form in SLIME/SLY with `inspect-pc` feedback. Low complexity, ergonomic gain for interactive sessions.

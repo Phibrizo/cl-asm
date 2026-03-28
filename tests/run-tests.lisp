@@ -93,6 +93,7 @@
 
     ;; --- Linker ---
     (run-suite cl-asm/test.linker-6502)
+    (run-suite cl-asm/test.linker-script)
 
     ;; --- Optimiseur ---
     (run-suite cl-asm/test.optimizer)
@@ -198,6 +199,9 @@
     (format t "=== linker-6502  : ~3D OK, ~D KO~%"
             cl-asm/test.linker-6502:*pass*
             cl-asm/test.linker-6502:*fail*)
+    (format t "=== linker-script: ~3D OK, ~D KO~%"
+            cl-asm/test.linker-script:*pass*
+            cl-asm/test.linker-script:*fail*)
     (format t "--- ~A ---~%" (%msg "Optimiseur" "Optimizer"))
     (format t "=== optimizer    : ~3D OK, ~D KO~%"
             cl-asm/test.optimizer:*pass*
