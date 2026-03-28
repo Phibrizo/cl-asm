@@ -107,16 +107,21 @@ Lisp + `defmacro` :
 Le macro génèrerait les entrées, les fonctions `lookup-*` et des tests
 de cohérence à la compilation. Moins de duplication, plus robuste.
 
-### Évaluation Lisp complète à l'assemblage (.lasm)
+### ~~Évaluation Lisp complète à l'assemblage (.lasm)~~ — déjà fonctionnel
 
-Exposer explicitement la puissance de CL pour générer des données à
-l'assemblage : tables de lookup, boucles déroulées, compression RLE,
-calculs trigonométriques, etc. — sans code d'exécution supplémentaire.
+`load-lasm-string` appelle `(eval form)` sur chaque forme dans le package
+`cl-asm/lasm`. `dotimes`, `loop`, `let`, `defun`, `defmacro`, etc. sont
+donc disponibles nativement. Les tests `test/lisp-dotimes` et
+`test/lisp-loop` le valident déjà. Exemples qui fonctionnent aujourd'hui :
 
 ```lisp
 ;; Table sinus précalculée à l'assemblage (256 entrées)
 (dotimes (i 256)
-  (byte (round (* 127 (sin (* 2 pi (/ i 256)))))))
+  (db (round (* 127 (sin (* 2 pi (/ i 256)))))))
+
+;; Boucle déroulée conditionnelle
+(loop for i from 0 to 3
+      do (db (* i 16)))
 ```
 
 ### Assemblage incrémental au REPL

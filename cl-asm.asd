@@ -3,7 +3,7 @@
 
 (defsystem "cl-asm"
   :description "Assembleur multi-architecture en Common Lisp (6502, 45GS02)"
-  :version "0.13.0"
+  :version "0.15.0"
   :author "cl-asm contributors"
   :license "MIT"
   :depends-on ()
@@ -73,6 +73,12 @@
                  "src/core/expression"
                  "src/core/symbol-table"
                  "src/frontend/classic-parser"))
+   (:file "src/backend/i8086"
+    :depends-on ("src/core/ir"
+                 "src/core/backends"
+                 "src/core/expression"
+                 "src/core/symbol-table"
+                 "src/frontend/classic-parser"))
    (:file "src/frontend/lasm"
     :depends-on ("src/core/ir"
                  "src/core/expression"
@@ -85,7 +91,8 @@
                  "src/backend/65816"
                  "src/backend/z80"
                  "src/backend/m68k"
-                 "src/backend/i8080"))
+                 "src/backend/i8080"
+                 "src/backend/i8086"))
    (:file "src/emit/output"
     :depends-on ("src/core/ir"
                  "src/backend/6502"))
@@ -144,6 +151,8 @@
     :depends-on ())
    (:file "tests/test-8080"
     :depends-on ())
+   (:file "tests/test-8086"
+    :depends-on ())
    (:file "tests/test-sim-6502"
     :depends-on ())
    (:file "tests/test-sim-programs"
@@ -184,6 +193,7 @@
                  "tests/test-65816"
                  "tests/test-z80"
                  "tests/test-8080"
+                 "tests/test-8086"
                  "tests/test-sim-6502"
                  "tests/test-sim-programs"
                  "tests/test-acme2clasm"

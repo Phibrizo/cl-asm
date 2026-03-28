@@ -24,6 +24,7 @@ sbcl --load src/core/version.lisp \
      --load src/backend/z80.lisp \
      --load src/backend/m68k.lisp \
      --load src/backend/i8080.lisp \
+     --load src/backend/i8086.lisp \
      --load src/frontend/lasm.lisp \
      --load src/simulator/6502.lisp \
      --load src/disassembler/6502.lisp \
@@ -50,6 +51,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-m68k-parser.lisp \
      --load tests/test-m68k.lisp \
      --load tests/test-8080.lisp \
+     --load tests/test-8086.lisp \
      --load tests/test-sim-6502.lisp \
      --load tests/test-sim-programs.lisp \
      --load tests/test-acme2clasm.lisp \

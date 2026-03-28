@@ -5,6 +5,27 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.15.0] — 2026-03-28
+
+### Ajouté
+- **Backend Intel 8086/8088** (`src/backend/i8086.lisp`) : encodeur x86 16-bit mode réel complet. MOV (toutes formes), XCHG, LEA, LDS, LES, ALU (ADD/SUB/AND/OR/XOR/CMP + immédiats, formes courtes accumulateur), ADC/SBB, INC/DEC, NEG/NOT/MUL/IMUL/DIV/IDIV, décalages/rotations (ROL/ROR/RCL/RCR/SHL/SAL/SHR/SAR × 1/CL/imm8), PUSH/POP (reg/seg/imm), tous les Jcc (rel8), LOOP/LOOPE/LOOPNE/JCXZ, JMP (short/near/far/reg/mém), CALL (near/far/reg/mém), RET/RETF/IRET, INT/INTO/BOUND, IN/OUT, toutes les instructions implicites 1 octet (CLC/STC/CLI/STI/CLD/STD/CBW/CWD/XLAT/NOP/HLT/WAIT/LOCK/PUSHF/POPF/LAHF/SAHF/AAA/AAS/AAM/AAD/DAA/DAS/SALC/XLATB).
+- Encodage octet ModRM : tous les modes d'adressage 8086 — `[BX+SI]`, `[BX+DI]`, `[BP+SI]`, `[BP+DI]`, `[SI]`, `[DI]`, `[BP]`, `[BX]`, adresse directe, avec déplacement 16 bits.
+- Variable `*i8086-mode*` et hook `i8086-mnemonic-p` dans le parser classique — même schéma que Z80/M68K/8080 pour éviter les conflits de mnémoniques.
+- `parse-i8086-operands`/`parse-i8086-mem-ref` dans `classic-parser.lisp` : références mémoire `[base+index+disp]`, `BYTE/WORD PTR [...]`, `SHORT expr` pour `JMP SHORT`.
+- Backend enregistré sous les alias : `"8086"` `"i8086"` `"8088"` `"i8088"` `"ibmpc"` `"msdos"` `"x86-16"`.
+- 236 tests dans `tests/test-8086.lisp`.
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-8086 | 236 |
+| **Total** | **2706** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.14.0] — 2026-03-27
 
 ### Ajouté

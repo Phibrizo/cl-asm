@@ -4,20 +4,20 @@ Assembleur modulaire écrit en Common Lisp. Cibles actuelles : **6502**
 (Apple II…), **6510** (Commodore 64, avec opcodes illégaux stables),
 **45GS02** (Mega65), **65C02** (Commander X16), **R65C02** (Rockwell),
 **WDC 65816** (SNES, Apple IIgs), **Z80** (ZX Spectrum, MSX, CPC, ZX81),
-**M68K** (Amiga, Atari ST, Mac 68k) et **Intel 8080** (CP/M, Altair).
+**M68K** (Amiga, Atari ST, Mac 68k), **Intel 8080** (CP/M, Altair) et **Intel 8086/8088** (IBM PC, MS-DOS).
 L'architecture est pensée pour accueillir d'autres backends
 sans modifier le cœur du projet.
 
 ## Version
 
-**Version courante : 0.14.0**
+**Version courante : 0.15.0**
 
 ```
-cl-asm/version:+version+         ; → "0.14.0"
+cl-asm/version:+version+         ; → "0.15.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 14
+cl-asm/version:+version-minor+   ; → 15
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.14.0"
+(cl-asm/version:version-string)  ; → "0.15.0"
 ```
 
 ---
@@ -41,6 +41,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Parser M68K | ✓ | 85 |
 | Backend M68K (Amiga, Atari ST, Mac 68k) | ✓ | 144 |
 | Backend Intel 8080 (CP/M, Altair) | ✓ | 144 |
+| Backend Intel 8086/8088 (IBM PC, MS-DOS) | ✓ | 236 |
 | Simulateur 6502 | ✓ | 294 |
 | Programmes simulateur 6502 | ✓ | 73 |
 | Désassembleur 6502 | ✓ | 121 |
@@ -56,7 +57,7 @@ cl-asm/version:+version-patch+   ; → 0
 | Optimiseur peephole (6502/6510/65C02/45GS02) | ✓ | 28 |
 | Conditions & Restarts | ✓ | 14 |
 
-**Total : 2470 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
+**Total : 2706 tests, 0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+ et ECL 21.x+**
 
 ---
 
@@ -122,7 +123,8 @@ cl-asm/
 │   │   ├── 65816.lisp          encodeur WDC 65816 (SNES/Apple IIgs, 24-bit)
 │   │   ├── z80.lisp            encodeur Z80 (ZX Spectrum, MSX, CPC, ZX81)
 │   │   ├── m68k.lisp           encodeur M68K (Amiga, Atari ST, Mac 68k)
-│   │   └── i8080.lisp          encodeur Intel 8080 (CP/M, Altair)
+│   │   ├── i8080.lisp          encodeur Intel 8080 (CP/M, Altair)
+│   │   └── i8086.lisp          encodeur Intel 8086/8088 (IBM PC, MS-DOS)
 │   ├── simulator/
 │   │   └── 6502.lisp           simulateur CPU 6502 (152 opcodes, cycle-accurate)
 │   ├── disassembler/
@@ -154,6 +156,7 @@ cl-asm/
 │   ├── test-m68k-parser.lisp
 │   ├── test-m68k.lisp
 │   ├── test-8080.lisp
+│   ├── test-8086.lisp
 │   ├── test-sim-6502.lisp
 │   ├── test-sim-programs.lisp
 │   ├── test-disasm-6502.lisp
@@ -234,12 +237,14 @@ Résultat attendu :
 === m68k         : 144 OK, 0 KO
 --- Intel 8080 ---
 === i8080        : 144 OK, 0 KO
+--- Intel 8086 ---
+=== i8086        : 236 OK, 0 KO
 --- Simulateur ---
 === sim-6502     : 294 OK, 0 KO
 --- Outils ---
 === acme2clasm   :  20 OK, 0 KO
 -------------------------------
-=== TOTAL        : 1921 OK, 0 KO sur 1921 tests
+=== TOTAL        : 2706 OK, 0 KO sur 2706 tests
 ```
 
 ---
@@ -813,6 +818,8 @@ PLATFORM = 64
 ./cl-asm prog.asm --target r65c02
 ./cl-asm snes.asm --target 65816     # WDC 65816 / SNES
 ./cl-asm prog.asm --target z80       # Z80 / ZX Spectrum / MSX
+./cl-asm prog.asm --target 8080      # Intel 8080 / CP/M
+./cl-asm prog.asm --target 8086      # Intel 8086 / MS-DOS
 # Assembler un fichier source ACME directement (sans conversion)
 ./cl-asm terminal.asm --target x16
 ./cl-asm programme.asm -v            # mode verbose
@@ -826,7 +833,7 @@ PLATFORM = 64
 | `-o FILE` | Fichier de sortie | même nom, ext .prg |
 | `-f FORMAT` | `prg` ou `bin` | `prg` |
 | `--origin ADDR` | Adresse d'origine (ex: `0x0801`) | `0x0801` |
-| `-t TARGET` | `6502` (aussi `mos6502`), `6510` (aussi `mos6510`, `c64`), `45gs02` (aussi `mega65`), `x16` (aussi `65c02`, `commander-x16`), `r65c02` (aussi `rockwell`), `65816` (aussi `wdc65816`, `snes`, `apple2gs`), `z80` (aussi `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`) | `6502` |
+| `-t TARGET` | `6502` (aussi `mos6502`), `6510` (aussi `mos6510`, `c64`), `45gs02` (aussi `mega65`), `x16` (aussi `65c02`, `commander-x16`), `r65c02` (aussi `rockwell`), `65816` (aussi `wdc65816`, `snes`, `apple2gs`), `z80` (aussi `z80cpu`, `zxspectrum`, `spectrum`, `cpc`, `msx`), `i8080` (aussi `8080`, `cpm`, `altair`, `intel8080`), `i8086` (aussi `8086`, `8088`, `i8088`, `ibmpc`, `msdos`, `x86-16`) | `6502` |
 | `-v` | Mode verbose | — |
 
 La cible est détectée automatiquement depuis les premières lignes du source :
@@ -844,7 +851,8 @@ CL est accessible : `let`, `dotimes`, `loop`, `defun`, `defmacro`, etc.
 
 **Cibles supportées :** toutes les architectures — `:6502` (défaut),
 `:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`, `:65816`/`:snes`/`:apple2gs`,
-`:z80`/`:spectrum`/`:msx`/`:cpc`, `:m68k`/`:amiga`/`:atari`.
+`:z80`/`:spectrum`/`:msx`/`:cpc`, `:m68k`/`:amiga`/`:atari`,
+`:i8080`/`:8080`/`:cpm`/`:altair`, `:i8086`/`:8086`/`:8088`/`:ibmpc`/`:msdos`/`:x86-16`.
 
 > **Note Z80 et M68K :** utiliser `:origin 0` (le défaut `#x0801` est pour le 6502).
 > Les instructions spécifiques utilisent les helpers `zi`/`mi` (voir ci-dessous).

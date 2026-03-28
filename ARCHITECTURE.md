@@ -19,7 +19,7 @@ cl-asm is structured in three independent layers:
                ▼
 ┌─────────────────────────────────────────────┐
 │  Backends (target architectures)                                  │
-│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K · Intel 8080│
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K · 8080 · 8086│
 └──────────────┬──────────────────────────────┘
                │ produces a byte vector (single file)
                │ or fed to the linker (multi-file)
@@ -68,6 +68,7 @@ cl-asm is structured in three independent layers:
 | `cl-asm/backend.z80` | `src/backend/z80.lisp` | Z80 backend (ZX Spectrum, MSX, CPC, ZX81) |
 | `cl-asm/backend.m68k` | `src/backend/m68k.lisp` | M68K backend (Amiga, Atari ST, Mac 68k) |
 | `cl-asm/backend.i8080` | `src/backend/i8080.lisp` | Intel 8080 backend (CP/M, Altair) |
+| `cl-asm/backend.i8086` | `src/backend/i8086.lisp` | Intel 8086/8088 backend (IBM PC, MS-DOS) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Native Lisp frontend |
 | `cl-asm/emit` | `src/emit/output.lisp` | File emitters |
 | `cl-asm/simulator.6502` | `src/simulator/6502.lisp` | 6502 CPU simulator |
@@ -255,6 +256,16 @@ cl-asm/parser:*i8080-mode*   ; NIL by default (6502 mode)
 `assemble-string-i8080` and `assemble-file-i8080` bind `*i8080-mode*` to T
 before parsing. Operand parsing for comma-separated registers reuses the Z80
 parser path when `*i8080-mode*` is T.
+
+### Intel 8086 mode
+
+```lisp
+cl-asm/parser:*i8086-mode*   ; NIL by default
+```
+
+`assemble-string-i8086` and `assemble-file-i8086` bind `*i8086-mode*` to T.
+Memory operands parse `[base+index+disp]` syntax; `BYTE/WORD PTR [...]` set
+the size hint; `SHORT expr` generates a `JMP SHORT` operand.
 
 ---
 
@@ -618,6 +629,49 @@ Full Intel 8080 backend (CP/M, Altair). Default origin: `$0100`.
 
 ---
 
+## Module `cl-asm/backend.i8086`
+
+Full Intel 8086/8088 real-mode backend (IBM PC, MS-DOS). Default origin: `$0000`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.i8086:assemble-i8086        PROGRAM &key origin)
+(cl-asm/backend.i8086:assemble-string-i8086 SOURCE  &key origin)
+(cl-asm/backend.i8086:assemble-file-i8086   PATH    &key origin)
+```
+
+### Register encoding
+
+| 16-bit | Code | 8-bit | Code | Segment | Code |
+|--------|------|-------|------|---------|------|
+| AX | 0 | AL | 0 | ES | 0 |
+| CX | 1 | CL | 1 | CS | 1 |
+| DX | 2 | DL | 2 | SS | 2 |
+| BX | 3 | BL | 3 | DS | 3 |
+| SP | 4 | AH | 4 | | |
+| BP | 5 | CH | 5 | | |
+| SI | 6 | DH | 6 | | |
+| DI | 7 | BH | 7 | | |
+
+### ModRM addressing modes (mod≠11)
+
+| rm | Addressing | Note |
+|----|-----------|------|
+| 000 | [BX+SI] | |
+| 001 | [BX+DI] | |
+| 010 | [BP+SI] | |
+| 011 | [BP+DI] | |
+| 100 | [SI] | |
+| 101 | [DI] | |
+| 110 | [BP] / direct addr | mod=00 → 16-bit direct address |
+| 111 | [BX] | |
+
+Displacements: mod=00 → none (except rm=110 = direct), mod=01 → 8-bit, mod=10 → 16-bit.
+This backend always uses mod=10 for any non-zero displacement (pass-1 size stability).
+
+---
+
 ## Module `cl-asm/lasm`
 
 Native Lisp frontend. `.lasm` files are valid Common Lisp where each
@@ -627,7 +681,8 @@ mnemonic is a function and the full CL environment is available
 **Supported targets:** all architectures — `:6502` (default),
 `:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`,
 `:65816`/`:snes`/`:apple2gs`, `:z80`/`:spectrum`/`:msx`/`:cpc`,
-`:m68k`/`:amiga`/`:atari`, `:i8080`/`:8080`/`:cpm`/`:altair`.
+`:m68k`/`:amiga`/`:atari`, `:i8080`/`:8080`/`:cpm`/`:altair`,
+`:i8086`/`:8086`/`:8088`/`:ibmpc`/`:msdos`/`:x86-16`.
 
 **Shadowed CL symbols:** `fill`, `bit`, `sec`, `and`, `map` are
 redefined as assembly instructions inside the `cl-asm/lasm` package.

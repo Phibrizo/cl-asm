@@ -19,7 +19,7 @@ cl-asm est structuré en trois couches indépendantes :
                ▼
 ┌─────────────────────────────────────────────┐
 │  Backends (architectures cibles)                                   │
-│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K · Intel 8080│
+│  6502 · 65C02 · R65C02 · 45GS02 · 65816 · Z80 · M68K · 8080 · 8086│
 └──────────────┬──────────────────────────────┘
                │ produit un vecteur d'octets (fichier unique)
                │ ou alimenté au linker (multi-fichiers)
@@ -68,6 +68,7 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/backend.z80` | `src/backend/z80.lisp` | Backend Z80 (ZX Spectrum, MSX, CPC, ZX81) |
 | `cl-asm/backend.m68k` | `src/backend/m68k.lisp` | Backend M68K (Amiga, Atari ST, Mac 68k) |
 | `cl-asm/backend.i8080` | `src/backend/i8080.lisp` | Backend Intel 8080 (CP/M, Altair) |
+| `cl-asm/backend.i8086` | `src/backend/i8086.lisp` | Backend Intel 8086/8088 (IBM PC, MS-DOS) |
 | `cl-asm/lasm` | `src/frontend/lasm.lisp` | Frontend Lisp natif (.lasm) |
 | `cl-asm/emit` | `src/emit/output.lisp` | Émetteurs de fichiers |
 | `cl-asm/simulator.6502` | `src/simulator/6502.lisp` | Simulateur CPU 6502 |
@@ -276,6 +277,16 @@ cl-asm/parser:*i8080-mode*   ; NIL par défaut (mode 6502)
 `assemble-string-i8080` et `assemble-file-i8080` lient `*i8080-mode*` à T
 avant de parser. Le parsing des opérandes séparés par virgule réutilise
 le chemin Z80 quand `*i8080-mode*` est T.
+
+### Mode Intel 8086
+
+```lisp
+cl-asm/parser:*i8086-mode*   ; NIL par défaut
+```
+
+`assemble-string-i8086` et `assemble-file-i8086` lient `*i8086-mode*` à T.
+Les opérandes mémoire utilisent la syntaxe `[base+index+disp]` ; `BYTE/WORD PTR [...]`
+fixe l'indication de taille ; `SHORT expr` génère un opérande `JMP SHORT`.
 
 ---
 
@@ -618,6 +629,49 @@ Backend Intel 8080 complet (CP/M, Altair). Origine par défaut : `$0100`.
 
 ---
 
+## Module `cl-asm/backend.i8086`
+
+Backend Intel 8086/8088 mode réel complet (IBM PC, MS-DOS). Origine par défaut : `$0000`.
+
+### Interface
+
+```lisp
+(cl-asm/backend.i8086:assemble-i8086        PROGRAM &key origin)
+(cl-asm/backend.i8086:assemble-string-i8086 SOURCE  &key origin)
+(cl-asm/backend.i8086:assemble-file-i8086   PATH    &key origin)
+```
+
+### Encodage des registres
+
+| 16 bits | Code | 8 bits | Code | Segment | Code |
+|---------|------|--------|------|---------|------|
+| AX | 0 | AL | 0 | ES | 0 |
+| CX | 1 | CL | 1 | CS | 1 |
+| DX | 2 | DL | 2 | SS | 2 |
+| BX | 3 | BL | 3 | DS | 3 |
+| SP | 4 | AH | 4 | | |
+| BP | 5 | CH | 5 | | |
+| SI | 6 | DH | 6 | | |
+| DI | 7 | BH | 7 | | |
+
+### Modes d'adressage ModRM (mod≠11)
+
+| rm | Adressage | Note |
+|----|-----------|------|
+| 000 | [BX+SI] | |
+| 001 | [BX+DI] | |
+| 010 | [BP+SI] | |
+| 011 | [BP+DI] | |
+| 100 | [SI] | |
+| 101 | [DI] | |
+| 110 | [BP] / adresse directe | mod=00 → adresse directe 16 bits |
+| 111 | [BX] | |
+
+Déplacements : mod=00 → aucun (sauf rm=110 = adresse directe), mod=01 → 8 bits, mod=10 → 16 bits.
+Ce backend utilise toujours mod=10 pour tout déplacement non nul (stabilité des tailles passe-1).
+
+---
+
 ## Module `cl-asm/lasm`
 
 Frontend Lisp natif. Les fichiers `.lasm` sont du Common Lisp valide
@@ -628,7 +682,8 @@ Toute la puissance de CL est disponible : `let`, `dotimes`, `loop`,
 **Cibles supportées :** toutes les architectures — `:6502` (défaut),
 `:45gs02`/`:mega65`, `:65c02`/`:x16`, `:r65c02`,
 `:65816`/`:snes`/`:apple2gs`, `:z80`/`:spectrum`/`:msx`/`:cpc`,
-`:m68k`/`:amiga`/`:atari`, `:i8080`/`:8080`/`:cpm`/`:altair`.
+`:m68k`/`:amiga`/`:atari`, `:i8080`/`:8080`/`:cpm`/`:altair`,
+`:i8086`/`:8086`/`:8088`/`:ibmpc`/`:msdos`/`:x86-16`.
 
 **Symboles CL redéfinis :** `fill`, `bit`, `sec`, `and`, `map` sont
 masqués par des instructions assembleur dans le package `cl-asm/lasm`.

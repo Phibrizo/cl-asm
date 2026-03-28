@@ -73,6 +73,9 @@
     ;; --- Intel 8080 ---
     (run-suite cl-asm/test.i8080)
 
+    ;; --- Intel 8086 ---
+    (run-suite cl-asm/test.i8086)
+
     ;; --- Simulateur ---
     (run-suite cl-asm/test.sim-6502)
     (run-suite cl-asm/test.sim-programs)
@@ -156,6 +159,10 @@
     (format t "=== i8080        : ~3D OK, ~D KO~%"
             cl-asm/test.i8080:*pass*
             cl-asm/test.i8080:*fail*)
+    (format t "--- ~A ---~%" (%msg "Intel 8086" "Intel 8086"))
+    (format t "=== i8086        : ~3D OK, ~D KO~%"
+            cl-asm/test.i8086:*pass*
+            cl-asm/test.i8086:*fail*)
     (format t "--- ~A ---~%" (%msg "Simulateur" "Simulator"))
     (format t "=== sim-6502     : ~3D OK, ~D KO~%"
             cl-asm/test.sim-6502:*pass*

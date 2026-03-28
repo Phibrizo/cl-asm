@@ -16,7 +16,10 @@
    #:*m68k-mode*
    ;; Helpers pour le backend Intel 8080
    #:i8080-mnemonic-p
-   #:*i8080-mode*))
+   #:*i8080-mode*
+   ;; Helpers pour le backend Intel 8086
+   #:i8086-mnemonic-p
+   #:*i8086-mode*))
 ;;; src/frontend/classic-parser.lisp
 ;;;
 ;;; Parser pour syntaxe assembleur classique (ca65-like).
@@ -67,6 +70,9 @@
                                  m68k-base-mnemonic m68k-size-from-mnemonic))
 ;; Déclaration anticipée de *m68k-mode* pour éviter les style-warnings SBCL
 ;; (la variable est référencée dans parse-line avant d'être définie en fin de fichier)
+;; 8086 helpers (définis en fin de fichier)
+(declaim (ftype (function (t) t) i8086-mnemonic-p parse-i8086-operands))
+(defvar *i8086-mode* nil)
 (defvar *m68k-mode* nil)
 (declaim (ftype (function (t t list) t) expand-macro))
 
@@ -1072,6 +1078,9 @@
                       ;; M68K : opérandes séparées par virgules, modes d'adressage étendus
                       ((m68k-mnemonic-p mnem-up)
                        (parse-m68k-operands ctx))
+                      ;; Intel 8086 : opérandes séparées par virgules
+                      ((i8086-mnemonic-p mnem-up)
+                       (parse-i8086-operands ctx))
                       ;; BBRn/BBSn : zp-expr , rel-expr
                       ;; On parse les deux expressions directement
                       ;; sans passer par parse-operand (qui consommerait
@@ -1770,4 +1779,193 @@
         (progn
           (pc-advance ctx)               ; consomme ,
           (list op1 (parse-m68k-operand ctx)))
+        (list op1))))
+
+
+;;; ==========================================================================
+;;;  Mode Intel 8086
+;;;
+;;;  Activé via *i8086-mode* = T (lié par assemble-string-i8086 / assemble-file-i8086).
+;;;  Quand NIL, aucun impact sur les autres architectures.
+;;;
+;;;  Représentation IR des opérandes :
+;;;    :direct "AX"          — registre 16 bits / 8 bits / segment
+;;;    :immediate expr        — valeur immédiate (y compris label = adresse)
+;;;    :indirect (sz b i d)  — mémoire : sz=:byte/:word/nil, b=base, i=index, d=disp-expr
+;;;    :short-rel expr        — cible relative courte (JMP SHORT / Jcc)
+;;; ==========================================================================
+
+(defvar *i8086-mode* nil
+  "T si on est en train d'assembler du code Intel 8086.
+   Quand NIL, aucun mnémonique 8086 n'est reconnu — pas d'impact sur les
+   autres architectures.")
+
+(defparameter *i8086-mnemonics*
+  '(;; Transferts
+    "MOV" "XCHG" "LEA" "LDS" "LES" "XLAT"
+    ;; Pile
+    "PUSH" "POP" "PUSHF" "POPF"
+    ;; ALU
+    "ADD" "ADC" "SUB" "SBB" "AND" "OR" "XOR" "CMP"
+    "INC" "DEC" "NEG" "NOT"
+    "MUL" "IMUL" "DIV" "IDIV"
+    "CBW" "CWD"
+    ;; Décimaux
+    "DAA" "DAS" "AAA" "AAS" "AAM" "AAD"
+    ;; Shifts
+    "ROL" "ROR" "RCL" "RCR" "SHL" "SAL" "SHR" "SAR"
+    ;; Sauts conditionnels
+    "JO" "JNO" "JB" "JNB" "JE" "JNE" "JBE" "JNBE"
+    "JS" "JNS" "JP" "JNP" "JL" "JNL" "JLE" "JNLE"
+    "JC" "JNC" "JZ" "JNZ" "JA" "JNA" "JAE" "JNAE"
+    "JPE" "JPO" "JG" "JNG" "JGE" "JNGE"
+    "JCXZ"
+    ;; Sauts / appels
+    "JMP" "CALL" "RET" "RETF" "IRET" "INTO"
+    ;; Boucles
+    "LOOP" "LOOPZ" "LOOPE" "LOOPNZ" "LOOPNE"
+    ;; Opérations chaînes
+    "MOVSB" "MOVSW" "CMPSB" "CMPSW"
+    "STOSB" "STOSW" "LODSB" "LODSW" "SCASB" "SCASW"
+    ;; Préfixes
+    "REP" "REPE" "REPZ" "REPNE" "REPNZ" "LOCK"
+    ;; I/O
+    "IN" "OUT"
+    ;; Drapeaux
+    "CLC" "STC" "CMC" "CLD" "STD" "CLI" "STI"
+    "LAHF" "SAHF"
+    ;; Divers
+    "NOP" "HLT" "WAIT"
+    ;; Interruptions
+    "INT"
+    ;; Directives / données
+    "ORG" "DB" "DW" "DD" "RESB" "RESW")
+  "Mnémoniques Intel 8086 (en majuscules).")
+
+(defun i8086-mnemonic-p (name)
+  "Retourne T si NAME est un mnémonique 8086 ET que *i8086-mode* = T."
+  (and *i8086-mode*
+       (member name *i8086-mnemonics* :test #'string=)
+       t))
+
+(defparameter *i8086-all-registers*
+  '("AX" "BX" "CX" "DX" "SI" "DI" "SP" "BP"
+    "AL" "BL" "CL" "DL" "AH" "BH" "CH" "DH"
+    "CS" "DS" "ES" "SS")
+  "Tous les registres Intel 8086.")
+
+(defparameter *i8086-mem-regs*
+  '("BX" "BP" "SI" "DI")
+  "Registres valides dans les modes d'adressage mémoire 8086.")
+
+(defun i8086-register-p (name)
+  "Vrai si NAME (string, déjà en majuscules) est un registre 8086."
+  (member name *i8086-all-registers* :test #'string=))
+
+(defun i8086-mem-reg-p (name)
+  "Vrai si NAME est un registre valide comme base/index dans [...] en 8086."
+  (member name *i8086-mem-regs* :test #'string=))
+
+(defun parse-i8086-mem-ref (ctx loc)
+  "Parse le contenu de [...] (après '[' consommé).
+   Grammaire :
+     reg                  → [reg]
+     reg + reg            → [reg+reg]
+     reg + reg + expr     → [reg+reg+disp]
+     reg + expr           → [reg+disp]
+     reg - ...            → [reg+disp]  (disp négatif via parse-expr)
+     expr                 → adresse directe [disp16]
+   Retourne une liste (nil base index disp-expr)."
+  (declare (ignore loc))
+  (let ((base nil) (index nil) (disp 0))
+    (cond
+      ;; Premier token = registre de base/index connu
+      ((and (eq (pc-kind ctx) :identifier)
+            (i8086-mem-reg-p (string-upcase (pc-value ctx))))
+       (setf base (string-upcase (pc-value ctx)))
+       (pc-advance ctx)
+       ;; Optionnel : + ou -
+       (cond
+         ((eq (pc-kind ctx) :plus)
+          (pc-advance ctx)               ; consomme +
+          ;; Registre index ou déplacement ?
+          (if (and (eq (pc-kind ctx) :identifier)
+                   (i8086-mem-reg-p (string-upcase (pc-value ctx))))
+              (progn
+                (setf index (string-upcase (pc-value ctx)))
+                (pc-advance ctx)
+                ;; Déplacement optionnel après le deuxième registre
+                (when (eq (pc-kind ctx) :plus)
+                  (pc-advance ctx)       ; consomme +
+                  (setf disp (parse-expr ctx))))
+            ;; Déplacement positif
+            (setf disp (parse-expr ctx))))
+         ;; Déplacement négatif (laisser parse-expr gérer le -)
+         ((eq (pc-kind ctx) :minus)
+          (setf disp (parse-expr ctx)))))
+      ;; Pas de registre : adresse directe [disp16]
+      (t
+       (setf disp (parse-expr ctx))))
+    (pc-expect ctx :rbracket)
+    (list nil base index disp)))
+
+(defun parse-i8086-operand (ctx)
+  "Parse un opérande Intel 8086.
+   Modes reconnus :
+     BYTE PTR [...]  → :indirect (:byte base index disp)
+     WORD PTR [...]  → :indirect (:word base index disp)
+     [...]           → :indirect (nil  base index disp)
+     reg-name        → :direct \"AX\"
+     SHORT expr      → :short-rel expr  (JMP SHORT uniquement)
+     # expr          → :immediate expr  (compatibilité ca65)
+     expr            → :immediate expr"
+  (let ((loc (pc-loc ctx)))
+    (cond
+      ;; BYTE PTR [...] ou WORD PTR [...]
+      ((and (eq (pc-kind ctx) :identifier)
+            (member (string-upcase (pc-value ctx)) '("BYTE" "WORD") :test #'string=))
+       (let ((size-kw (if (string= (string-upcase (pc-value ctx)) "BYTE") :byte :word)))
+         (pc-advance ctx)                ; consomme BYTE/WORD
+         (when (and (eq (pc-kind ctx) :identifier)
+                    (string= (string-upcase (pc-value ctx)) "PTR"))
+           (pc-advance ctx))             ; consomme PTR (optionnel)
+         (pc-expect ctx :lbracket)
+         (let ((mem (parse-i8086-mem-ref ctx loc)))
+           (cl-asm/ir:make-ir-operand
+            :kind :indirect
+            :value (list* size-kw (rest mem))
+            :loc loc))))
+      ;; [...] — référence mémoire
+      ((eq (pc-kind ctx) :lbracket)
+       (pc-advance ctx)                  ; consomme [
+       (let ((mem (parse-i8086-mem-ref ctx loc)))
+         (cl-asm/ir:make-ir-operand :kind :indirect :value mem :loc loc)))
+      ;; SHORT expr — saut court explicite
+      ((and (eq (pc-kind ctx) :identifier)
+            (string= (string-upcase (pc-value ctx)) "SHORT"))
+       (pc-advance ctx)                  ; consomme SHORT
+       (cl-asm/ir:make-ir-operand :kind :short-rel :value (parse-expr ctx) :loc loc))
+      ;; Registre connu
+      ((and (eq (pc-kind ctx) :identifier)
+            (i8086-register-p (string-upcase (pc-value ctx))))
+       (let ((reg (string-upcase (pc-value ctx))))
+         (pc-advance ctx)
+         (cl-asm/ir:make-ir-operand :kind :direct :value reg :loc loc)))
+      ;; # expr (compatibilité ca65)
+      ((eq (pc-kind ctx) :hash)
+       (pc-advance ctx)
+       (cl-asm/ir:make-ir-operand :kind :immediate :value (parse-expr ctx) :loc loc))
+      ;; Expression : immédiat ou adresse de label
+      (t
+       (cl-asm/ir:make-ir-operand :kind :immediate :value (parse-expr ctx) :loc loc)))))
+
+(defun parse-i8086-operands (ctx)
+  "Parse 0, 1 ou 2 opérandes 8086 séparés par une virgule."
+  (when (member (pc-kind ctx) '(:newline :eof) :test #'eq)
+    (return-from parse-i8086-operands nil))
+  (let ((op1 (parse-i8086-operand ctx)))
+    (if (eq (pc-kind ctx) :comma)
+        (progn
+          (pc-advance ctx)               ; consomme ,
+          (list op1 (parse-i8086-operand ctx)))
         (list op1))))

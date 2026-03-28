@@ -337,6 +337,7 @@ for target in "${targets[@]}"; do
             m68k)   cl_asm_opts="$cl_asm_opts --target m68k" ;;
             z80)    cl_asm_opts="$cl_asm_opts --target z80" ;;
             i8080)  cl_asm_opts="$cl_asm_opts --target i8080" ;;
+            i8086)  cl_asm_opts="$cl_asm_opts --target i8086" ;;
         esac
 
         if ! "$CL_ASM" $cl_asm_opts "$source" -o "$out" 2>/dev/null; then
