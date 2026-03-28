@@ -54,14 +54,19 @@ Chaque SPEC est (addr . bytes)."
   (multiple-value-bind (mn op size) (disasm-one (mem #x60) #x0200)   ; RTS
     (check "RTS — ok" (and (string= mn "RTS") (= size 1) (string= op ""))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x18) #x0200)   ; CLC
+    (declare (ignore op))
     (check "CLC — ok" (and (string= mn "CLC") (= size 1))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x38) #x0200)   ; SEC
+    (declare (ignore op))
     (check "SEC — ok" (and (string= mn "SEC") (= size 1))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x48) #x0200)   ; PHA
+    (declare (ignore op))
     (check "PHA — ok" (and (string= mn "PHA") (= size 1))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x68) #x0200)   ; PLA
+    (declare (ignore op))
     (check "PLA — ok" (and (string= mn "PLA") (= size 1))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x00) #x0200)   ; BRK
+    (declare (ignore op))
     (check "BRK — ok" (and (string= mn "BRK") (= size 1)))))
 
 (deftest test/disasm-one-accumulator
@@ -156,6 +161,7 @@ Chaque SPEC est (addr . bytes)."
     (check "BNE +2 — size=2" (= size 2)))
   ;; BEQ offset $00 → target = $0200 + 2 + 0 = $0202
   (multiple-value-bind (mn op size) (disasm-one (mem #xF0 #x00) #x0200)
+    (declare (ignore size))
     (check "BEQ +0 → $0202" (and (string= mn "BEQ") (string= op "$0202"))))
   ;; BPL offset $FE = -2 → target = $0200 + 2 - 2 = $0200
   (multiple-value-bind (mn op size) (disasm-one (mem #x10 #xFE) #x0200)
@@ -163,17 +169,22 @@ Chaque SPEC est (addr . bytes)."
   ;; BMI offset $80 = -128 → target = $0300 + 2 - 128 = $0282
   (let ((m (apply #'make-mem (list (list* #x0300 '(#x30 #x80))))))
     (multiple-value-bind (mn op size) (disasm-one m #x0300)
+      (declare (ignore size))
       (check "BMI -128 → $0282" (and (string= mn "BMI") (string= op "$0282")))))
   ;; BVC offset $10 → $0200 + 2 + 16 = $0212
   (multiple-value-bind (mn op size) (disasm-one (mem #x50 #x10) #x0200)
+    (declare (ignore size))
     (check "BVC +16 → $0212" (and (string= mn "BVC") (string= op "$0212"))))
   ;; BCC offset $7F = +127 → $0200 + 2 + 127 = $0281
   (multiple-value-bind (mn op size) (disasm-one (mem #x90 #x7F) #x0200)
+    (declare (ignore size))
     (check "BCC +127 → $0281" (and (string= mn "BCC") (string= op "$0281"))))
   ;; BCS, BVS
   (multiple-value-bind (mn op size) (disasm-one (mem #xB0 #x0A) #x0200)
+    (declare (ignore size))
     (check "BCS +10 → $020C" (and (string= mn "BCS") (string= op "$020C"))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x70 #x04) #x0200)
+    (declare (ignore size))
     (check "BVS +4 → $0206" (and (string= mn "BVS") (string= op "$0206")))))
 
 (deftest test/disasm-one-illegal
@@ -182,12 +193,16 @@ Chaque SPEC est (addr . bytes)."
     (check "opcode $02 — operand vide" (string= op ""))
     (check "opcode $02 — size=1" (= size 1)))
   (multiple-value-bind (mn op size) (disasm-one (mem #xFF) #x0200)
+    (declare (ignore op))
     (check "opcode $FF illégal" (and (string= mn "???") (= size 1))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x80) #x0200)
+    (declare (ignore op))
     (check "opcode $80 illégal" (and (string= mn "???") (= size 1))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x12) #x0200)
+    (declare (ignore op))
     (check "opcode $12 illégal" (and (string= mn "???") (= size 1))))
   (multiple-value-bind (mn op size) (disasm-one (mem #x03) #x0200)
+    (declare (ignore op))
     (check "opcode $03 illégal" (and (string= mn "???") (= size 1)))))
 
 

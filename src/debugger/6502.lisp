@@ -538,7 +538,10 @@
                             (cond-ok   t))
                        (when cond-str
                          (handler-case
-                             (let ((form (read-from-string cond-str)))
+                             (let ((form (let ((*package* (load-time-value
+                                                           (find-package
+                                                            '#:cl-asm/debugger.6502))))
+                                           (read-from-string cond-str))))
                                (setf condition
                                      (eval `(lambda (cpu)
                                               (declare (ignorable cpu))
