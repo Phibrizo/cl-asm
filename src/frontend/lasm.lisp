@@ -338,7 +338,10 @@
     (let ((*lasm-include-stack* (cons truepath *lasm-include-stack*))
           (*lasm-base-dir* (make-pathname
                              :directory (pathname-directory truepath)
-                             :name nil :type nil)))
+                             :name nil :type nil))
+          (*load-verbose*  nil)
+          (*load-print*    nil)
+          (*error-output*  (make-broadcast-stream)))
       (load truepath))))
 
 
@@ -897,7 +900,10 @@
          (*lasm-include-stack* (list truepath))
          (*lasm-base-dir*      (make-pathname
                                  :directory (pathname-directory truepath)
-                                 :name nil :type nil)))
+                                 :name nil :type nil))
+         (*load-verbose*  nil)
+         (*load-print*    nil)
+         (*error-output*  (make-broadcast-stream)))
     (load truepath)
     (lasm-context-program *ctx*)))
 
