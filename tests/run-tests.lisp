@@ -110,6 +110,9 @@
     ;; --- Emetteurs ---
     (run-suite cl-asm/test.emitters)
 
+    ;; --- Détecteur de code mort ---
+    (run-suite cl-asm/test.dead-code)
+
     ;; --- Bilan global ---
     (format t "~%")
     (format t "--- ~A ---~%" (%msg "Core" "Core"))
@@ -225,6 +228,10 @@
     (format t "=== emitters     : ~3D OK, ~D KO~%"
             cl-asm/test.emitters:*pass*
             cl-asm/test.emitters:*fail*)
+    (format t "--- ~A ---~%" (%msg "Code mort" "Dead code"))
+    (format t "=== dead-code    : ~3D OK, ~D KO~%"
+            cl-asm/test.dead-code:*pass*
+            cl-asm/test.dead-code:*fail*)
     (format t "-------------------------------~%")
     (format t (%msg "=== TOTAL        : ~3D OK, ~D KO sur ~D tests~%"
                     "=== TOTAL        : ~3D OK, ~D KO out of ~D tests~%")

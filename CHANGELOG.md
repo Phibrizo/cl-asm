@@ -5,6 +5,35 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.21.0] — 2026-04-02
+
+### Added
+- **Dead code detector** (`src/core/dead-code.lisp`): static control-flow graph (CFG) reachability analysis on the IR, via BFS from declared entry points. Unreachable labels are reported as `dead-code-warning` structs. Architecture-independent registry pattern — same design as the peephole optimizer and disassembler registries. Package `cl-asm/dead-code`.
+  - `register-dead-code-analyzer target &key branch-mnemonics jump-mnemonics call-mnemonics return-mnemonics classify-fn target-operand-fn description` — registers an analyzer for a target architecture.
+  - `find-dead-code-analyzer target` / `all-dead-code-analyzers` — registry lookup.
+  - `analyze-dead-code sections target &key entry-points` — runs the BFS; returns a list of `dead-code-warning` (label name + source-loc). Returns `NIL` for unregistered targets (no error).
+  - `classify-fn` / `target-operand-fn` slots enable architectures with ambiguous mnemonics (Z80: `JR`/`JP`/`CALL`/`RET` can be conditional or not depending on operand count; results in both fall-through and target being added to the worklist for conditional variants).
+  - Known limits: indirect jumps (`JMP (addr)`, `JP (HL)`…) have no known target — they are treated as terminals (no fall-through, no target). Interrupt handlers must be declared as entry points. Self-modifying code is invisible to static analysis.
+- **Architecture-specific mnemonic tables** (`src/dead-code/`):
+  - `6502.lisp` — covers 6502, 6510 (+KIL), 65C02/R65C02 (+BRA as jump), 45GS02 (+LBEQ…LBVS, LBRA, JSQ, RTQ), 65816 (+BRL, JML, JSL, RTL, COP).
+  - `z80.lisp` — Z80 with `classify-fn`: unconditional `JR`/`JP` (1 operand) → `:jump`; conditional (2 operands) → `:branch`; `JP (HL)/(IX)/(IY)` → `:return` (indirect); `RET` alone → `:return`, `RET cond` → `:normal`; `CALL` alone → `:call`, `CALL cond` → `:branch`.
+  - `m68k.lisp` — M68K: Bcc/DBcc → `:branch`, BRA/JMP → `:jump`, BSR/JSR → `:call`, RTS/RTR/RTE → `:return`. No `classify-fn` needed (conditions embedded in mnemonics).
+  - `i8080.lisp` — Intel 8080: conditional jumps/calls (JC/JNC/JZ/JNZ/CC/CNC…) → `:branch`, conditional returns (RC/RNC…) → `:normal`, JMP → `:jump`, CALL → `:call`, RET/HLT → `:return`.
+  - `i8086.lisp` — Intel 8086: all Jcc + LOOP family → `:branch`, JMP/JMPF → `:jump`, CALL/CALLF → `:call`, RET/RETF/IRET/HLT → `:return`.
+- **Integration in `cl-asm/backend.6502:assemble`**: new keyword arguments `:detect-dead-code` and `:dead-code-entry-points`; the function now returns `(values bytes warnings)`. `assemble-string` and `assemble-file` propagate both keywords. Other backends use `analyze-dead-code` directly (standalone API).
+- 47 tests in `tests/test-dead-code.lisp`: registry (10 architectures + unknown target), no dead code (linear program, JSR, conditional branch fall-through and target), dead labels (unreachable function, two dead functions, code after JMP, code after RTS), explicit entry points (interrupt handlers, unknown entry point silently ignored), indirect jumps (conservative: code after indirect JMP is dead, code before is alive), unknown target → empty list, integration with `assemble-string` (no `detect-dead-code` → NIL warnings, with detection → warnings list, clean program → empty list, `dead-code-entry-points`), Z80 control flow (unconditional JR → dead fall-through, conditional JR NZ → both paths alive, CALL → fall-through and callee alive).
+
+### Tests
+
+| Suite | Tests |
+|-------|-------|
+| test-dead-code (+47) | 47 |
+| **Total** | **2966** |
+
+0 KO, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, ECL.
+
+---
+
 ## [0.20.0] — 2026-03-28
 
 ### Added

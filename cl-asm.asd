@@ -44,6 +44,7 @@
                  "src/core/backends"
                  "src/core/linker"
                  "src/core/optimizer"
+                 "src/core/dead-code"
                  "src/core/restarts"
                  "src/core/expression"
                  "src/core/symbol-table"
@@ -129,7 +130,19 @@
                  "src/backend/6502"))
    (:file "src/optimizer/65c02"
     :depends-on ("src/optimizer/6502"
-                 "src/backend/65c02"))))
+                 "src/backend/65c02"))
+   (:file "src/core/dead-code"
+    :depends-on ("src/core/ir"))
+   (:file "src/dead-code/6502"
+    :depends-on ("src/core/dead-code"))
+   (:file "src/dead-code/z80"
+    :depends-on ("src/core/dead-code"))
+   (:file "src/dead-code/m68k"
+    :depends-on ("src/core/dead-code"))
+   (:file "src/dead-code/i8080"
+    :depends-on ("src/core/dead-code"))
+   (:file "src/dead-code/i8086"
+    :depends-on ("src/core/dead-code"))))
 
 (defsystem "cl-asm/tests"
   :description "Suite de tests pour cl-asm"
@@ -201,6 +214,8 @@
                  "tests/test-disasm-65c02"))
    (:file "tests/test-emitters"
     :depends-on ())
+   (:file "tests/test-dead-code"
+    :depends-on ())
    (:file "tests/run-tests"
     :depends-on ("tests/test-expression"
                  "tests/test-symbol-table"
@@ -233,7 +248,8 @@
                  "tests/test-optimizer"
                  "tests/test-restarts"
                  "tests/test-listing"
-                 "tests/test-emitters")))
+                 "tests/test-emitters"
+                 "tests/test-dead-code")))
   :perform (test-op (o c)
              (let ((output (make-string-output-stream)))
                (let ((*standard-output* output))

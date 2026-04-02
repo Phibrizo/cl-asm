@@ -14,6 +14,7 @@ sbcl --load src/core/version.lisp \
      --load src/core/linker.lisp \
      --load src/core/linker-script.lisp \
      --load src/core/optimizer.lisp \
+     --load src/core/dead-code.lisp \
      --load src/frontend/classic-lexer.lisp \
      --load src/frontend/classic-parser.lisp \
      --load src/backend/6502.lisp \
@@ -35,6 +36,11 @@ sbcl --load src/core/version.lisp \
      --load src/profiler/6502.lisp \
      --load src/optimizer/6502.lisp \
      --load src/optimizer/65c02.lisp \
+     --load src/dead-code/6502.lisp \
+     --load src/dead-code/z80.lisp \
+     --load src/dead-code/m68k.lisp \
+     --load src/dead-code/i8080.lisp \
+     --load src/dead-code/i8086.lisp \
      --load src/emit/output.lisp \
      --load src/emit/ihex.lisp \
      --load src/emit/srec.lisp \
@@ -70,6 +76,7 @@ sbcl --load src/core/version.lisp \
      --load tests/test-restarts.lisp \
      --load tests/test-listing.lisp \
      --load tests/test-emitters.lisp \
+     --load tests/test-dead-code.lisp \
      --load tests/run-tests.lisp \
      --eval "(cl-asm/test:run-all-tests)" \
      --quit

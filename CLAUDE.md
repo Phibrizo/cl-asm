@@ -122,6 +122,15 @@ All backends implement two-pass assembly against the shared IR and symbol table.
   - **Profiler**: `profiler` struct — two 65536-entry fixnum arrays (`hit-count`, `cycle-count`) + incremental `total-hits`/`total-cycles`. `make-profiler`, `profiler-reset profiler`, `profile-step cpu profiler` (uses `handler-bind` to record even on BRK/illegal before an outer `handler-case` unwinds), `run-with-profiler cpu profiler &key (max-steps 1000000)` → `(values cpu status)` with status `:brk`/`:illegal`/`:step-limit`/`:watchpoint`. `print-profile profiler &key (stream t) (top 20)` — sorted by hit count.
   - **Tracer**: `tracer` struct — circular ring buffer of `trace-entry` (PC, A, X, Y, SP, P, delta-cycles, mnemonic, operand). `make-tracer &key (max-size 1000)`, `tracer-reset tracer`, `tracer-count tracer` (entries in buffer), `tracer-total tracer` (total recorded), `trace-step cpu tracer`, `run-with-tracer cpu tracer &key (max-steps 1000000)`, `tracer-entries-in-order tracer &optional last` (chronological slice of last N entries), `print-trace tracer &key (stream t) (last 20)`.
 
+### Dead code detector (`src/core/dead-code.lisp`, `src/dead-code/`)
+
+- **`dead-code.lisp`** — Extensible dead code analyzer registry. BFS reachability analysis on the IR. `register-dead-code-analyzer target &key branch-mnemonics jump-mnemonics call-mnemonics return-mnemonics classify-fn target-operand-fn description`, `find-dead-code-analyzer target`, `all-dead-code-analyzers`, `analyze-dead-code sections target &key entry-points` → list of `dead-code-warning` (label + source-loc). Returns NIL for unregistered targets. `classify-fn`/`target-operand-fn` handle ambiguous mnemonics (e.g. Z80 `JR`/`JP`). Package `cl-asm/dead-code`.
+- **`src/dead-code/6502.lisp`** — Tables for 6502 family: `:6502`, `:6510` (+KIL), `:65c02`/`:r65c02` (+BRA jump), `:45gs02` (+long branches/LBRA/JSQ/RTQ), `:65816` (+BRL/JML/JSL/RTL/COP).
+- **`src/dead-code/z80.lisp`** — Z80 with `classify-fn`: 1-op `JR`/`JP` → `:jump`; 2-op → `:branch`; `JP (HL)/(IX)/(IY)` → `:return`; `RET` alone → `:return`, `RET cond` → `:normal`; `CALL` alone → `:call`, `CALL cond` → `:branch`.
+- **`src/dead-code/m68k.lisp`** — M68K: Bcc/DBcc → branches; BRA/JMP → jumps; BSR/JSR → calls; RTS/RTR/RTE → returns.
+- **`src/dead-code/i8080.lisp`** — Intel 8080: conditional JX/CX → branches; conditional RX → normal; JMP → jump; CALL → call; RET/HLT → returns.
+- **`src/dead-code/i8086.lisp`** — Intel 8086: Jcc/LOOP → branches; JMP/JMPF → jumps; CALL/CALLF → calls; RET/RETF/IRET/HLT → returns.
+
 ### Optimizer (`src/core/optimizer.lisp`, `src/optimizer/`)
 
 - **`optimizer.lisp`** — Extensible peephole optimizer registry. `register-peephole-optimizer target rules description`, `find-peephole-optimizer target`, `optimize-sections sections target` (called before pass-1). Each rule is a function `(nodes) → nil | (values replacement-list consumed-count)`. Package `cl-asm/optimizer`.
@@ -169,7 +178,7 @@ Tables exportées : `*cycles-6502*` (151 opcodes, valide aussi pour 6510), `*cyc
 
 ## Test Structure
 
-2919 tests across 32 suites in `tests/test-*.lisp`. Regression test reference binaries live in `tests/regression/{c64,mega65,x16}/` as `.ref.prg` files.
+2966 tests across 33 suites in `tests/test-*.lisp`. Regression test reference binaries live in `tests/regression/{c64,mega65,x16}/` as `.ref.prg` files.
 
 Expected output after all tests pass:
 ```
@@ -245,6 +254,7 @@ The Z80 parser shares the classic frontend with 6502. Some mnemonics are common 
 - ~~**Profiler/Tracer 6502/6510**: hit-count + cycle-count arrays, ring-buffer tracer, `profile-step`/`trace-step`, `run-with-profiler`/`run-with-tracer`, `print-profile`/`print-trace`, `tracer-entries-in-order`. Uses `handler-bind` for guaranteed recording on BRK/illegal~~ — done in v0.19.0 (78 tests).
 - ~~**Full Lisp evaluation in `.lasm`**: `dotimes`/`loop`/`let`/`defmacro` etc. already work natively — `load-lasm-string` calls `(eval form)` in the `cl-asm/lasm` package. Validated by `test/lisp-dotimes` and `test/lisp-loop`.~~ — already done, not a new feature.
 - ~~**`.include "file"` / `(include-source "file")`**: source file inclusion resolved at parse time, shared context (macros/labels/constants), relative paths, cycle detection~~ — done in v0.20.0 (13 tests).
+- ~~**Dead code detector**: static CFG reachability (BFS) from declared entry points, extensible registry pattern, classify-fn/target-operand-fn for ambiguous mnemonics (Z80), 10 architectures registered~~ — done in v0.21.0 (47 tests).
 - **Profiler/Tracer for 65C02/45GS02 (Commander X16, Mega65)**: requires extending the 6502 simulator to support 65C02 and 45GS02 ISAs first — deferred.
 - **Declarative instruction tables** (`define-instruction` DSL): macro generating hash-table entries + compile-time consistency checks + automatic disassembler table derivation. Low priority — current format is already readable.
 - **Incremental REPL assembly** (`with-asm` macro): build a program form-by-form in SLIME/SLY with `inspect-pc` feedback. Low complexity, ergonomic gain for interactive sessions.

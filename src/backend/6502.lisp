@@ -874,13 +874,16 @@
 ;;;  Point d'entree public
 ;;; --------------------------------------------------------------------------
 
-(defun assemble (program &key (origin #x0801) (section :text) debug-map optimize)
-  "Assemble PROGRAM (IR-PROGRAM) et retourne un vecteur d'octets.
-   ORIGIN    : adresse de chargement par defaut ($0801 pour C64).
-   SECTION   : section principale a assembler (:text par defaut).
-   DEBUG-MAP : cl-asm/debugger.6502:debug-map a remplir (adresse → source-loc)
-               pour un usage avec le debogueur interactif.
-   OPTIMIZE  : si non-NIL, applique l'optimiseur peephole avant la passe 1."
+(defun assemble (program &key (origin #x0801) (section :text) debug-map optimize
+                              detect-dead-code dead-code-entry-points)
+  "Assemble PROGRAM (IR-PROGRAM) et retourne (values bytes warnings).
+   ORIGIN               : adresse de chargement par defaut ($0801 pour C64).
+   SECTION              : section principale a assembler (:text par defaut).
+   DEBUG-MAP            : debug-map a remplir (adresse → source-loc).
+   OPTIMIZE             : si non-NIL, applique l'optimiseur peephole avant la passe 1.
+   DETECT-DEAD-CODE     : si non-NIL, analyse le code mort apres optimisation.
+   DEAD-CODE-ENTRY-POINTS : liste de noms de labels (strings) servant de points
+                            d'entree pour l'analyse (NIL = premier noeud)."
   (let* ((symtable (cl-asm/symbol-table:make-symbol-table))
          ;; On assemble toutes les sections dans l'ordre, en commencant
          ;; par la section principale
@@ -896,28 +899,41 @@
     (when optimize
       (setf sections (cl-asm/optimizer:optimize-sections sections :6502)))
 
-    ;; Initialiser le PC de la table des symboles
-    (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
+    ;; Detection de code mort (apres optimisation, avant passe 1)
+    (let ((dc-warnings
+           (when detect-dead-code
+             (cl-asm/dead-code:analyze-dead-code sections :6502
+                                                 :entry-points dead-code-entry-points))))
 
-    ;; Passe 1 : collecte des labels
-    (pass-1 sections symtable origin)
+      ;; Initialiser le PC de la table des symboles
+      (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
 
-    ;; Passe 2 : encodage (+ remplissage de la debug-map si fournie)
-    (cl-asm/symbol-table:begin-pass-2 symtable)
-    (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
-    (pass-2 sections symtable origin :debug-map debug-map)))
+      ;; Passe 1 : collecte des labels
+      (pass-1 sections symtable origin)
 
-(defun assemble-string (source &key (origin #x0801) optimize)
-  "Raccourci : parse SOURCE puis assemble. Retourne le vecteur d'octets."
+      ;; Passe 2 : encodage (+ remplissage de la debug-map si fournie)
+      (cl-asm/symbol-table:begin-pass-2 symtable)
+      (setf (cl-asm/symbol-table:st-current-pc symtable) origin)
+      (values (pass-2 sections symtable origin :debug-map debug-map)
+              dc-warnings))))
+
+(defun assemble-string (source &key (origin #x0801) optimize
+                                    detect-dead-code dead-code-entry-points)
+  "Raccourci : parse SOURCE puis assemble. Retourne (values bytes warnings)."
   (let ((program (cl-asm/parser:parse-string source)))
-    (assemble program :origin origin :optimize optimize)))
+    (assemble program :origin origin :optimize optimize
+                      :detect-dead-code detect-dead-code
+                      :dead-code-entry-points dead-code-entry-points)))
 
-(defun assemble-file (path &key (origin #x0801) debug-map optimize)
+(defun assemble-file (path &key (origin #x0801) debug-map optimize
+                                detect-dead-code dead-code-entry-points)
   "Raccourci : lit, parse et assemble le fichier a PATH.
-   Retourne le vecteur d'octets.
+   Retourne (values bytes warnings).
    DEBUG-MAP (optionnel) : debug-map a remplir (adresse → source-loc)."
   (let ((program (cl-asm/parser:parse-file path)))
-    (assemble program :origin origin :debug-map debug-map :optimize optimize)))
+    (assemble program :origin origin :debug-map debug-map :optimize optimize
+                      :detect-dead-code detect-dead-code
+                      :dead-code-entry-points dead-code-entry-points)))
 
 (cl-asm/backends:register-backend
  :6502

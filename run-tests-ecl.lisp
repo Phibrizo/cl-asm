@@ -65,6 +65,7 @@
 (load-filtered "src/core/linker.lisp")
 (load-filtered "src/core/linker-script.lisp")
 (load-filtered "src/core/optimizer.lisp")
+(load-filtered "src/core/dead-code.lisp")
 (load-filtered "src/frontend/classic-lexer.lisp")
 (load-filtered "src/frontend/classic-parser.lisp")
 (load-filtered "src/backend/6502.lisp")
@@ -86,6 +87,11 @@
 (load-filtered "src/profiler/6502.lisp")
 (load-filtered "src/optimizer/6502.lisp")
 (load-filtered "src/optimizer/65c02.lisp")
+(load-filtered "src/dead-code/6502.lisp")
+(load-filtered "src/dead-code/z80.lisp")
+(load-filtered "src/dead-code/m68k.lisp")
+(load-filtered "src/dead-code/i8080.lisp")
+(load-filtered "src/dead-code/i8086.lisp")
 (load-filtered "src/emit/output.lisp")
 (load-filtered "src/emit/ihex.lisp")
 (load-filtered "src/emit/srec.lisp")
@@ -121,6 +127,7 @@
 (load-filtered "tests/test-restarts.lisp")
 (load-filtered "tests/test-listing.lisp")
 (load-filtered "tests/test-emitters.lisp")
+(load-filtered "tests/test-dead-code.lisp")
 (load-filtered "tests/run-tests.lisp")
 
 

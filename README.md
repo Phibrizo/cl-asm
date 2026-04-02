@@ -9,14 +9,14 @@ The architecture is designed to accommodate additional backends without modifyin
 
 ## Version
 
-**Current version: 0.20.0**
+**Current version: 0.21.0**
 
 ```
-cl-asm/version:+version+         ; → "0.20.0"
+cl-asm/version:+version+         ; → "0.21.0"
 cl-asm/version:+version-major+   ; → 0
-cl-asm/version:+version-minor+   ; → 20
+cl-asm/version:+version-minor+   ; → 21
 cl-asm/version:+version-patch+   ; → 0
-(cl-asm/version:version-string)  ; → "0.20.0"
+(cl-asm/version:version-string)  ; → "0.21.0"
 ```
 
 ---
@@ -59,8 +59,9 @@ cl-asm/version:+version-patch+   ; → 0
 | Conditions & Restarts | ✓ | 14 |
 | 6502/6510 profiler & tracer | ✓ | 78 |
 | `.include` / `include-source` | ✓ | 13 |
+| Dead code detector (all architectures) | ✓ | 47 |
 
-**Total: 2919 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
+**Total: 2966 tests, 0 failures, 0 warnings — SBCL 2.6.2, CLISP 2.49.95+, and ECL 21.x+**
 
 ---
 
@@ -68,23 +69,25 @@ cl-asm/version:+version-patch+   ; → 0
 
 Tooling support per target architecture.
 
-| Architecture | Assembler | Disassembler | Simulator | Debugger | Profiler/Tracer | Linker | Optimizer | Cycle listing |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **6502** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ A+B | ✓ |
-| **6510** (C64) | ✓ | ~¹ | ~¹ | ~¹ | ~¹ | ✓ | ✓ A+B | ✓ |
-| **65C02** (X16) | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ A+B+C | ✓ |
-| **R65C02** (Rockwell) | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ~² |
-| **45GS02** (Mega65) | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ A+B | ~² |
-| **65816** (SNES/IIgs) | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **Z80** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **M68K** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **Intel 8080** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **Intel 8086/8088** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Architecture | Assembler | Disassembler | Simulator | Debugger | Profiler/Tracer | Linker | Optimizer | Cycle listing | Dead code |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **6502** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ A+B | ✓ | ✓ |
+| **6510** (C64) | ✓ | ~¹ | ~¹ | ~¹ | ~¹ | ✓ | ✓ A+B | ✓ | ✓ |
+| **65C02** (X16) | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ A+B+C | ✓ | ✓ |
+| **R65C02** (Rockwell) | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ~² | ✓ |
+| **45GS02** (Mega65) | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ A+B | ~² | ✓ |
+| **65816** (SNES/IIgs) | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
+| **Z80** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
+| **M68K** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
+| **Intel 8080** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
+| **Intel 8086/8088** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
 
 ¹ Legal opcodes only (6502 subset) — 6510 illegal opcodes (LAX, SAX…) are not simulated or disassembled
 ² Approximate — uses the 65C02 cycle table as a fallback
 
 Optimizer rules: **A** = JMP→next label elision · **B** = JSR/RTS→JMP tail-call · **C** = LDA #0/STA→STZ (65C02 only; excluded from 45GS02 where STZ means Store Z register)
+
+Dead code detector: static CFG reachability analysis from declared entry points. Indirect jumps (JMP (addr), JP (HL)…) are conservative — targets are not followed. Interrupt handlers must be declared as entry points explicitly.
 
 **Note:** `.include "file.asm"` (classic syntax) and `(include-source "file.lasm")` (Lisp syntax) are available for **all architectures** — they are resolved at parse time, before backend dispatch.
 

@@ -50,6 +50,11 @@ cl-asm est structuré en trois couches indépendantes :
 │  ← cl-asm/simulator.6502 (step-cpu)         │
 │  ← cl-asm/disassembler.6502 (disasm-one)   │
 └─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  Détecteur de code mort (optionnel, ttes arch.)│
+│  cl-asm/dead-code  (registre + moteur BFS)  │
+│  src/dead-code/*.lisp  (tables par arch.)   │
+└─────────────────────────────────────────────┘
 ```
 
 ---
@@ -86,6 +91,12 @@ cl-asm est structuré en trois couches indépendantes :
 | `cl-asm/debug-map` | `src/core/debug-map.lisp` | Table adresse→source-loc |
 | `cl-asm/debugger.6502` | `src/debugger/6502.lisp` | Débogueur 6502 interactif |
 | `cl-asm/profiler.6502` | `src/profiler/6502.lisp` | Profiler et tracer 6502/6510 |
+| `cl-asm/dead-code` | `src/core/dead-code.lisp` | Registre + moteur BFS de détection de code mort |
+| `cl-asm/dead-code.6502` | `src/dead-code/6502.lisp` | Tables de mnémoniques — famille 6502 |
+| `cl-asm/dead-code.z80` | `src/dead-code/z80.lisp` | Tables de mnémoniques — Z80 |
+| `cl-asm/dead-code.m68k` | `src/dead-code/m68k.lisp` | Tables de mnémoniques — M68K |
+| `cl-asm/dead-code.i8080` | `src/dead-code/i8080.lisp` | Tables de mnémoniques — Intel 8080 |
+| `cl-asm/dead-code.i8086` | `src/dead-code/i8086.lisp` | Tables de mnémoniques — Intel 8086 |
 | `cl-asm/test.*` | `tests/test-*.lisp` | Suites de tests |
 
 ---
